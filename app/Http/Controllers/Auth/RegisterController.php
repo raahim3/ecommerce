@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\WelcomeEmail;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AdminNotifier;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,6 +42,12 @@ class RegisterController extends Controller
 
         try {
             Mail::to($user->email)->send(new WelcomeEmail($user));
+        } catch (\Exception $e) {
+            report($e);
+        }
+
+        try {
+            AdminNotifier::notifyNewCustomer($user);
         } catch (\Exception $e) {
             report($e);
         }

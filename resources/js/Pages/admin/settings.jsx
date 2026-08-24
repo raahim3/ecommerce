@@ -68,16 +68,21 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
   const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
 
   // 1. General & Branding
-  const [general, setGeneral] = useState(settings.general || {
+  const [general, setGeneral] = useState({
     storeName: "Atelier Studios Inc.",
+    tagline: "Precision-Crafted Modern Essentials",
     supportEmail: "care@atelier-studios.com",
     phone: "+1 (800) 555-ATELIER",
     currency: "USD — US Dollar",
     timezone: "UTC-5 (Eastern Standard)",
+    logoLight: "",
+    logoDark: "",
+    favicon: "",
+    ...(settings.general || {}),
   });
 
   // 2. SEO & Social
-  const [seo, setSeo] = useState(settings.seo || {
+  const [seo, setSeo] = useState({
     metaTitle: "ATELIER — Precision-Crafted Modern Essentials",
     metaDescription: "Curated audio, timepieces, Mongolian cashmere knitwear, and artisanal home goods.",
     metaKeywords: "luxury essentials, cashmere knitwear, studio headphones, leather accessories",
@@ -86,10 +91,11 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
     googleAnalyticsId: "",
     facebookPixelId: "",
     robotsTxt: "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://atelier-studios.com/sitemap.xml",
+    ...(settings.seo || {}),
   });
 
   // 3. SMTP
-  const [smtp, setSmtp] = useState(settings.smtp || {
+  const [smtp, setSmtp] = useState({
     driver: "SMTP",
     host: "smtp.mailtrap.io",
     port: "587",
@@ -98,20 +104,25 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
     password: "",
     fromName: "Atelier Studios",
     fromEmail: "noreply@atelier-studios.com",
+    ...(settings.smtp || {}),
   });
   const [smtpPasswordVisible, setSmtpPasswordVisible] = useState(false);
   const [smtpTesting, setSmtpTesting] = useState(false);
 
   // 4. Payments
-  const [payments, setPayments] = useState(settings.payments || {
+  const [payments, setPayments] = useState({
+    stripeEnabled: true,
     stripePublishable: "",
     stripeSecret: "",
+    paypalEnabled: true,
     paypalClientId: "",
     paypalSecret: "",
     codEnabled: true,
     testMode: true,
+    ...(settings.payments || {}),
   });
   const [stripeSecretVisible, setStripeSecretVisible] = useState(false);
+  const [paypalSecretVisible, setPaypalSecretVisible] = useState(false);
 
   // 5. Shipping & Taxes
   const [shipping, setShipping] = useState(settings.shipping || {
@@ -149,12 +160,12 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
       });
       const result = await res.json();
       if (res.ok && result.success) {
-        toast.success(`${group.toUpperCase()} settings saved successfully!`);
+        toast.success(`${group.charAt(0).toUpperCase() + group.slice(1)} settings saved successfully!`);
       } else {
-        toast.error(result.message || "Failed to save settings");
+        toast.error(result.message || "Failed to save settings. Please try again.");
       }
     } catch {
-      toast.success(`${group.toUpperCase()} settings saved.`);
+      toast.error("Network error — settings could not be saved. Check your connection.");
     } finally {
       setSavingGroup(null);
     }
@@ -329,6 +340,16 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                     />
                   </div>
                   <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Store Tagline / Slogan</label>
+                    <input
+                      type="text"
+                      value={general.tagline || ""}
+                      onChange={(e) => setGeneral({ ...general, tagline: e.target.value })}
+                      placeholder="e.g. Precision-Crafted Modern Essentials"
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer Support Email</label>
                     <input
                       type="email"
@@ -357,6 +378,163 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Store Timezone</label>
+                    <select
+                      value={general.timezone}
+                      onChange={(e) => setGeneral({ ...general, timezone: e.target.value })}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    >
+                      {TIMEZONES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Brand Assets & Logos */}
+                <div className="pt-6 border-t border-slate-100 space-y-4">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Brand Assets & Logos</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Configure store logos for light/dark modes and the browser favicon.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Light Logo */}
+                    <div className="rounded-2xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700">Logo (Light)</label>
+                        <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-violet-600 hover:text-violet-800">
+                          <Upload className="size-3" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData();
+                              fd.append("image", file);
+                              fd.append("folder", "branding");
+                              try {
+                                const res = await fetch("/admin/api/upload", { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken() }, body: fd });
+                                const d = await res.json();
+                                if (res.ok && d.url) {
+                                  setGeneral((g) => ({ ...g, logoLight: d.url }));
+                                  toast.success("Light logo uploaded!");
+                                }
+                              } catch { toast.error("Upload failed"); }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="url"
+                        value={general.logoLight || ""}
+                        onChange={(e) => setGeneral({ ...general, logoLight: e.target.value })}
+                        placeholder="Paste URL or click Upload"
+                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none"
+                      />
+                      <div className="h-16 w-full rounded-xl border border-slate-300 bg-slate-900 flex items-center justify-center p-2 overflow-hidden">
+                        {general.logoLight ? (
+                          <img src={general.logoLight} alt="Light Logo Preview" className="max-h-full object-contain" />
+                        ) : (
+                          <span className="text-xs font-bold tracking-tight text-white">{general.storeName || "ATELIER"}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Dark Logo */}
+                    <div className="rounded-2xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700">Logo (Dark)</label>
+                        <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-violet-600 hover:text-violet-800">
+                          <Upload className="size-3" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData();
+                              fd.append("image", file);
+                              fd.append("folder", "branding");
+                              try {
+                                const res = await fetch("/admin/api/upload", { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken() }, body: fd });
+                                const d = await res.json();
+                                if (res.ok && d.url) {
+                                  setGeneral((g) => ({ ...g, logoDark: d.url }));
+                                  toast.success("Dark logo uploaded!");
+                                }
+                              } catch { toast.error("Upload failed"); }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="url"
+                        value={general.logoDark || ""}
+                        onChange={(e) => setGeneral({ ...general, logoDark: e.target.value })}
+                        placeholder="Paste URL or click Upload"
+                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none"
+                      />
+                      <div className="h-16 w-full rounded-xl border border-slate-200 bg-white flex items-center justify-center p-2 overflow-hidden shadow-2xs">
+                        {general.logoDark ? (
+                          <img src={general.logoDark} alt="Dark Logo Preview" className="max-h-full object-contain" />
+                        ) : (
+                          <span className="text-xs font-bold tracking-tight text-slate-900">{general.storeName || "ATELIER"}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Favicon */}
+                    <div className="rounded-2xl border border-slate-200 p-4 space-y-3 bg-slate-50/50">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700">Browser Favicon</label>
+                        <label className="flex items-center gap-1 cursor-pointer text-[10px] font-bold text-violet-600 hover:text-violet-800">
+                          <Upload className="size-3" />
+                          <span>Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const fd = new FormData();
+                              fd.append("image", file);
+                              fd.append("folder", "branding");
+                              try {
+                                const res = await fetch("/admin/api/upload", { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken() }, body: fd });
+                                const d = await res.json();
+                                if (res.ok && d.url) {
+                                  setGeneral((g) => ({ ...g, favicon: d.url }));
+                                  toast.success("Favicon uploaded!");
+                                }
+                              } catch { toast.error("Upload failed"); }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="url"
+                        value={general.favicon || ""}
+                        onChange={(e) => setGeneral({ ...general, favicon: e.target.value })}
+                        placeholder="Paste URL or click Upload"
+                        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none"
+                      />
+                      <div className="h-16 w-full rounded-xl border border-slate-200 bg-white flex items-center justify-center p-2 overflow-hidden shadow-2xs">
+                        {general.favicon ? (
+                          <img src={general.favicon} alt="Favicon Preview" className="size-8 object-contain" />
+                        ) : (
+                          <div className="grid size-8 place-items-center rounded-lg bg-slate-900 text-white font-bold text-xs">A</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -551,11 +729,36 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Mail Driver</label>
+                    <select
+                      value={smtp.driver || "SMTP"}
+                      onChange={(e) => setSmtp({ ...smtp, driver: e.target.value })}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    >
+                      {MAIL_DRIVERS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Encryption</label>
+                    <select
+                      value={smtp.encryption || "TLS (Port 587)"}
+                      onChange={(e) => setSmtp({ ...smtp, encryption: e.target.value })}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    >
+                      {SMTP_ENCRYPTIONS.map((enc) => (
+                        <option key={enc} value={enc}>{enc}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">SMTP Host</label>
                     <input
                       type="text"
                       value={smtp.host}
                       onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
+                      placeholder="smtp.mailtrap.io"
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -565,8 +768,38 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                       type="text"
                       value={smtp.port}
                       onChange={(e) => setSmtp({ ...smtp, port: e.target.value })}
+                      placeholder="587"
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">SMTP Username</label>
+                    <input
+                      type="text"
+                      value={smtp.username || ""}
+                      onChange={(e) => setSmtp({ ...smtp, username: e.target.value })}
+                      placeholder="smtp_user"
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">SMTP Password</label>
+                    <div className="relative mt-1">
+                      <input
+                        type={smtpPasswordVisible ? "text" : "password"}
+                        value={smtp.password || ""}
+                        onChange={(e) => setSmtp({ ...smtp, password: e.target.value })}
+                        placeholder="••••••••••••"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-10 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSmtpPasswordVisible(!smtpPasswordVisible)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {smtpPasswordVisible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sender From Name</label>
@@ -574,6 +807,7 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                       type="text"
                       value={smtp.fromName}
                       onChange={(e) => setSmtp({ ...smtp, fromName: e.target.value })}
+                      placeholder="Atelier Studios"
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -583,6 +817,7 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                       type="email"
                       value={smtp.fromEmail}
                       onChange={(e) => setSmtp({ ...smtp, fromEmail: e.target.value })}
+                      placeholder="noreply@atelier-studios.com"
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -612,12 +847,52 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                 </div>
 
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 p-5 space-y-3">
+                  {/* Test Mode Banner */}
+                  <div className={cn(
+                    "flex items-center justify-between rounded-2xl border p-4",
+                    payments.testMode ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"
+                  )}>
+                    <div>
+                      <p className="font-bold text-xs text-slate-900">Test / Sandbox Mode</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {payments.testMode ? "⚠ Test mode is ON — no real charges will be made." : "Live mode — real charges are processed."}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPayments({ ...payments, testMode: !payments.testMode })}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      {payments.testMode
+                        ? <ToggleRight className="size-8 text-amber-500" />
+                        : <ToggleLeft className="size-8 text-slate-400" />}
+                      <span className={cn("text-xs font-bold", payments.testMode ? "text-amber-600" : "text-slate-400")}>
+                        {payments.testMode ? "ON" : "OFF"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Stripe */}
+                  <div className={cn(
+                    "rounded-2xl border p-5 space-y-3 transition-colors",
+                    payments.stripeEnabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/70 opacity-75"
+                  )}>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-slate-900 flex items-center gap-2">
                         <CreditCard className="size-4 text-slate-700" /> Stripe Credit / Debit Card Processing
                       </span>
-                      <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold">Enabled</span>
+                      <button
+                        type="button"
+                        onClick={() => setPayments({ ...payments, stripeEnabled: !payments.stripeEnabled })}
+                        className="flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {payments.stripeEnabled
+                          ? <ToggleRight className="size-7 text-emerald-500" />
+                          : <ToggleLeft className="size-7 text-slate-400" />}
+                        <span className={cn("text-[11px] font-bold", payments.stripeEnabled ? "text-emerald-600" : "text-slate-400")}>
+                          {payments.stripeEnabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                       <div>
@@ -632,20 +907,108 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 uppercase">Stripe Secret Key</label>
+                        <div className="relative mt-1">
+                          <input
+                            type={stripeSecretVisible ? "text" : "password"}
+                            value={payments.stripeSecret}
+                            onChange={(e) => setPayments({ ...payments, stripeSecret: e.target.value })}
+                            placeholder="sk_test_..."
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-9 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setStripeSecretVisible(!stripeSecretVisible)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {stripeSecretVisible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PayPal */}
+                  <div className={cn(
+                    "rounded-2xl border p-5 space-y-3 transition-colors",
+                    payments.paypalEnabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/70 opacity-75"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                        <DollarSign className="size-4 text-blue-600" /> PayPal Express Checkout
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPayments({ ...payments, paypalEnabled: !payments.paypalEnabled })}
+                        className="flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {payments.paypalEnabled
+                          ? <ToggleRight className="size-7 text-emerald-500" />
+                          : <ToggleLeft className="size-7 text-slate-400" />}
+                        <span className={cn("text-[11px] font-bold", payments.paypalEnabled ? "text-emerald-600" : "text-slate-400")}>
+                          {payments.paypalEnabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">PayPal Client ID</label>
                         <input
-                          type="password"
-                          value={payments.stripeSecret}
-                          onChange={(e) => setPayments({ ...payments, stripeSecret: e.target.value })}
-                          placeholder="sk_test_..."
+                          type="text"
+                          value={payments.paypalClientId}
+                          onChange={(e) => setPayments({ ...payments, paypalClientId: e.target.value })}
+                          placeholder="AYour_Client_ID..."
                           className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                         />
                       </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">PayPal Secret</label>
+                        <div className="relative mt-1">
+                          <input
+                            type={paypalSecretVisible ? "text" : "password"}
+                            value={payments.paypalSecret}
+                            onChange={(e) => setPayments({ ...payments, paypalSecret: e.target.value })}
+                            placeholder="EYour_Secret..."
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-9 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPaypalSecretVisible(!paypalSecretVisible)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            {paypalSecretVisible ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Cash on Delivery */}
+                  <div className={cn(
+                    "rounded-2xl border p-5 flex items-center justify-between",
+                    payments.codEnabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50"
+                  )}>
+                    <div>
+                      <p className="font-bold text-xs text-slate-900">Cash on Delivery (COD)</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Allow customers to pay when the order is delivered.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPayments({ ...payments, codEnabled: !payments.codEnabled })}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      {payments.codEnabled
+                        ? <ToggleRight className="size-8 text-emerald-500" />
+                        : <ToggleLeft className="size-8 text-slate-400" />}
+                      <span className={cn("text-xs font-bold", payments.codEnabled ? "text-emerald-600" : "text-slate-400")}>
+                        {payments.codEnabled ? "Enabled" : "Disabled"}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           )}
+
 
           {/* ============ 6. SHIPPING & TAXES ============ */}
           {activeTab === "shipping" && (

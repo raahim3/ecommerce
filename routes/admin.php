@@ -9,9 +9,21 @@ use App\Http\Controllers\Admin\InventoryController;
 use App\Http\Controllers\Admin\ReportsController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\CustomersController;
+use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\UploadController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // File Upload API
+    Route::post('/api/upload', [UploadController::class, 'upload'])->name('upload');
+
+    // Notifications
+    Route::get('/api/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/api/notifications/{id}/read', [AdminNotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/api/notifications/mark-all-read', [AdminNotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
+    Route::delete('/api/notifications/{id}', [AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
+    Route::delete('/api/notifications', [AdminNotificationController::class, 'clearAll'])->name('notifications.clear-all');
 
     // Products
     Route::get('/products', [ProductController::class, 'index'])->name('products');

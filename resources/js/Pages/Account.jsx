@@ -16,6 +16,10 @@ import {
   Shield,
   Sparkles,
   RotateCcw,
+  Trash2,
+  Edit,
+  X,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
@@ -83,9 +87,153 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
       state: "NY",
       postal_code: "10001",
       country: "US",
+      phone: "+1 (555) 234-5678",
       is_default: true,
     },
   ]);
+
+  // Saved Cards state
+  const [cards, setCards] = useState([
+    { id: 1, type: "VISA", last4: "4242", expiry: "12/28", holder: "Alex Rivers", is_default: true },
+    { id: 2, type: "MASTERCARD", last4: "8891", expiry: "09/27", holder: "Alex Rivers", is_default: false },
+  ]);
+
+  // Address Modal State
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
+  const [addressForm, setAddressForm] = useState({
+    first_name: "",
+    last_name: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    phone: "",
+    is_default: false,
+  });
+
+  // Card Modal State
+  const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  const [cardForm, setCardForm] = useState({
+    holder: "",
+    number: "",
+    expiry: "",
+    cvc: "",
+    is_default: false,
+  });
+
+  const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+
+  const handleOpenAddressModal = (addr = null) => {
+    if (addr) {
+      setEditingAddressId(addr.id);
+      setAddressForm({
+        first_name: addr.first_name || "",
+        last_name: addr.last_name || "",
+        address_line1: addr.address_line1 || addr.street || "",
+        address_line2: addr.address_line2 || "",
+        city: addr.city || "",
+        state: addr.state || "",
+        postal_code: addr.postal_code || addr.zip || "",
+        phone: addr.phone || "",
+        is_default: !!(addr.is_default || addr.isDefault),
+      });
+    } else {
+      setEditingAddressId(null);
+      setAddressForm({
+        first_name: profile.name.split(" ")[0] || "",
+        last_name: profile.name.split(" ").slice(1).join(" ") || "",
+        address_line1: "",
+        address_line2: "",
+        city: "",
+        state: "",
+        postal_code: "",
+        phone: profile.phone || "",
+        is_default: addresses.length === 0,
+      });
+    }
+    setIsAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = (e) => {
+    e.preventDefault();
+    if (!addressForm.address_line1 || !addressForm.city || !addressForm.postal_code) {
+      toast.error("Please fill in required address fields.");
+      return;
+    }
+
+    if (editingAddressId) {
+      setAddresses((prev) =>
+        prev.map((a) => {
+          if (a.id === editingAddressId) {
+            return { ...a, ...addressForm };
+          }
+          if (addressForm.is_default) {
+            return { ...a, is_default: false, isDefault: false };
+          }
+          return a;
+        })
+      );
+      toast.success("Address updated successfully!");
+    } else {
+      const newAddr = {
+        id: Date.now(),
+        ...addressForm,
+      };
+      setAddresses((prev) => {
+        const updated = addressForm.is_default
+          ? prev.map((a) => ({ ...a, is_default: false, isDefault: false }))
+          : prev;
+        return [newAddr, ...updated];
+      });
+      toast.success("New address saved!");
+    }
+    setIsAddressModalOpen(false);
+  };
+
+  const handleDeleteAddress = (id) => {
+    setAddresses((prev) => prev.filter((a) => a.id !== id));
+    toast.success("Address removed");
+  };
+
+  const handleSaveCard = (e) => {
+    e.preventDefault();
+    const rawNumber = cardForm.number.replace(/\s+/g, "");
+    if (rawNumber.length < 12) {
+      toast.error("Please enter a valid card number.");
+      return;
+    }
+    const last4 = rawNumber.slice(-4);
+    const brand = rawNumber.startsWith("4") ? "VISA" : rawNumber.startsWith("5") ? "MASTERCARD" : "AMEX";
+    const newCard = {
+      id: Date.now(),
+      type: brand,
+      last4,
+      expiry: cardForm.expiry || "12/28",
+      holder: cardForm.holder || profile.name,
+      is_default: cardForm.is_default || cards.length === 0,
+    };
+
+    setCards((prev) => {
+      const updated = newCard.is_default ? prev.map((c) => ({ ...c, is_default: false })) : prev;
+      return [newCard, ...updated];
+    });
+
+    setIsCardModalOpen(false);
+    setCardForm({ holder: "", number: "", expiry: "", cvc: "", is_default: false });
+    toast.success("Card added securely!");
+  };
+
+  const handleDeleteCard = (id) => {
+    setCards((prev) => prev.filter((c) => c.id !== id));
+    toast.success("Payment method removed");
+  };
+
+  const handleSetDefaultCard = (id) => {
+    setCards((prev) => prev.map((c) => ({ ...c, is_default: c.id === id })));
+    toast.success("Default payment card updated");
+  };
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -324,74 +472,93 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
                   </div>
                   <button
                     type="button"
-                    onClick={() => toast.info("Address modal triggered")}
-                    className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    onClick={() => handleOpenAddressModal()}
+                    className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
                   >
                     <Plus className="size-3.5" />
                     <span>Add New</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {addresses.map((addr) => (
-                    <div
-                      key={addr.id}
-                      className={cn(
-                        "rounded-2xl border p-5 space-y-3 relative flex flex-col justify-between",
-                        (addr.is_default || addr.isDefault)
-                          ? "border-accent/40 bg-accent/5"
-                          : "border-border/80 bg-background/50",
-                      )}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                            {addr.first_name ? `${addr.first_name} ${addr.last_name}` : addr.title || "Saved Address"}
-                          </h4>
-                          {(addr.is_default || addr.isDefault) && (
-                            <span className="rounded-full bg-accent text-accent-foreground px-2 py-0.5 text-[10px] font-bold">
-                              Default
-                            </span>
-                          )}
+                {addresses.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground space-y-2">
+                    <MapPin className="size-8 mx-auto text-muted-foreground/50" />
+                    <p className="text-xs font-bold text-foreground">No saved addresses yet</p>
+                    <p className="text-xs">Add an address to speed up your checkout process.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {addresses.map((addr) => (
+                      <div
+                        key={addr.id}
+                        className={cn(
+                          "rounded-2xl border p-5 space-y-3 relative flex flex-col justify-between transition-all",
+                          (addr.is_default || addr.isDefault)
+                            ? "border-accent/40 bg-accent/5"
+                            : "border-border/80 bg-background/50",
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                              {addr.first_name ? `${addr.first_name} ${addr.last_name}` : addr.title || "Saved Address"}
+                            </h4>
+                            {(addr.is_default || addr.isDefault) && (
+                              <span className="rounded-full bg-accent text-accent-foreground px-2 py-0.5 text-[10px] font-bold">
+                                Default
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                            {addr.address_line1 || addr.street}
+                            {addr.address_line2 && `, ${addr.address_line2}`}
+                            <br />
+                            {addr.city}, {addr.state} {addr.postal_code || addr.zip}
+                            {addr.phone && <><br /><span className="text-[11px] text-muted-foreground/80">{addr.phone}</span></>}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                          {addr.address_line1 || addr.street}
-                          {addr.address_line2 && `, ${addr.address_line2}`}
-                          <br />
-                          {addr.city}, {addr.state} {addr.postal_code || addr.zip}
-                        </p>
-                      </div>
 
-                      <div className="flex items-center gap-3 pt-3 border-t border-border/60 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => toast.info("Address editing coming soon.")}
-                          className="font-bold text-accent hover:underline"
-                        >
-                          Edit
-                        </button>
-                        {!(addr.is_default || addr.isDefault) && (
+                        <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddressModal(addr)}
+                              className="font-bold text-accent hover:underline cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            {!(addr.is_default || addr.isDefault) && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await fetch(`/api/addresses/${addr.id}/default`, {
+                                      method: "POST",
+                                      headers: { "X-CSRF-TOKEN": csrfToken() },
+                                    });
+                                  } catch {}
+                                  setAddresses(addresses.map((a) => ({ ...a, is_default: a.id === addr.id, isDefault: a.id === addr.id })));
+                                  toast.success("Default address updated");
+                                }}
+                                className="font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                Set Default
+                              </button>
+                            )}
+                          </div>
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                await fetch(`/api/addresses/${addr.id}/default`, {
-                                  method: "POST",
-                                  headers: { "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "" },
-                                });
-                              } catch {}
-                              setAddresses(addresses.map((a) => ({ ...a, is_default: a.id === addr.id, isDefault: a.id === addr.id })));
-                              toast.success("Default address updated");
-                            }}
-                            className="font-semibold text-muted-foreground hover:text-foreground"
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                            title="Delete address"
                           >
-                            Set Default
+                            <Trash2 className="size-3.5" />
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -407,49 +574,67 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
                   </div>
                   <button
                     type="button"
-                    onClick={() => toast.info("Add card flow opened")}
-                    className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    onClick={() => setIsCardModalOpen(true)}
+                    className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
                   >
                     <Plus className="size-3.5" />
                     <span>Add Card</span>
                   </button>
                 </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between rounded-2xl border border-accent/40 bg-accent/5 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-10 place-items-center rounded-xl bg-ink text-ink-foreground font-bold text-xs">
-                        VISA
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">Visa ending in 4242</p>
-                        <p className="text-[11px] text-muted-foreground">Expires 12/28 • Default</p>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-accent text-accent-foreground px-2 py-0.5 text-[10px] font-bold">
-                      Default
-                    </span>
+                {cards.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground space-y-2">
+                    <CreditCard className="size-8 mx-auto text-muted-foreground/50" />
+                    <p className="text-xs font-bold text-foreground">No saved cards</p>
+                    <p className="text-xs">Add a debit or credit card for seamless checkout.</p>
                   </div>
+                ) : (
+                  <div className="space-y-3">
+                    {cards.map((c) => (
+                      <div
+                        key={c.id}
+                        className={cn(
+                          "flex items-center justify-between rounded-2xl border p-4 transition-all",
+                          c.is_default ? "border-accent/40 bg-accent/5" : "border-border/80 bg-background/50"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="grid size-10 place-items-center rounded-xl bg-ink text-ink-foreground font-extrabold text-xs">
+                            {c.type}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-foreground">{c.type} ending in {c.last4}</p>
+                            <p className="text-[11px] text-muted-foreground">Expires {c.expiry} • {c.holder}</p>
+                          </div>
+                        </div>
 
-                  <div className="flex items-center justify-between rounded-2xl border border-border/80 bg-background/50 p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="grid size-10 place-items-center rounded-xl bg-muted text-foreground font-bold text-xs">
-                        MC
+                        <div className="flex items-center gap-3">
+                          {c.is_default ? (
+                            <span className="rounded-full bg-accent text-accent-foreground px-2 py-0.5 text-[10px] font-bold">
+                              Default
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSetDefaultCard(c.id)}
+                              className="text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              Make Default
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCard(c.id)}
+                            className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                            title="Delete card"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-foreground">Mastercard ending in 8812</p>
-                        <p className="text-[11px] text-muted-foreground">Expires 08/27</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => toast.success("Set as default")}
-                      className="text-xs font-bold text-muted-foreground hover:text-foreground"
-                    >
-                      Make Default
-                    </button>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -501,7 +686,7 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
                   <button
                     type="submit"
                     disabled={isSavingProfile}
-                    className="flex h-11 items-center justify-center rounded-full bg-primary px-8 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm disabled:opacity-60"
+                    className="flex h-11 items-center justify-center rounded-full bg-primary px-8 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm disabled:opacity-60 cursor-pointer"
                   >
                     {isSavingProfile ? "Saving..." : "Save Changes"}
                   </button>
@@ -511,6 +696,244 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
           </div>
         </div>
       </div>
+
+      {/* ================= ADDRESS MODAL ================= */}
+      {isAddressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-3xl border border-border bg-surface p-6 sm:p-8 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-bold text-foreground">
+                {editingAddressId ? "Edit Delivery Address" : "Add Delivery Address"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAddressModalOpen(false)}
+                className="grid size-8 place-items-center rounded-full hover:bg-muted text-muted-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddress} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">First Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.first_name}
+                    onChange={(e) => setAddressForm({ ...addressForm, first_name: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">Last Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.last_name}
+                    onChange={(e) => setAddressForm({ ...addressForm, last_name: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold uppercase text-muted-foreground">Street Address *</label>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.address_line1}
+                  onChange={(e) => setAddressForm({ ...addressForm, address_line1: e.target.value })}
+                  placeholder="e.g. 742 Evergreen Terrace"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold uppercase text-muted-foreground">Apt, Suite, Unit (Optional)</label>
+                <input
+                  type="text"
+                  value={addressForm.address_line2}
+                  onChange={(e) => setAddressForm({ ...addressForm, address_line2: e.target.value })}
+                  placeholder="e.g. Apt 4B"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">City *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">State / Prov</label>
+                  <input
+                    type="text"
+                    value={addressForm.state}
+                    onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">ZIP / Postal *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.postal_code}
+                    onChange={(e) => setAddressForm({ ...addressForm, postal_code: e.target.value })}
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold uppercase text-muted-foreground">Contact Phone</label>
+                <input
+                  type="tel"
+                  value={addressForm.phone}
+                  onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                  placeholder="+1 (555) 000-0000"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={addressForm.is_default}
+                  onChange={(e) => setAddressForm({ ...addressForm, is_default: e.target.checked })}
+                  className="size-4 accent-accent rounded"
+                />
+                <span className="text-xs text-foreground font-medium">Set as my default shipping address</span>
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  className="h-10 px-4 rounded-full border border-border text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-6 rounded-full bg-primary text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  {editingAddressId ? "Update Address" : "Save Address"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CARD MODAL ================= */}
+      {isCardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-6 sm:p-8 shadow-2xl space-y-5 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Lock className="size-4 text-emerald-600" />
+                <h3 className="text-base font-bold text-foreground">Add Payment Card</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCardModalOpen(false)}
+                className="grid size-8 place-items-center rounded-full hover:bg-muted text-muted-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCard} className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold uppercase text-muted-foreground">Cardholder Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={cardForm.holder}
+                  onChange={(e) => setCardForm({ ...cardForm, holder: e.target.value })}
+                  placeholder="e.g. Alex Rivers"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold uppercase text-muted-foreground">Card Number *</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={19}
+                  value={cardForm.number}
+                  onChange={(e) => setCardForm({ ...cardForm, number: e.target.value })}
+                  placeholder="•••• •••• •••• ••••"
+                  className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 font-mono text-sm focus:border-accent focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">Expires (MM/YY) *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={5}
+                    value={cardForm.expiry}
+                    onChange={(e) => setCardForm({ ...cardForm, expiry: e.target.value })}
+                    placeholder="12/28"
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 font-mono text-sm focus:border-accent focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold uppercase text-muted-foreground">CVC Code *</label>
+                  <input
+                    type="password"
+                    required
+                    maxLength={4}
+                    value={cardForm.cvc}
+                    onChange={(e) => setCardForm({ ...cardForm, cvc: e.target.value })}
+                    placeholder="•••"
+                    className="mt-1 h-10 w-full rounded-xl border border-border bg-background px-3 font-mono text-sm focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cardForm.is_default}
+                  onChange={(e) => setCardForm({ ...cardForm, is_default: e.target.checked })}
+                  className="size-4 accent-accent rounded"
+                />
+                <span className="text-xs text-foreground font-medium">Set as default payment method</span>
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setIsCardModalOpen(false)}
+                  className="h-10 px-4 rounded-full border border-border text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="h-10 px-6 rounded-full bg-primary text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  Save Card
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

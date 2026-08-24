@@ -8,6 +8,17 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use Illuminate\Support\Facades\Artisan;
+
+Route::get('dev-storage-link',function(){
+    Artisan::call('storage:link');
+    return "Storage link created";
+});
+
+Route::get('dev-migrate',function(){
+    Artisan::call('migrate');
+    return "Migrate created";
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])->name('login');

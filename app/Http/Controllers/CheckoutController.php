@@ -9,6 +9,8 @@ use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Setting;
+use App\Services\AdminNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,10 +59,38 @@ class CheckoutController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
+        // Validate Payment Method against Admin Settings
+        $paymentSettings = Setting::get('payments', [
+            'stripeEnabled' => true,
+            'paypalEnabled' => true,
+            'codEnabled' => true,
+        ]);
+
+        $selectedMethod = strtolower($request->payment_method);
+        if ($selectedMethod === 'cod' && empty($paymentSettings['codEnabled'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cash on Delivery is currently disabled by the store.',
+            ], 422);
+        }
+        if (($selectedMethod === 'stripe' || $selectedMethod === 'card') && isset($paymentSettings['stripeEnabled']) && !$paymentSettings['stripeEnabled']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Card payments are currently disabled.',
+            ], 422);
+        }
+        if ($selectedMethod === 'paypal' && isset($paymentSettings['paypalEnabled']) && !$paymentSettings['paypalEnabled']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PayPal payments are currently disabled.',
+            ], 422);
+        }
+
         return DB::transaction(function () use ($request) {
             $items = $request->items;
             $subtotal = 0.00;
             $orderItemsData = [];
+            $lowStockProducts = [];
 
             // 1. Validate items and calculate subtotal
             foreach ($items as $item) {
@@ -74,6 +104,10 @@ class CheckoutController extends Controller
                 // Decrement stock
                 if ($product->stock_quantity >= $qty) {
                     $product->decrement('stock_quantity', $qty);
+                    $freshStock = $product->fresh()->stock_quantity;
+                    if ($freshStock <= 5) {
+                        $lowStockProducts[] = $product->fresh();
+                    }
                 }
 
                 $orderItemsData[] = [
@@ -105,11 +139,37 @@ class CheckoutController extends Controller
                 }
             }
 
-            // 3. Calculate Tax & Shipping
+            // 3. Calculate Tax & Shipping — read from admin Settings (with safe fallbacks)
+            $shippingSettings = Setting::get('shipping', [
+                'zones' => [['name' => 'Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free']],
+                'tax'   => ['flatRate' => '8.0', 'automated' => true, 'taxIncluded' => false],
+            ]);
+
+            $taxConfig = $shippingSettings['tax'] ?? [];
+            $taxRate = isset($taxConfig['flatRate']) ? (float) $taxConfig['flatRate'] : 8.0;
+            $taxIncluded = (bool) ($taxConfig['taxIncluded'] ?? false);
+
+            // Derive free-shipping threshold from configured shipping zones
             $freeShippingThreshold = 100.00;
-            $shippingAmount = ($subtotal >= $freeShippingThreshold || $subtotal == 0) ? 0.00 : 15.00;
-            $taxAmount = round(($subtotal - $discountAmount) * 0.08, 2); // 8% sales tax
-            $totalAmount = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
+            $standardShippingRate  = 15.00;
+            foreach (($shippingSettings['zones'] ?? []) as $zone) {
+                if (!empty($zone['active']) === false && isset($zone['active']) && !$zone['active']) {
+                    continue;
+                }
+                $rateStr = strtolower(trim($zone['rate'] ?? ''));
+                if ($rateStr === 'free') {
+                    // Extract threshold e.g. "Orders > $100"
+                    if (preg_match('/\$(\d+(?:\.\d+)?)/', $zone['condition'] ?? '', $m)) {
+                        $freeShippingThreshold = (float) $m[1];
+                    }
+                } elseif (preg_match('/\$(\d+(?:\.\d+)?)/', $rateStr, $m)) {
+                    $standardShippingRate = (float) $m[1];
+                }
+            }
+
+            $shippingAmount = ($subtotal >= $freeShippingThreshold || $subtotal == 0) ? 0.00 : $standardShippingRate;
+            $taxAmount      = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
+            $totalAmount    = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
 
             // 4. Shipping Address object
             $shippingAddress = [
@@ -154,7 +214,17 @@ class CheckoutController extends Controller
                 $order->items()->create($itemData);
             }
 
-            // 7. Save Address for logged-in user if requested
+            // 7. Trigger Admin Notifications
+            try {
+                AdminNotifier::notifyNewOrder($order);
+                foreach ($lowStockProducts as $lowStockProduct) {
+                    AdminNotifier::notifyLowStock($lowStockProduct);
+                }
+            } catch (\Exception $e) {
+                report($e);
+            }
+
+            // 8. Save Address for logged-in user if requested
             if (Auth::check() && $request->boolean('save_address')) {
                 Address::firstOrCreate(
                     [
@@ -170,14 +240,14 @@ class CheckoutController extends Controller
                 );
             }
 
-            // 8. Clear database cart for user or session
+            // 9. Clear database cart for user or session
             if (Auth::check()) {
                 CartItem::where('user_id', Auth::id())->delete();
             } else {
                 CartItem::where('session_id', $request->session()->getId())->delete();
             }
 
-            // 9. Send Order Confirmation Email
+            // 10. Send Order Confirmation Email
             try {
                 Mail::to($order->customer_email)->send(new OrderConfirmationEmail($order));
             } catch (\Exception $e) {

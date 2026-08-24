@@ -674,13 +674,12 @@ export function AdminDashboardPage({
                     {formatPrice(order.total)}
                   </td>
                   <td className="p-3.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toast.info(`Viewing details for #${order.id}`)}
-                      className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                    <Link
+                      href="/admin/orders"
+                      className="inline-flex rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition-colors"
                     >
                       Inspect
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -36,6 +36,7 @@ export function Header() {
   const scrolled = useScrolled(40);
   const { url, props } = usePage();
   const user = props?.auth?.user;
+  const generalSettings = props?.app_settings?.general || {};
   const navigate = (href) => router.visit(href);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -44,6 +45,11 @@ export function Header() {
   const { count, pulse, openCart, wishlist } = useCart();
 
   const isHome = url === "/";
+
+  // Select logo depending on header background contrast
+  const activeLogo = (scrolled || !isHome)
+    ? (generalSettings.logoDark || generalSettings.logoLight)
+    : (generalSettings.logoLight || generalSettings.logoDark);
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -100,9 +106,20 @@ export function Header() {
         <div className="shell grid grid-cols-[auto_1fr_auto] items-center gap-4 py-3 lg:py-4">
           <Link
             href="/"
-            className="text-lg font-extrabold tracking-[-0.06em] whitespace-nowrap sm:text-xl transition-transform hover:opacity-90"
+            className="flex items-center gap-2 text-lg font-extrabold tracking-[-0.06em] whitespace-nowrap sm:text-xl transition-transform hover:opacity-90"
           >
-            ATELIER<span className="text-accent">.</span>
+            {activeLogo ? (
+              <img
+                src={activeLogo}
+                alt={generalSettings.storeName || "Store Logo"}
+                className="h-8 max-w-[150px] object-contain"
+              />
+            ) : (
+              <span>
+                {generalSettings.storeName || "ATELIER"}
+                <span className="text-accent">.</span>
+              </span>
+            )}
           </Link>
 
           <nav aria-label="Primary" className="hidden justify-center gap-7 lg:flex">

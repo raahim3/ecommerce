@@ -20,10 +20,14 @@ class SettingsController extends Controller
         $settings = [
             'general' => Setting::get('general', [
                 'storeName' => 'Atelier Studios Inc.',
+                'tagline' => 'Precision-Crafted Modern Essentials',
                 'supportEmail' => 'care@atelier-studios.com',
                 'phone' => '+1 (800) 555-ATELIER',
                 'currency' => 'USD — US Dollar',
                 'timezone' => 'UTC-5 (Eastern Standard)',
+                'logoLight' => '',
+                'logoDark' => '',
+                'favicon' => '',
             ]),
             'seo' => Setting::get('seo', [
                 'metaTitle' => 'ATELIER — Precision-Crafted Modern Essentials',
@@ -46,8 +50,10 @@ class SettingsController extends Controller
                 'fromEmail' => 'noreply@atelier-studios.com',
             ]),
             'payments' => Setting::get('payments', [
+                'stripeEnabled' => true,
                 'stripePublishable' => '',
                 'stripeSecret' => '',
+                'paypalEnabled' => true,
                 'paypalClientId' => '',
                 'paypalSecret' => '',
                 'codEnabled' => true,
@@ -136,7 +142,7 @@ class SettingsController extends Controller
             'is_active' => $request->boolean('is_active', $coupon->is_active),
         ]);
 
-        return response()->json(['success' => true, 'coupon' => $coupon]);
+        return response()->json(['success' => true, 'coupon' => $coupon->fresh()]);
     }
 
     public function toggleCoupon(int $id): JsonResponse

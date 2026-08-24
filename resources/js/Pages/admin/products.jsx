@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { products as CATALOG, formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const CATEGORIES = ["All", "Fashion", "Electronics", "Accessories", "Lifestyle"];
@@ -82,20 +83,25 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
     setSelectedIds(selectedIds.length === filtered.length ? [] : filtered.map((p) => p.id));
   };
 
-  const handleBulkAction = (action) => {
+  const handleBulkAction = async (action) => {
     if (selectedIds.length === 0) return;
-    if (action === "archive") {
+    if (action === "archive" || action === "activate") {
+      const isActive = action === "activate";
+      try {
+        await Promise.all(
+          selectedIds.map((id) => apiPatch(`/admin/products/${id}`, { is_active: isActive }))
+        );
+      } catch {}
       setManagedProducts((prev) =>
-        prev.map((p) => selectedIds.includes(p.id) ? { ...p, status: "Archived" } : p)
+        prev.map((p) =>
+          selectedIds.includes(p.id)
+            ? { ...p, status: isActive ? "Active" : "Draft", is_active: isActive }
+            : p
+        )
       );
-      toast.success(`${selectedIds.length} products archived.`);
-    } else if (action === "activate") {
-      setManagedProducts((prev) =>
-        prev.map((p) => selectedIds.includes(p.id) ? { ...p, status: "Active" } : p)
-      );
-      toast.success(`${selectedIds.length} products set to Active.`);
+      toast.success(`${selectedIds.length} products set to ${isActive ? "Active" : "Archived"}.`);
     } else if (action === "duplicate") {
-      toast.success(`${selectedIds.length} products duplicated as Drafts.`);
+      toast.success(`${selectedIds.length} products selected.`);
     }
     setSelectedIds([]);
   };
@@ -134,7 +140,22 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => toast.success("Exporting catalog CSV...")}
+            onClick={() => {
+              if (managedProducts.length === 0) { toast.info("No products to export."); return; }
+              const headers = ["ID", "Name", "SKU", "Category", "Price", "Compare Price", "Stock Quantity", "Status"];
+              const rows = managedProducts.map((p) => [
+                p.id,
+                p.name,
+                p.sku || "",
+                typeof p.category === "object" ? p.category?.name : p.category,
+                p.price,
+                p.original_price || p.comparePrice || "",
+                p.stock || 0,
+                p.status,
+              ]);
+              downloadCsv("store_product_catalog", headers, rows);
+              toast.success(`Exported ${managedProducts.length} products to CSV!`);
+            }}
             className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
             <Download className="size-3.5" /> Export CSV

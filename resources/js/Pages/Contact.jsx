@@ -13,6 +13,10 @@ import {
   CheckCircle2,
   HelpCircle,
   ArrowRight,
+  X,
+  Sparkles,
+  Bot,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -66,7 +70,61 @@ export function ContactPage() {
     orderId: "",
     message: "",
   });
-  const [isSending, setIsSending] = useState(false);
+  // Live Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: 1,
+      sender: "stylist",
+      name: "Camille (Atelier Stylist)",
+      text: "Hello! Welcome to Atelier Client Services. How can I assist you today with product sizing, pairing advice, or order inquiries?",
+      time: "Just now",
+    },
+  ]);
+
+  const handleSendChat = (e) => {
+    e.preventDefault();
+    const text = chatInput.trim();
+    if (!text) return;
+
+    const userMsg = {
+      id: Date.now(),
+      sender: "user",
+      name: "You",
+      text,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setChatMessages((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setIsTyping(true);
+
+    setTimeout(() => {
+      let reply = "Thank you for sharing. Our master atelier specialists recommend checking the sizing specifications tab on the product detail page for exact garment dimensions. Let me know if you need help with anything else!";
+      const lower = text.toLowerCase();
+      if (lower.includes("shipping") || lower.includes("delivery") || lower.includes("track")) {
+        reply = "Complimentary standard delivery takes 3–5 business days. You can also track any active package live from our Order Tracking portal using your Order ID.";
+      } else if (lower.includes("return") || lower.includes("refund")) {
+        reply = "We offer a 30-day risk-free return window on all unworn items with original tags intact, including prepaid shipping labels.";
+      } else if (lower.includes("cashmere") || lower.includes("knit") || lower.includes("size")) {
+        reply = "Our cashmere knitwear is true to size with a tailored, relaxed drape. If you prefer an oversized silhouette, we recommend sizing up one size.";
+      }
+
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          sender: "stylist",
+          name: "Camille (Atelier Stylist)",
+          text: reply,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+      setIsTyping(false);
+    }, 1000);
+  };
 
   const filteredFaqs = useMemo(() => {
     return FAQS.filter((faq) => {
@@ -151,10 +209,10 @@ export function ContactPage() {
             </div>
             <button
               type="button"
-              onClick={() => toast.info("Atelier Live Stylist connected")}
-              className="mt-4 text-xs font-bold text-accent hover:underline text-left inline-flex items-center gap-1"
+              onClick={() => setIsChatOpen(true)}
+              className="mt-4 text-xs font-bold text-accent hover:underline text-left inline-flex items-center gap-1 cursor-pointer"
             >
-              Start Live Chat Session
+              Start Live Chat Session →
             </button>
           </div>
 
@@ -347,6 +405,88 @@ export function ContactPage() {
           </div>
         </div>
       </div>
+
+      {/* ================= LIVE STYLIST CHAT MODAL ================= */}
+      {isChatOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end sm:p-6 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full sm:max-w-md h-[550px] max-h-[90vh] rounded-t-3xl sm:rounded-3xl border border-border bg-surface flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
+            {/* Chat Header */}
+            <div className="flex items-center justify-between border-b border-border bg-muted/40 p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="grid size-10 place-items-center rounded-full bg-accent text-accent-foreground font-extrabold text-xs shadow-xs">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-foreground">Camille • Atelier Concierge</h4>
+                  <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Now
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsChatOpen(false)}
+                className="grid size-8 place-items-center rounded-full hover:bg-muted text-muted-foreground transition-colors"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Chat Messages Log */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+              {chatMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "flex flex-col max-w-[85%] space-y-1",
+                    msg.sender === "user" ? "ml-auto items-end" : "mr-auto items-start"
+                  )}
+                >
+                  <span className="text-[10px] font-bold text-muted-foreground">{msg.name}</span>
+                  <div
+                    className={cn(
+                      "rounded-2xl p-3.5 leading-relaxed shadow-2xs",
+                      msg.sender === "user"
+                        ? "bg-primary text-primary-foreground rounded-br-xs"
+                        : "bg-muted/60 text-foreground border border-border/80 rounded-bl-xs"
+                    )}
+                  >
+                    {msg.text}
+                  </div>
+                  <span className="text-[9px] text-muted-foreground/70">{msg.time}</span>
+                </div>
+              ))}
+
+              {isTyping && (
+                <div className="flex items-center gap-1.5 rounded-2xl bg-muted/60 px-3.5 py-2 w-max text-[11px] text-muted-foreground border border-border/60 animate-pulse">
+                  <Bot className="size-3 text-accent" />
+                  <span>Camille is typing...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <form onSubmit={handleSendChat} className="p-3 border-t border-border bg-background flex items-center gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask about sizes, fabrics, styling..."
+                className="flex-1 h-10 rounded-full border border-border bg-surface px-4 text-xs focus:border-accent focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shrink-0 shadow-xs cursor-pointer"
+              >
+                <Send className="size-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

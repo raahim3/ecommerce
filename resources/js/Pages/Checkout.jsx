@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, router } from "@inertiajs/react";
+import { useState, useMemo, useEffect } from "react";
+import { Link, router, usePage } from "@inertiajs/react";
 import {
   ShieldCheck,
   Truck,
@@ -12,6 +12,7 @@ import {
   Sparkles,
   ArrowRight,
   ShoppingBag,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "@/components/site/cart";
@@ -20,6 +21,27 @@ import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function CheckoutPage({ user, savedAddresses = [] }) {
+  const { props } = usePage();
+  const paymentSettings = props?.app_settings?.payments || {
+    stripeEnabled: true,
+    paypalEnabled: true,
+    codEnabled: true,
+  };
+
+  const availablePaymentMethods = useMemo(() => {
+    const methods = [];
+    if (paymentSettings.stripeEnabled !== false) {
+      methods.push({ id: "card", label: "Credit / Debit Card", icon: CreditCard, description: "Instant 256-bit encrypted checkout" });
+    }
+    if (paymentSettings.paypalEnabled !== false) {
+      methods.push({ id: "paypal", label: "PayPal Express", icon: ShoppingBag, description: "Fast & secure payment with your PayPal balance or account" });
+    }
+    if (paymentSettings.codEnabled !== false) {
+      methods.push({ id: "cod", label: "Cash on Delivery", icon: Truck, description: "Pay with cash upon order handover at your doorstep" });
+    }
+    return methods;
+  }, [paymentSettings]);
+
   const navigate = (href) => router.visit(href);
   const {
     items,
@@ -37,7 +59,14 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Completed
   const [selectedShippingMethod, setSelectedShippingMethod] = useState("standard");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(() => availablePaymentMethods[0]?.id || "card");
+
+  useEffect(() => {
+    if (availablePaymentMethods.length > 0 && !availablePaymentMethods.some((m) => m.id === selectedPaymentMethod)) {
+      setSelectedPaymentMethod(availablePaymentMethods[0].id);
+    }
+  }, [availablePaymentMethods, selectedPaymentMethod]);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
@@ -534,29 +563,34 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                     </span>
                   </div>
 
-                  {/* Payment Tabs (Card, Apple Pay, PayPal, Klarna) */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { id: "card", label: "Credit Card", icon: CreditCard },
-                      { id: "paypal", label: "PayPal", icon: ShoppingBag },
-                      { id: "klarna", label: "Klarna (4x)", icon: Sparkles },
-                    ].map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setSelectedPaymentMethod(p.id)}
-                        className={cn(
-                          "flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3.5 text-xs font-bold transition-all",
-                          selectedPaymentMethod === p.id
-                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                            : "border-border bg-surface text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        <p.icon className="size-4" />
-                        <span>{p.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {/* Dynamic Payment Tabs */}
+                  {availablePaymentMethods.length === 0 ? (
+                    <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-center text-xs font-semibold text-amber-800">
+                      ⚠ No payment methods are currently active. Please contact customer support.
+                    </div>
+                  ) : (
+                    <div className={cn(
+                      "grid gap-2",
+                      availablePaymentMethods.length === 1 ? "grid-cols-1" : availablePaymentMethods.length === 2 ? "grid-cols-2" : "grid-cols-3"
+                    )}>
+                      {availablePaymentMethods.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSelectedPaymentMethod(p.id)}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-1.5 rounded-2xl border p-3.5 text-xs font-bold transition-all cursor-pointer",
+                            selectedPaymentMethod === p.id
+                              ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                              : "border-border bg-surface text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          <p.icon className="size-4" />
+                          <span>{p.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   {selectedPaymentMethod === "card" && (
                     <div className="space-y-4 pt-2 animate-in fade-in">
@@ -618,15 +652,18 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                   )}
 
                   {selectedPaymentMethod === "paypal" && (
-                    <div className="rounded-2xl bg-muted/40 p-4 text-center text-xs text-muted-foreground border border-border/80">
-                      You will be redirected to PayPal's secure portal to authorize your payment.
+                    <div className="rounded-2xl bg-muted/40 p-5 text-center text-xs text-muted-foreground border border-border/80 space-y-1">
+                      <ShoppingBag className="size-6 mx-auto text-blue-600 mb-1" />
+                      <p className="font-bold text-foreground">PayPal Express Checkout</p>
+                      <p>You will be securely routed to PayPal to complete and authorize your payment.</p>
                     </div>
                   )}
 
-                  {selectedPaymentMethod === "klarna" && (
-                    <div className="rounded-2xl bg-muted/40 p-4 text-center text-xs text-muted-foreground border border-border/80 space-y-1">
-                      <p className="font-bold text-foreground">Pay in 4 interest-free installments</p>
-                      <p>Pay <strong>{formatPrice(total / 4)}</strong> today, and the rest every 2 weeks.</p>
+                  {selectedPaymentMethod === "cod" && (
+                    <div className="rounded-2xl bg-emerald-50/50 p-5 text-center text-xs text-emerald-900 border border-emerald-200/80 space-y-1">
+                      <Truck className="size-6 mx-auto text-emerald-600 mb-1" />
+                      <p className="font-bold text-emerald-950">Cash on Delivery (COD)</p>
+                      <p className="text-emerald-700">Pay <strong>{formatPrice(total)}</strong> in cash when the delivery courier delivers your package.</p>
                     </div>
                   )}
                 </div>

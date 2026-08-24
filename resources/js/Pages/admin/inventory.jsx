@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { products as CATALOG, formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const WAREHOUSES = ["Copenhagen Main Hub", "New York Warehouse", "All Locations"];
@@ -151,7 +152,21 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
           </button>
           <button
             type="button"
-            onClick={() => toast.success("Exporting inventory audit CSV...")}
+            onClick={() => {
+              if (inventory.length === 0) { toast.info("No inventory data to export."); return; }
+              const headers = ["Product Name", "SKU", "Category", "Stock Quantity", "Status", "Retail Price", "Incoming Units"];
+              const rows = inventory.map((item) => [
+                item.name,
+                item.sku,
+                item.category,
+                item.stock,
+                item.status,
+                item.price,
+                item.incoming,
+              ]);
+              downloadCsv("inventory_audit_report", headers, rows);
+              toast.success(`Exported ${inventory.length} inventory records to CSV!`);
+            }}
             className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
             <Download className="size-3.5" /> Export Audit CSV

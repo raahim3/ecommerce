@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const MOCK_CUSTOMERS = [
@@ -127,10 +128,26 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => toast.success("Exporting customer directory CSV...")}
+            onClick={() => {
+              if (customers.length === 0) { toast.info("No customer records to export."); return; }
+              const headers = ["ID", "Name", "Email", "Phone", "Total Orders", "Total Spent", "VIP Tier", "Status", "Registered Date"];
+              const rows = customers.map((c) => [
+                c.id,
+                c.name,
+                c.email,
+                c.phone || "",
+                c.orders_count || 0,
+                c.total_spent || 0,
+                c.tier || "Standard",
+                c.status || "Active",
+                c.created_at ? new Date(c.created_at).toLocaleDateString() : "",
+              ]);
+              downloadCsv("customers_directory_export", headers, rows);
+              toast.success(`Exported ${customers.length} customer records to CSV!`);
+            }}
             className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
           >
-            Export Directory
+            Export Directory CSV
           </button>
         </div>
       </div>

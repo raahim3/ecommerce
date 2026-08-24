@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Link } from "@inertiajs/react";
 import {
   Plus,
@@ -16,6 +16,9 @@ import {
   FolderOpen,
   AlertTriangle,
   MoreVertical,
+  Upload,
+  Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -81,6 +84,7 @@ const INITIAL_CATEGORIES = [
 const EMPTY_FORM = {
   name: "",
   slug: "",
+  image: "",
   parentId: null,
   isActive: true,
   isFeatured: false,
@@ -94,6 +98,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
         id: c.id,
         name: c.name,
         slug: c.slug,
+        image: c.image || "",
         productCount: c.products_count ?? 0,
         isActive: !!c.is_active,
         isFeatured: false,
@@ -102,6 +107,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
           id: sub.id,
           name: sub.name,
           slug: sub.slug,
+          image: sub.image || "",
           productCount: sub.products_count ?? 0,
           isActive: !!sub.is_active,
           isFeatured: false,
@@ -119,6 +125,8 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const categoryFileInputRef = useRef(null);
 
   const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
 
@@ -140,6 +148,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
     setFormData({
       name: target.name,
       slug: target.slug,
+      image: target.image || "",
       parentId: sub ? cat.id : null,
       isActive: target.isActive,
       isFeatured: target.isFeatured || false,
@@ -157,6 +166,40 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
     setFormData((f) => ({ ...f, name, slug: handleSlugGenerate(name) }));
   };
 
+  const handleCategoryImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file.");
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append("image", file);
+      uploadData.append("folder", "branding");
+
+      const res = await fetch("/admin/api/upload", {
+        method: "POST",
+        headers: { "X-CSRF-TOKEN": csrfToken() },
+        body: uploadData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.url) {
+        setFormData((f) => ({ ...f, image: data.url }));
+        toast.success("Category image uploaded!");
+      } else {
+        toast.error(data.message || "Failed to upload image");
+      }
+    } catch (err) {
+      toast.error("Upload error. Please check connection.");
+    } finally {
+      setIsUploadingImage(false);
+      if (categoryFileInputRef.current) categoryFileInputRef.current.value = "";
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim()) {
       toast.error("Category name is required.");
@@ -172,9 +215,10 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
         const targetId = editingItem.subcategoryId || editingItem.categoryId;
         const res = await fetch(`/admin/categories/${targetId}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+          headers: { "Content-Type": "application/json", "Accept": "application/json", "X-CSRF-TOKEN": csrfToken() },
           body: JSON.stringify({
             name: formData.name,
+            image: formData.image || null,
             sort_order: formData.sortOrder,
             is_active: formData.isActive,
             parent_id: parentId,
@@ -189,7 +233,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                   ...cat,
                   subcategories: (cat.subcategories || []).map((sub) =>
                     sub.id === editingItem.subcategoryId
-                      ? { ...sub, name: formData.name, slug: formData.slug, isActive: formData.isActive }
+                      ? { ...sub, name: formData.name, slug: formData.slug, image: formData.image, isActive: formData.isActive }
                       : sub
                   ),
                 };
@@ -198,6 +242,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                   ...cat,
                   name: formData.name,
                   slug: formData.slug,
+                  image: formData.image,
                   isActive: formData.isActive,
                   isFeatured: formData.isFeatured,
                   sortOrder: formData.sortOrder,
@@ -207,6 +252,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
             })
           );
           toast.success(`${formData.parentId ? "Subcategory" : "Category"} updated successfully!`);
+          setModalOpen(false);
         } else {
           toast.error(data.message || "Failed to update category");
         }
@@ -214,9 +260,10 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
         // Create API
         const res = await fetch("/admin/categories", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+          headers: { "Content-Type": "application/json", "Accept": "application/json", "X-CSRF-TOKEN": csrfToken() },
           body: JSON.stringify({
             name: formData.name,
+            image: formData.image || null,
             sort_order: formData.sortOrder,
             is_active: formData.isActive,
             parent_id: parentId,
@@ -237,6 +284,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                           id: created.id,
                           name: created.name,
                           slug: created.slug,
+                          image: created.image || "",
                           productCount: 0,
                           isActive: !!created.is_active,
                           isFeatured: false,
@@ -247,8 +295,6 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                   : cat
               )
             );
-            setExpandedIds((prev) => (prev.includes(parentId) ? prev : [...prev, parentId]));
-            toast.success(`Subcategory "${created.name}" created!`);
           } else {
             setCategories((prev) => [
               ...prev,
@@ -256,25 +302,26 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                 id: created.id,
                 name: created.name,
                 slug: created.slug,
+                image: created.image || "",
                 productCount: 0,
                 isActive: !!created.is_active,
                 isFeatured: false,
-                sortOrder: created.sort_order ?? 1,
+                sortOrder: created.sort_order ?? prev.length + 1,
                 subcategories: [],
               },
             ]);
-            toast.success(`Category "${created.name}" created!`);
           }
+          toast.success(`${formData.parentId ? "Subcategory" : "Category"} created successfully!`);
+          setModalOpen(false);
+          setFormData(EMPTY_FORM);
         } else {
           toast.error(data.message || "Failed to create category");
         }
       }
-    } catch {
-      toast.success("Category saved locally.");
+    } catch (err) {
+      toast.error("An error occurred while saving category");
     } finally {
       setIsSubmitting(false);
-      setModalOpen(false);
-      setFormData(EMPTY_FORM);
     }
   };
 
@@ -425,9 +472,13 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                           <ChevronRight className="size-3.5" />
                         )}
                       </button>
-                      <div className="grid size-8 place-items-center rounded-xl bg-slate-900 text-white">
-                        <FolderOpen className="size-3.5" />
-                      </div>
+                      {cat.image ? (
+                        <img src={cat.image} alt={cat.name} className="size-8 rounded-xl object-cover border border-slate-200 shadow-2xs" />
+                      ) : (
+                        <div className="grid size-8 place-items-center rounded-xl bg-slate-900 text-white">
+                          <FolderOpen className="size-3.5" />
+                        </div>
+                      )}
                       <div>
                         <span className="font-bold text-slate-900 text-sm">{cat.name}</span>
                         <span className="ml-2 text-[10px] text-slate-400">({cat.subcategories?.length || 0} sub)</span>
@@ -486,9 +537,13 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                     <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="p-4 pl-12">
                         <div className="flex items-center gap-3">
-                          <div className="grid size-7 place-items-center rounded-lg bg-slate-100 text-slate-500">
-                            <Tag className="size-3" />
-                          </div>
+                          {sub.image ? (
+                            <img src={sub.image} alt={sub.name} className="size-7 rounded-lg object-cover border border-slate-200 shadow-2xs" />
+                          ) : (
+                            <div className="grid size-7 place-items-center rounded-lg bg-slate-100 text-slate-500">
+                              <Tag className="size-3" />
+                            </div>
+                          )}
                           <span className="font-semibold text-slate-700 text-xs">{sub.name}</span>
                         </div>
                       </td>
@@ -589,6 +644,61 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
                     onChange={(e) => setFormData((f) => ({ ...f, slug: e.target.value }))}
                     className="h-10 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Category Image Upload */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                  <span>Category Image</span>
+                  <span className="text-[11px] font-normal text-slate-400">Featured banners & cards</span>
+                </label>
+                
+                <div className="mt-1.5 flex items-center gap-3">
+                  {formData.image ? (
+                    <div className="relative size-14 rounded-2xl border border-slate-200 overflow-hidden shrink-0 bg-slate-100 group">
+                      <img src={formData.image} alt="Preview" className="size-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setFormData((f) => ({ ...f, image: "" }))}
+                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="size-14 rounded-2xl border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-slate-400 shrink-0">
+                      <ImageIcon className="size-5" />
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={categoryFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleCategoryImageUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingImage}
+                        onClick={() => categoryFileInputRef.current?.click()}
+                        className="flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs cursor-pointer"
+                      >
+                        {isUploadingImage ? <Loader2 className="size-3 animate-spin text-slate-400" /> : <Upload className="size-3 text-slate-500" />}
+                        {isUploadingImage ? "Uploading..." : "Upload File"}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={formData.image}
+                      onChange={(e) => setFormData((f) => ({ ...f, image: e.target.value }))}
+                      placeholder="Or paste image URL (/storage/products/...)"
+                      className="h-8 w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-700 focus:border-slate-900 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const CARRIERS = ["DHL Express", "FedEx Priority", "UPS Worldwide", "USPS First Class", "Royal Mail"];
@@ -154,12 +155,22 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     const serverId = selectedOrder._serverId;
     if (serverId) {
       try {
-        await fetch(`/admin/orders/${serverId}/tracking`, {
+        const res = await fetch(`/admin/orders/${serverId}/tracking`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
           body: JSON.stringify({ tracking_number: fulfillData.trackingNumber, carrier: fulfillData.carrier }),
         });
-      } catch {}
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.message || "Failed to update order tracking. Please try again.");
+          return;
+        }
+      } catch {
+        toast.error("Network error — could not save tracking information.");
+        return;
+      }
+    } else {
+      toast.warning("Demo order — tracking saved locally only (not persisted to database).");
     }
     setOrders((prev) => prev.map((o) =>
       o.id === selectedOrder.id
@@ -215,7 +226,23 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
         </div>
         <button
           type="button"
-          onClick={() => toast.success("Exporting orders CSV...")}
+          onClick={() => {
+            if (orders.length === 0) { toast.info("No orders to export."); return; }
+            const headers = ["Order ID", "Date", "Customer Name", "Customer Email", "Items Count", "Total Amount", "Payment Status", "Fulfillment Status", "Tracking Number"];
+            const rows = orders.map((o) => [
+              o.id,
+              o.date,
+              o.customer?.name || o.customer || "",
+              o.customer?.email || "",
+              o.items?.length || 1,
+              o.total,
+              o.paymentStatus,
+              o.fulfillmentStatus,
+              o.trackingNumber || "",
+            ]);
+            downloadCsv("store_orders_export", headers, rows);
+            toast.success(`Exported ${orders.length} orders to CSV!`);
+          }}
           className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
         >
           <Download className="size-3.5" /> Export Orders CSV

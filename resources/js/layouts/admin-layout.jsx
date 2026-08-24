@@ -41,11 +41,24 @@ const ADMIN_NAV = [
 export function AdminLayout({ children }) {
   const { url, props } = usePage();
   const user = props?.auth?.user;
+  const generalSettings = props?.app_settings?.general || {};
   const navigate = (href) => router.visit(href);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [quickActionOpen, setQuickActionOpen] = useState(false);
+
+  // Dynamic Notifications state
+  const [notifications, setNotifications] = useState(props?.admin_notifications?.recent || []);
+  const [unreadCount, setUnreadCount] = useState(props?.admin_notifications?.unread_count || 0);
+
+  // Sync with inertia props
+  useEffect(() => {
+    if (props?.admin_notifications) {
+      setNotifications(props.admin_notifications.recent || []);
+      setUnreadCount(props.admin_notifications.unread_count || 0);
+    }
+  }, [props?.admin_notifications]);
 
   // Close menus on route change or outside click
   useEffect(() => {
@@ -54,9 +67,63 @@ export function AdminLayout({ children }) {
     setQuickActionOpen(false);
   }, [url]);
 
+  const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
+
+  const handleMarkAllRead = async () => {
+    try {
+      await fetch("/admin/api/notifications/mark-all-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+      });
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      toast.success("All notifications marked as read");
+    } catch {}
+  };
+
+  const handleNotificationClick = async (notif) => {
+    if (!notif.is_read) {
+      try {
+        await fetch(`/admin/api/notifications/${notif.id}/read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+        });
+        setUnreadCount((c) => Math.max(0, c - 1));
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+        );
+      } catch {}
+    }
+    setNotificationsOpen(false);
+    if (notif.link) {
+      navigate(notif.link);
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await fetch("/admin/api/notifications", {
+        method: "DELETE",
+        headers: { "X-CSRF-TOKEN": csrfToken() },
+      });
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success("Notifications cleared");
+    } catch {}
+  };
+
   const handleQuickAction = (action) => {
     setQuickActionOpen(false);
-    toast.success(`Action Triggered: ${action}`);
+    if (action === "Add New Product") navigate("/admin/products/create");
+    else if (action === "Create Discount Code") navigate("/admin/settings");
+    else if (action === "Export Sales CSV") navigate("/admin/reports");
+  };
+
+  const getNotifIcon = (type) => {
+    if (type === "order") return <ShoppingBag className="size-4 text-emerald-600 shrink-0 mt-0.5" />;
+    if (type === "low_stock") return <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />;
+    if (type === "customer") return <Users className="size-4 text-blue-600 shrink-0 mt-0.5" />;
+    return <Sparkles className="size-4 text-violet-600 shrink-0 mt-0.5" />;
   };
 
   return (
@@ -80,14 +147,20 @@ export function AdminLayout({ children }) {
         {/* Sidebar Header */}
         <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
           <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
-            <div className="grid size-9 place-items-center rounded-xl bg-slate-900 text-white font-extrabold text-sm shadow-xs">
-              A
-            </div>
-            {!collapsed && (
+            {generalSettings.logoDark ? (
+              <img src={generalSettings.logoDark} alt="Store Logo" className="h-8 max-w-[140px] object-contain shrink-0" />
+            ) : (
+              <div className="grid size-9 place-items-center rounded-xl bg-slate-900 text-white font-extrabold text-sm shadow-xs shrink-0">
+                {generalSettings.storeName ? generalSettings.storeName.charAt(0).toUpperCase() : "A"}
+              </div>
+            )}
+            {!collapsed && !generalSettings.logoDark && (
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold tracking-tight text-slate-900 text-base">ATELIER</span>
-                  <span className="rounded-md bg-violet-100 px-1.5 py-0.2 text-[10px] font-extrabold text-violet-700 uppercase">
+                  <span className="font-extrabold tracking-tight text-slate-900 text-base truncate">
+                    {generalSettings.storeName || "ATELIER"}
+                  </span>
+                  <span className="rounded-md bg-violet-100 px-1.5 py-0.2 text-[10px] font-extrabold text-violet-700 uppercase shrink-0">
                     Admin
                   </span>
                 </div>
@@ -300,30 +373,83 @@ export function AdminLayout({ children }) {
                 className="relative grid size-9 place-items-center rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 <Bell className="size-4" />
-                <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-violet-600 ring-2 ring-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold text-white ring-2 ring-white animate-pulse">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 top-11 z-50 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <span className="font-bold text-xs text-slate-900">Recent Store Alerts</span>
-                    <span className="text-[10px] font-bold text-violet-600">3 Unread</span>
+                <div className="absolute right-0 top-11 z-50 w-84 sm:w-96 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs text-slate-900">Store Alerts & Activity</span>
+                      {unreadCount > 0 ? (
+                        <span className="rounded-full bg-violet-50 text-violet-700 px-2 py-0.5 text-[10px] font-bold border border-violet-200">
+                          {unreadCount} Unread
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-slate-400">All caught up</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllRead}
+                          className="text-[10px] font-bold text-violet-600 hover:text-violet-800 transition-colors"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAll}
+                          className="text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex gap-2.5 rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                      <ShoppingBag className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-slate-900">New Order #ATL-894210</p>
-                        <p className="text-[11px] text-slate-500">Alex Rivers paid $338.00 • 2m ago</p>
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5 no-scrollbar text-xs">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400 space-y-1">
+                        <CheckCircle2 className="size-8 mx-auto text-slate-300" />
+                        <p className="font-semibold text-xs text-slate-600">No new notifications</p>
+                        <p className="text-[11px] text-slate-400">Orders and store alerts will appear here in real-time.</p>
                       </div>
-                    </div>
-                    <div className="flex gap-2.5 rounded-xl bg-slate-50 p-2.5 border border-slate-100">
-                      <AlertCircle className="size-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold text-slate-900">Low Stock Alert</p>
-                        <p className="text-[11px] text-slate-500">Heavy Rib Cashmere Knit (4 left)</p>
-                      </div>
-                    </div>
+                    ) : (
+                      notifications.map((notif) => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleNotificationClick(notif)}
+                          className={cn(
+                            "flex gap-3 rounded-xl p-3 border transition-all cursor-pointer",
+                            notif.is_read
+                              ? "bg-white border-slate-100 hover:bg-slate-50 text-slate-600"
+                              : "bg-violet-50/40 border-violet-100 hover:bg-violet-50/70 text-slate-900 shadow-2xs"
+                          )}
+                        >
+                          {getNotifIcon(notif.type)}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="font-bold text-xs truncate">{notif.title}</p>
+                              {!notif.is_read && (
+                                <span className="size-1.5 rounded-full bg-violet-600 shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{notif.message}</p>
+                            <span className="text-[9px] text-slate-400 font-medium block mt-1">
+                              {new Date(notif.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} • {new Date(notif.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
