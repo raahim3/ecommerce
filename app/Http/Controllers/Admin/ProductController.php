@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\NewsletterSubscriber;
+use App\Models\InventoryLog;
 use App\Mail\ProductPublishedEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,9 +21,10 @@ class ProductController extends Controller
     public function index(Request $request): Response
     {
         $products = Product::with(['category', 'images'])
-            ->when($request->filled('search'), fn($q) =>
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('sku', 'like', '%' . $request->search . '%')
+            ->when($request->filled('search'), fn($q) => $q->where(function ($searchQuery) use ($request) {
+                $searchQuery->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhere('sku', 'like', '%' . $request->search . '%');
+            })
             )
             ->when($request->filled('category'), fn($q) => $q->where('category_id', $request->category))
             ->when($request->filled('status'), fn($q) =>
@@ -217,7 +219,18 @@ class ProductController extends Controller
     {
         $request->validate(['stock_quantity' => ['required', 'integer', 'min:0']]);
         $product = Product::findOrFail($id);
+        $previousQuantity = $product->stock_quantity;
         $product->update(['stock_quantity' => $request->stock_quantity]);
+        if ($previousQuantity !== $product->stock_quantity) {
+            InventoryLog::create([
+                'product_id' => $product->id,
+                'user_id' => $request->user()->id,
+                'previous_quantity' => $previousQuantity,
+                'new_quantity' => $product->stock_quantity,
+                'adjustment_type' => $request->input('adjustment_type', 'set'),
+                'reason' => $request->input('reason'),
+            ]);
+        }
 
         return response()->json(['success' => true, 'stock_quantity' => $product->stock_quantity]);
     }

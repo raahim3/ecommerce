@@ -16,9 +16,10 @@ class ReportsController extends Controller
 {
     public function index(Request $request): Response
     {
-        $period = $request->input('period', '30'); // days
+        $period = (string) $request->input('period', '30'); // days
 
-        $startDate = now()->subDays((int) $period);
+        $startDate = $period === 'all' ? Order::min('placed_at') : now()->subDays((int) $period);
+        $startDate = $startDate ? now()->parse($startDate) : now();
 
         // Revenue summary for the period
         $revenue = Order::where('payment_status', 'paid')
@@ -32,6 +33,10 @@ class ReportsController extends Controller
                 AVG(total_amount) as avg_order_value
             ')->first();
 
+        $refunds = Order::where('payment_status', 'refunded')
+            ->where('placed_at', '>=', $startDate)
+            ->sum('total_amount');
+
         // Daily revenue chart data
         $dayExpr = DB::getDriverName() === 'sqlite'
             ? "date(placed_at)"
@@ -43,6 +48,21 @@ class ReportsController extends Controller
             ->groupBy('day')
             ->orderBy('day')
             ->get();
+
+        $channelData = Order::where('payment_status', 'paid')
+            ->where('placed_at', '>=', $startDate)
+            ->selectRaw("COALESCE(payment_method, 'other') as channel, SUM(total_amount) as revenue, COUNT(*) as orders")
+            ->groupBy('channel')
+            ->orderByDesc('revenue')
+            ->get();
+
+        $channelTotal = (float) $channelData->sum('revenue');
+        $channelData = $channelData->map(fn($channel) => [
+            'channel' => ucfirst($channel->channel),
+            'revenue' => $channel->revenue,
+            'orders' => $channel->orders,
+            'pct' => $channelTotal > 0 ? round(((float) $channel->revenue / $channelTotal) * 100, 1) : 0,
+        ])->values();
 
         // Top products by revenue
         $topProducts = DB::table('order_items')
@@ -70,6 +90,10 @@ class ReportsController extends Controller
         // New customers in period
         $newCustomers = User::customers()
             ->where('created_at', '>=', $startDate)->count();
+        $uniqueCustomers = Order::where('payment_status', 'paid')
+            ->where('placed_at', '>=', $startDate)
+            ->distinct('customer_email')
+            ->count('customer_email');
 
         return Inertia::render('Admin/reports', [
             'revenue' => $revenue,
@@ -77,6 +101,9 @@ class ReportsController extends Controller
             'topProducts' => $topProducts,
             'couponStats' => $couponStats,
             'newCustomers' => $newCustomers,
+            'uniqueCustomers' => $uniqueCustomers,
+            'refunds' => $refunds,
+            'channelData' => $channelData,
             'period' => $period,
         ]);
     }

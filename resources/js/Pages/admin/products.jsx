@@ -21,6 +21,7 @@ import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { AdminPagination } from "@/components/admin/pagination";
 
 const CATEGORIES = ["All", "Fashion", "Electronics", "Accessories", "Lifestyle"];
 const STATUS_OPTS = ["All Status", "Active", "Draft", "Archived"];
@@ -28,8 +29,8 @@ const STATUS_OPTS = ["All Status", "Active", "Draft", "Archived"];
 export function AdminProductsPage({ products: serverProducts = { data: [] }, categories: serverCategories = [], filters = {} }) {
   const navigate = (href) => router.visit(href);
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [selectedStatus, setSelectedStatus] = useState("All Status");
+  const [selectedCategory, setSelectedCategory] = useState(filters.category ? serverCategories.find((c) => String(c.id) === String(filters.category))?.name || "All" : "All");
+  const [selectedStatus, setSelectedStatus] = useState(filters.status === "active" ? "Active" : filters.status ? "Draft" : "All Status");
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
@@ -59,13 +60,12 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
     ...serverCategories.map((c) => c.name),
   ].filter(Boolean))];
 
-  const filtered = managedProducts.filter((p) => {
-    const q = searchQuery.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q);
-    const matchCat = selectedCategory === "All" || p.category === selectedCategory;
-    const matchStatus = selectedStatus === "All Status" || p.status === selectedStatus;
-    return matchSearch && matchCat && matchStatus;
-  });
+  const filtered = managedProducts;
+  const applyFilters = (next = {}) => router.get("/admin/products", {
+    search: (next.search ?? searchQuery) || undefined,
+    category: next.category ?? (selectedCategory === "All" ? undefined : serverCategories.find((c) => c.name === selectedCategory)?.id),
+    status: next.status ?? (selectedStatus === "All Status" ? undefined : selectedStatus === "Active" ? "active" : "inactive"),
+  }, { preserveState: true, preserveScroll: true });
 
   const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
   const apiPatch = async (url, body) => fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() }, body: JSON.stringify(body) });
@@ -173,6 +173,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilters({ search: e.currentTarget.value })}
             placeholder="Search by product name or SKU..."
             className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 text-xs focus:border-slate-900 focus:outline-none"
           />
@@ -183,7 +184,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
             <button
               key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => { setSelectedCategory(cat); applyFilters({ category: cat === "All" ? undefined : serverCategories.find((c) => c.name === cat)?.id }); }}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap",
                 selectedCategory === cat ? "bg-slate-900 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
@@ -196,7 +197,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
 
         <select
           value={selectedStatus}
-          onChange={(e) => setSelectedStatus(e.target.value)}
+          onChange={(e) => { setSelectedStatus(e.target.value); applyFilters({ status: e.target.value === "All Status" ? undefined : e.target.value === "Active" ? "active" : "inactive" }); }}
           className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:border-slate-900 focus:outline-none"
         >
           {STATUS_OPTS.map((s) => <option key={s}>{s}</option>)}
@@ -341,6 +342,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
             </div>
           )}
         </div>
+        <div className="p-4"><AdminPagination paginator={serverProducts} /></div>
       </div>
 
       {/* Delete Confirm */}

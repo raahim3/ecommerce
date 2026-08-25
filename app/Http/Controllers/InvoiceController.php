@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -21,6 +22,8 @@ class InvoiceController extends Controller
             abort(403, 'Unauthorized access to invoice.');
         }
 
-        return view('invoices.show', compact('order'));
+        $store = Setting::get('general', []);
+
+        return view('invoices.show', compact('order', 'store'));
     }
 }

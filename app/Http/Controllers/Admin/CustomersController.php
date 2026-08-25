@@ -16,9 +16,10 @@ class CustomersController extends Controller
     {
         $customers = User::customers()
             ->withCount('orders')
-            ->when($request->filled('search'), fn($q) =>
-                $q->where('name', 'like', '%' . $request->search . '%')
-                  ->orWhere('email', 'like', '%' . $request->search . '%')
+            ->when($request->filled('search'), fn($q) => $q->where(function ($searchQuery) use ($request) {
+                $searchQuery->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhere('email', 'like', '%' . $request->search . '%');
+            })
             )
             ->latest()
             ->paginate(20)

@@ -71,25 +71,25 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const [completedOrder, setCompletedOrder] = useState(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
 
-  // Form State initialized with logged-in user if present
+  // Only authenticated user data or a saved address should prefill checkout.
   const [formData, setFormData] = useState(() => {
     const defaultAddr = savedAddresses.find((a) => a.is_default) || savedAddresses[0];
-    const nameParts = user?.name ? user.name.split(" ") : ["Alex", "Rivers"];
+    const nameParts = user?.name ? user.name.trim().split(/\s+/) : [];
     return {
-      email: user?.email || defaultAddr?.email || "alex.rivers@example.com",
-      firstName: defaultAddr?.first_name || nameParts[0] || "Alex",
-      lastName: defaultAddr?.last_name || nameParts.slice(1).join(" ") || "Rivers",
-      address: defaultAddr?.address_line1 || "742 Evergreen Terrace",
-      apartment: defaultAddr?.address_line2 || "Suite 4B",
-      city: defaultAddr?.city || "New York",
-      state: defaultAddr?.state || "NY",
-      zipCode: defaultAddr?.postal_code || "10001",
-      country: defaultAddr?.country || "United States",
-      phone: defaultAddr?.phone || "+1 (555) 234-5678",
-      cardNumber: "•••• •••• •••• 4242",
-      cardExp: "12/28",
-      cardCvc: "888",
-      cardName: user?.name || "Alex Rivers",
+      email: user?.email || "",
+      firstName: defaultAddr?.first_name || nameParts[0] || "",
+      lastName: defaultAddr?.last_name || nameParts.slice(1).join(" ") || "",
+      address: defaultAddr?.address_line1 || "",
+      apartment: defaultAddr?.address_line2 || "",
+      city: defaultAddr?.city || "",
+      state: defaultAddr?.state || "",
+      zipCode: defaultAddr?.postal_code || "",
+      country: defaultAddr?.country || "",
+      phone: defaultAddr?.phone || "",
+      cardNumber: "",
+      cardExp: "",
+      cardCvc: "",
+      cardName: user?.name || "",
     };
   });
 
@@ -115,7 +115,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
   const handleShippingSubmit = (e) => {
     e.preventDefault();
-    if (!formData.email || !formData.firstName || !formData.address) {
+    if (!formData.email || !formData.firstName || !formData.address || !formData.country) {
       toast.error("Please fill in all required shipping fields");
       return;
     }
@@ -493,6 +493,29 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                         className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Country
+                    </label>
+                    <select
+                      required
+                      value={formData.country}
+                      onChange={(e) => handleInputChange("country", e.target.value)}
+                      className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
+                    >
+                      <option value="">Select country</option>
+                      <option value="United States">United States</option>
+                      <option value="Canada">Canada</option>
+                      <option value="United Kingdom">United Kingdom</option>
+                      <option value="Australia">Australia</option>
+                      <option value="Germany">Germany</option>
+                      <option value="France">France</option>
+                      <option value="Pakistan">Pakistan</option>
+                      <option value="India">India</option>
+                      <option value="United Arab Emirates">United Arab Emirates</option>
+                    </select>
                   </div>
                   <div className="pt-2">
                     <label className="flex items-center gap-2.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground">

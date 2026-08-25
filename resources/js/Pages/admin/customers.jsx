@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import {
   Users,
   Search,
@@ -21,6 +21,7 @@ import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { AdminPagination } from "@/components/admin/pagination";
 
 const MOCK_CUSTOMERS = [
   {
@@ -60,8 +61,7 @@ const MOCK_CUSTOMERS = [
 
 export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, filters = {} }) {
   const serverData = serverCustomers?.data ?? [];
-  const initialCustomers = serverData.length > 0
-    ? serverData.map((c) => ({
+  const initialCustomers = serverData.map((c) => ({
         id: c.id,
         name: c.name,
         email: c.email,
@@ -71,8 +71,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
         created_at: c.created_at,
         tier: (c.orders_count > 3) ? "VIP Concierge" : (c.orders_count > 0) ? "Preferred Member" : "Member",
         status: "Active",
-      }))
-    : MOCK_CUSTOMERS;
+      }));
 
   const [customers, setCustomers] = useState(initialCustomers);
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
@@ -80,13 +79,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [customerDetails, setCustomerDetails] = useState(null);
 
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery.trim()) return customers;
-    const q = searchQuery.toLowerCase();
-    return customers.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
-    );
-  }, [customers, searchQuery]);
+  const filteredCustomers = customers;
 
   const handleInspect = async (customer) => {
     setSelectedCustomer(customer);
@@ -193,6 +186,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && router.get("/admin/customers", { search: e.currentTarget.value || undefined }, { preserveState: true, preserveScroll: true })}
             placeholder="Search by customer name, email address, or phone number..."
             className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-xs placeholder:text-slate-400 focus:border-slate-900 focus:bg-white focus:outline-none transition-all"
           />
@@ -274,6 +268,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
             </tbody>
           </table>
         </div>
+        <div className="p-4"><AdminPagination paginator={serverCustomers} /></div>
       </div>
 
       {/* Customer Detail Drawer Modal */}

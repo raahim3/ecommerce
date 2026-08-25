@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import {
   Plus,
   Search,
@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { AdminPagination } from "@/components/admin/pagination";
 
 const EMPTY_FORM = {
   name: "",
@@ -34,9 +35,9 @@ const EMPTY_FORM = {
   sortOrder: 5,
 };
 
-export function AdminCategoriesPage({ categories: serverCategories = [] }) {
+export function AdminCategoriesPage({ categories: serverCategories = { data: [] }, filters = {} }) {
   // Normalize server categories into component hierarchy
-  const initialData = serverCategories.map((c) => ({
+  const initialData = (serverCategories.data ?? []).map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug,
@@ -59,8 +60,8 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
 
   const [categories, setCategories] = useState(initialData);
   const [expandedIds, setExpandedIds] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all"); // all | active | inactive
+  const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
+  const [filterStatus, setFilterStatus] = useState(filters.status ?? "all"); // all | active | inactive
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // { categoryId, subcategoryId } or null
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -296,18 +297,11 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
     setDeleteConfirm(null);
   };
 
-  const filteredCategories = categories.filter((cat) => {
-    if (filterStatus === "active" && !cat.isActive) return false;
-    if (filterStatus === "inactive" && cat.isActive) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        cat.name.toLowerCase().includes(q) ||
-        cat.subcategories?.some((s) => s.name.toLowerCase().includes(q))
-      );
-    }
-    return true;
-  });
+  const filteredCategories = categories;
+  const applyFilters = (next = {}) => router.get("/admin/categories", {
+    search: (next.search ?? searchQuery) || undefined,
+    status: next.status ?? (filterStatus === "all" ? undefined : filterStatus),
+  }, { preserveState: true, preserveScroll: true });
 
   const totalProducts = categories.reduce((sum, c) => sum + c.productCount, 0);
   const totalSubcats = categories.reduce((sum, c) => sum + (c.subcategories?.length || 0), 0);
@@ -357,6 +351,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilters({ search: e.currentTarget.value })}
             placeholder="Search categories and subcategories..."
             className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 text-xs focus:border-slate-900 focus:outline-none"
           />
@@ -370,7 +365,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
             <button
               key={f.id}
               type="button"
-              onClick={() => setFilterStatus(f.id)}
+              onClick={() => { setFilterStatus(f.id); applyFilters({ status: f.id === "all" ? undefined : f.id }); }}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
                 filterStatus === f.id ? "bg-slate-900 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
@@ -526,6 +521,7 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
             ))}
           </tbody>
         </table>
+        <div className="p-4"><AdminPagination paginator={serverCategories} /></div>
       </div>
 
       {/* Add/Edit Modal */}

@@ -7,7 +7,7 @@ import { formatPrice } from "@/lib/shop-data";
 import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
-export function WishlistPage({ initialWishlist = [] }) {
+export function WishlistPage({ initialWishlist = [], recommendedProducts = [] }) {
   const { wishlist, toggleWish, addItem } = useCart();
 
   const savedProducts = useMemo(() => {
@@ -33,8 +33,6 @@ export function WishlistPage({ initialWishlist = [] }) {
       toast.success("Wishlist link copied to clipboard!");
     }
   };
-
-  const recommendedProducts = products.slice(0, 4);
 
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">

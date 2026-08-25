@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { router } from "@inertiajs/react";
 import {
   Download,
   TrendingUp,
@@ -24,16 +25,20 @@ export function AdminReportsPage({
   topProducts = [],
   couponStats = [],
   newCustomers = 0,
+  uniqueCustomers = 0,
+  refunds = 0,
+  channelData = [],
   period = "30",
 }) {
-  const [dateRange, setDateRange] = useState("Last 30 Days");
+  const periodLabels = { "7": "Last 7 Days", "30": "Last 30 Days", "90": "This Quarter", "365": "This Year", all: "All Time" };
+  const [dateRange, setDateRange] = useState(periodLabels[period] || "Last 30 Days");
   const [hoveredBar, setHoveredBar] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
 
   const defaultData = {
     grossSales: 0,
     discounts: 0,
-    returns: 0,
+    returns: parseFloat(refunds || 0),
     netSales: 0,
     shippingCollected: 0,
     taxes: 0,
@@ -61,7 +66,7 @@ export function AdminReportsPage({
     shippingCollected: parseFloat(revenue?.total_shipping || 0),
     taxes: parseFloat(revenue?.total_tax || 0),
     orderCount: orderCnt,
-    customerCount: newCustomers,
+    customerCount: uniqueCustomers,
     newCustomers,
     avgOrder: avgVal,
     conversionRate: 0,
@@ -74,14 +79,24 @@ export function AdminReportsPage({
           category: "General",
         }))
       : [],
-    channelData: [],
+    channelData: channelData.map((channel) => ({
+      channel: channel.channel,
+      revenue: parseFloat(channel.revenue || 0),
+      pct: Number(channel.pct || 0),
+    })),
     dailyRevenue: dailyRevenue.map((d) => parseFloat(d.revenue || 0)),
-    dailyLabels: dailyRevenue.map((d) => d.day),
+    dailyLabels: dailyRevenue.map((d) => new Date(`${d.day}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })),
   } : defaultData;
 
   const handleExportPDF = () => {
     window.print();
     toast.success("Printing / Saving Financial Summary Report PDF...");
+  };
+
+  const handleDateRange = (range) => {
+    const rangePeriods = { "Last 7 Days": "7", "Last 30 Days": "30", "This Quarter": "90", "This Year": "365", "All Time": "all" };
+    setDateRange(range);
+    router.get("/admin/reports", { period: rangePeriods[range] }, { preserveScroll: true, preserveState: true });
   };
 
   const handleExportCSV = async () => {
@@ -107,7 +122,22 @@ export function AdminReportsPage({
     }
   };
 
-  const maxBarRevenue = Math.max(...(data.dailyRevenue || [1]));
+  const chartValues = data.dailyRevenue || [];
+  const chartMax = Math.max(...chartValues, 1);
+  const chartWidth = 760;
+  const chartHeight = 250;
+  const chartPadding = { top: 18, right: 18, bottom: 34, left: 18 };
+  const chartPoints = chartValues.map((value, index) => ({
+    x: chartValues.length === 1
+      ? chartWidth / 2
+      : chartPadding.left + (index / (chartValues.length - 1)) * (chartWidth - chartPadding.left - chartPadding.right),
+    y: chartPadding.top + (1 - value / chartMax) * (chartHeight - chartPadding.top - chartPadding.bottom),
+    value,
+  }));
+  const chartLine = chartPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
+  const chartArea = chartPoints.length > 0
+    ? `${chartLine} L ${chartPoints.at(-1).x} ${chartHeight - chartPadding.bottom} L ${chartPoints[0].x} ${chartHeight - chartPadding.bottom} Z`
+    : "";
 
   return (
     <div className="space-y-6">
@@ -133,7 +163,7 @@ export function AdminReportsPage({
           <button
             key={range}
             type="button"
-            onClick={() => setDateRange(range)}
+            onClick={() => handleDateRange(range)}
             className={cn(
               "rounded-xl px-4 py-2 text-xs font-bold transition-all whitespace-nowrap",
               dateRange === range ? "bg-slate-900 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
@@ -173,26 +203,32 @@ export function AdminReportsPage({
             <span className="text-xs text-slate-400 font-semibold">{dateRange}</span>
           </div>
 
-          <div className="h-56 flex items-end gap-2 pt-6 pb-2 px-2">
-            {(data.dailyRevenue || []).map((val, i) => {
-              const heightPct = maxBarRevenue > 0 ? (val / maxBarRevenue) * 100 : 0;
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0 group relative cursor-pointer" onMouseEnter={() => setHoveredBar(i)} onMouseLeave={() => setHoveredBar(null)}>
-                  {hoveredBar === i && (
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 rounded-xl bg-slate-900 text-white text-[10px] font-bold px-2 py-1 whitespace-nowrap shadow-lg z-10">
-                      {data.dailyLabels?.[i] || `Day ${i + 1}`}: {formatPrice(val)}
-                    </div>
-                  )}
-                  <div
-                    className={cn("w-full rounded-t-lg transition-all", hoveredBar === i ? "bg-indigo-600" : "bg-indigo-500/70")}
-                    style={{ height: `${heightPct}%` }}
-                  />
-                  {(data.dailyRevenue?.length || 0) <= 10 && (
-                    <span className="text-[9px] font-semibold text-slate-400 truncate">{data.dailyLabels?.[i] || `D${i + 1}`}</span>
-                  )}
-                </div>
-              );
-            })}
+          <div className="h-64 rounded-2xl border border-slate-100 bg-slate-50/40 px-2 py-3">
+            {chartPoints.length === 0 ? (
+              <div className="grid h-full place-items-center text-xs font-semibold text-slate-400">No revenue data for this period.</div>
+            ) : (
+              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-full w-full overflow-visible" role="img" aria-label="Revenue over time">
+                <defs>
+                  <linearGradient id="revenueArea" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.25" />
+                    <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.02" />
+                  </linearGradient>
+                </defs>
+                {[0, 0.5, 1].map((ratio) => {
+                  const y = chartPadding.top + ratio * (chartHeight - chartPadding.top - chartPadding.bottom);
+                  return <line key={ratio} x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="4 6" />;
+                })}
+                <path d={chartArea} fill="url(#revenueArea)" />
+                <path d={chartLine} fill="none" stroke="#4f46e5" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                {chartPoints.map((point, index) => (
+                  <g key={index} onMouseEnter={() => setHoveredBar(index)} onMouseLeave={() => setHoveredBar(null)}>
+                    <circle cx={point.x} cy={point.y} r={hoveredBar === index ? 7 : 5} fill="#fff" stroke="#4f46e5" strokeWidth="3" />
+                    {hoveredBar === index && <text x={point.x} y={Math.max(12, point.y - 14)} textAnchor="middle" fontSize="11" fontWeight="700" fill="#0f172a">{formatPrice(point.value)}</text>}
+                    {(chartPoints.length <= 10) && <text x={point.x} y={chartHeight - 10} textAnchor="middle" fontSize="10" fontWeight="600" fill="#94a3b8">{data.dailyLabels?.[index] || `Day ${index + 1}`}</text>}
+                  </g>
+                ))}
+              </svg>
+            )}
           </div>
         </div>
 

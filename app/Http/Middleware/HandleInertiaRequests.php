@@ -110,6 +110,13 @@ class HandleInertiaRequests extends Middleware
 
         // 4. Admin Notifications (if admin user)
         $adminNotifications = null;
+        $realtime = array_merge([
+            'enabled' => (bool) env('PUSHER_ENABLED', false),
+            'key' => env('PUSHER_APP_KEY', ''),
+            'cluster' => env('PUSHER_APP_CLUSTER', 'mt1'),
+        ], Setting::get('pusher', []));
+        if (empty($realtime['key'])) $realtime['key'] = env('PUSHER_APP_KEY', '');
+        $realtime['enabled'] = (bool) $realtime['enabled'] || ($realtime['key'] && env('PUSHER_APP_SECRET') && env('PUSHER_APP_ID'));
         if ($isAdmin) {
             $adminNotifications = [
                 'unread_count' => AdminNotification::unread()->count(),
@@ -121,6 +128,11 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'app_settings' => [
                 'general' => $general,
+                'realtime' => [
+                    'enabled' => (bool) ($realtime['enabled'] ?? false),
+                    'key' => $realtime['key'] ?? '',
+                    'cluster' => $realtime['cluster'] ?? 'mt1',
+                ],
                     'currencySymbol' => CurrencyService::symbol($general['currency'] ?? null),
                 'homepage' => Setting::get('homepage', [
                     'heroEyebrow' => 'New Season / 2026 Collection',

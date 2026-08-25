@@ -29,7 +29,8 @@ import {
   ToggleRight,
   Edit2,
   Search,
-  FileText
+  FileText,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ const TABS = [
   { id: "seo", label: "SEO & Social", icon: Globe },
   { id: "smtp", label: "Mail & SMTP", icon: Mail },
   { id: "payments", label: "Payments & Gateways", icon: CreditCard },
+  { id: "pusher", label: "Realtime Notifications", icon: Bell },
   { id: "shipping", label: "Shipping & Taxes", icon: Truck },
   { id: "staff", label: "Staff & Permissions", icon: Users },
 ];
@@ -215,6 +217,15 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
   const [stripeSecretVisible, setStripeSecretVisible] = useState(false);
   const [paypalSecretVisible, setPaypalSecretVisible] = useState(false);
 
+  const [pusher, setPusher] = useState({
+    enabled: false,
+    key: "",
+    secret: "",
+    app_id: "",
+    cluster: "mt1",
+    ...(settings.pusher || {}),
+  });
+
   // 5. Shipping & Taxes
   const [shipping, setShipping] = useState(settings.shipping || {
     zones: [
@@ -252,6 +263,9 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
       const result = await res.json();
       if (res.ok && result.success) {
         toast.success(`${group.charAt(0).toUpperCase() + group.slice(1)} settings saved successfully!`);
+        if (group === "pusher") {
+          window.location.reload();
+        }
       } else {
         toast.error(result.message || "Failed to save settings. Please try again.");
       }
@@ -1623,6 +1637,37 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
             </div>
           )}
 
+
+          {/* ============ REALTIME NOTIFICATIONS ============ */}
+          {activeTab === "pusher" && (
+            <div className="space-y-5">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Realtime Admin Notifications</h2>
+                    <p className="text-xs text-slate-500">Connect Pusher so new orders and stock alerts arrive without refreshing.</p>
+                  </div>
+                  <button type="button" onClick={() => setPusher({ ...pusher, enabled: !pusher.enabled })} className="flex items-center gap-2 text-xs font-bold">
+                    {pusher.enabled ? <ToggleRight className="size-8 text-emerald-500" /> : <ToggleLeft className="size-8 text-slate-400" />}
+                    {pusher.enabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[["key", "App Key"], ["app_id", "App ID"], ["cluster", "Cluster"]].map(([field, label]) => (
+                    <div key={field}>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                      <input value={pusher[field] || ""} onChange={(e) => setPusher({ ...pusher, [field]: e.target.value })} placeholder={field === "cluster" ? "mt1" : "Pusher value"} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                    </div>
+                  ))}
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">App Secret</label>
+                    <input type="password" value={pusher.secret || ""} onChange={(e) => setPusher({ ...pusher, secret: e.target.value })} placeholder="Pusher secret" className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                  </div>
+                </div>
+                <button type="button" onClick={() => handleSaveSettings("pusher", pusher)} disabled={savingGroup === "pusher"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "pusher" ? "Saving..." : "Save Pusher Settings"}</button>
+              </div>
+            </div>
+          )}
 
           {/* ============ 6. SHIPPING & TAXES ============ */}
           {activeTab === "shipping" && (

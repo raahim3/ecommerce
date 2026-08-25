@@ -14,7 +14,7 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $now = now();
         $startOfMonth = $now->copy()->startOfMonth();
@@ -52,38 +52,77 @@ class DashboardController extends Controller
         $ordersByStatus = Order::selectRaw('status, COUNT(*) as count')
             ->groupBy('status')->get()->pluck('count', 'status');
 
-        // Recent orders (last 10)
-        $recentOrders = Order::with('items')
-            ->recent()
-            ->limit(10)
-            ->get()
-            ->map(fn($o) => [
-                'id' => $o->id,
-                'order_number' => $o->order_number,
-                'customer_name' => $o->customer_name,
-                'customer_email' => $o->customer_email,
-                'total_amount' => $o->total_amount,
-                'status' => $o->status,
-                'payment_status' => $o->payment_status,
-                'placed_at' => $o->placed_at,
-                'items_count' => $o->items->count(),
+        $categorySales = DB::table('order_items')
+            ->join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->leftJoin('products', 'order_items.product_id', '=', 'products.id')
+            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+            ->where('orders.payment_status', 'paid')
+            ->selectRaw("COALESCE(categories.name, 'Uncategorized') as name, SUM(order_items.total) as revenue")
+            ->groupBy('name')
+            ->orderByDesc('revenue')
+            ->get();
+        $categoryTotal = (float) $categorySales->sum('revenue');
+        $categorySales = $categorySales->map(fn($category, $index) => [
+            'name' => $category->name,
+            'revenue' => $category->revenue,
+            'percentage' => $categoryTotal > 0 ? round(((float) $category->revenue / $categoryTotal) * 100, 1) : 0,
+            'color' => ['#0f172a', '#4f46e5', '#0ea5e9', '#10b981'][$index % 4],
+        ])->values();
+
+        $activity = Order::recent()
+            ->limit(5)
+            ->get(['id', 'order_number', 'customer_name', 'total_amount', 'status', 'placed_at'])
+            ->map(fn($order) => [
+                'id' => $order->id,
+                'title' => 'Order ' . $order->order_number,
+                'desc' => $order->customer_name . ' placed an order worth ' . $order->total_amount,
+                'time' => $order->placed_at?->diffForHumans(),
+                'status' => ucfirst($order->status),
             ]);
 
-        // Top selling products
+        $orderTableFilter = $request->input('order_filter', 'all');
+
+        // Keep dashboard tables small and navigable at the database level.
+        $recentOrders = Order::with('items')
+            ->when($orderTableFilter === 'unfulfilled', fn($q) => $q->whereIn('status', ['pending', 'processing']))
+            ->when($orderTableFilter === 'pending', fn($q) => $q->where('payment_status', 'unpaid'))
+            ->when($orderTableFilter === 'fulfilled', fn($q) => $q->where('status', 'delivered'))
+            ->recent()
+            ->paginate(10, ['*'], 'recent_page')
+            ->withQueryString();
+
+        $recentOrders->through(fn($o) => [
+            'id' => $o->id,
+            'order_number' => $o->order_number,
+            'customer_name' => $o->customer_name,
+            'customer_email' => $o->customer_email,
+            'total_amount' => $o->total_amount,
+            'status' => $o->status,
+            'payment_status' => $o->payment_status,
+            'placed_at' => $o->placed_at,
+            'items_count' => $o->items->count(),
+        ]);
+
+        // Aggregate results are also paginated server-side.
         $topProducts = DB::table('order_items')
             ->select('product_name', DB::raw('SUM(quantity) as units_sold'), DB::raw('SUM(total) as revenue'))
             ->groupBy('product_name')
             ->orderByDesc('revenue')
-            ->limit(5)
-            ->get();
+            ->paginate(5, ['*'], 'top_products_page')
+            ->withQueryString();
 
-        // Low stock alerts
         $lowStock = Product::where('stock_quantity', '<=', 10)
             ->where('is_active', true)
             ->select('id', 'name', 'slug', 'stock_quantity', 'price')
             ->orderBy('stock_quantity')
-            ->limit(8)
-            ->get();
+            ->paginate(8, ['*'], 'low_stock_page')
+            ->withQueryString();
+
+        /*
+         * Keep the remaining analytics queries as aggregates; they do not render
+         * row-based tables and therefore do not need browser-side pagination.
+         */
+        $recentOrders = $recentOrders;
 
         // Revenue over last 12 months
         $dateExpr = DB::getDriverName() === 'sqlite'
@@ -95,6 +134,13 @@ class DashboardController extends Controller
             ->selectRaw("{$dateExpr} as month, SUM(total_amount) as revenue, COUNT(*) as orders")
             ->groupBy('month')
             ->orderBy('month')
+            ->get();
+
+        $weeklyRevenue = Order::where('payment_status', 'paid')
+            ->where('placed_at', '>=', now()->subDays(7))
+            ->selectRaw("{$dateExpr} as day, SUM(total_amount) as revenue, COUNT(*) as orders")
+            ->groupBy('day')
+            ->orderBy('day')
             ->get();
 
         return Inertia::render('Admin/dashboard', [
@@ -110,10 +156,14 @@ class DashboardController extends Controller
                 'avgOrderValue' => $avgOrderValue,
                 'ordersByStatus' => $ordersByStatus,
             ],
+            'categorySales' => $categorySales,
+            'activity' => $activity,
             'recentOrders' => $recentOrders,
             'topProducts' => $topProducts,
             'lowStock' => $lowStock,
             'monthlyRevenue' => $monthlyRevenue,
+            'weeklyRevenue' => $weeklyRevenue,
+            'orderTableFilter' => $orderTableFilter,
         ]);
     }
 }

@@ -127,11 +127,17 @@
     <div class="invoice-card">
         <div class="header">
             <div>
-                <div class="logo">ATELIER.</div>
-                <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">
-                    Atelier Luxury Goods &bull; Artisan Studio<br>
-                    support@atelier.luxury
-                </p>
+                @if(!empty($store['logoDark']) || !empty($store['logoLight']))
+                    <img src="{{ $store['logoDark'] ?: $store['logoLight'] }}" alt="{{ $store['storeName'] ?? '' }}" style="max-width: 220px; max-height: 64px; object-fit: contain; object-position: left center;">
+                @elseif(!empty($store['storeName']))
+                    <div class="logo">{{ $store['storeName'] }}</div>
+                @endif
+                @if(!empty($store['tagline']) || !empty($store['supportEmail']) || !empty($store['phone']))
+                    <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">
+                        {{ $store['tagline'] ?? '' }}<br>
+                        {{ $store['supportEmail'] ?? '' }}{{ !empty($store['phone']) ? ' • ' . $store['phone'] : '' }}
+                    </p>
+                @endif
             </div>
             <div class="invoice-title">
                 <h1>OFFICIAL INVOICE</h1>
@@ -212,7 +218,12 @@
         </div>
 
         <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px; font-size: 11px; color: #94a3b8; text-align: center;">
-            Thank you for your patronage with Atelier. For questions regarding this receipt, please contact client services at support@atelier.luxury.
+            @if(!empty($store['storeName']))
+                Thank you for your order with {{ $store['storeName'] }}.
+            @endif
+            @if(!empty($store['supportEmail']))
+                For questions regarding this receipt, please contact {{ $store['supportEmail'] }}.
+            @endif
         </div>
     </div>
 </body>

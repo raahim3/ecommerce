@@ -7,12 +7,14 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\CurrencyService;
+use App\Models\Setting;
+use Pusher\Pusher;
 
 class AdminNotifier
 {
     public static function create(string $type, string $title, string $message, ?string $link = null, ?array $data = null): AdminNotification
     {
-        return AdminNotification::create([
+        $notification = AdminNotification::create([
             'type' => $type,
             'title' => $title,
             'message' => $message,
@@ -20,6 +22,33 @@ class AdminNotifier
             'data' => $data,
             'is_read' => false,
         ]);
+
+        try {
+            $realtime = array_merge([
+                'enabled' => (bool) env('PUSHER_ENABLED', false),
+                'key' => env('PUSHER_APP_KEY', ''),
+                'secret' => env('PUSHER_APP_SECRET', ''),
+                'app_id' => env('PUSHER_APP_ID', ''),
+                'cluster' => env('PUSHER_APP_CLUSTER', 'mt1'),
+            ], Setting::get('pusher', []));
+            if (empty($realtime['key'])) $realtime['key'] = env('PUSHER_APP_KEY', '');
+            if (empty($realtime['secret'])) $realtime['secret'] = env('PUSHER_APP_SECRET', '');
+            if (empty($realtime['app_id'])) $realtime['app_id'] = env('PUSHER_APP_ID', '');
+            $realtime['enabled'] = (bool) $realtime['enabled'] || ($realtime['key'] && $realtime['secret'] && $realtime['app_id']);
+            if (($realtime['enabled'] ?? false) && !empty($realtime['key']) && !empty($realtime['secret']) && !empty($realtime['app_id'])) {
+                $pusher = new Pusher(
+                    $realtime['key'],
+                    $realtime['secret'],
+                    $realtime['app_id'],
+                    ['cluster' => $realtime['cluster'] ?? 'mt1', 'useTLS' => true]
+                );
+                $pusher->trigger('private-admin-notifications', 'admin.notification', $notification->toArray());
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        return $notification;
     }
 
     public static function notifyNewOrder(Order $order): AdminNotification

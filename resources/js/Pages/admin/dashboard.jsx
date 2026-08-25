@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, router } from "@inertiajs/react";
 import {
   TrendingUp,
   TrendingDown,
@@ -146,30 +146,62 @@ const ACTIVITY_STREAM = [
   },
 ];
 
+function TablePagination({ paginator }) {
+  if (!paginator || paginator.last_page <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
+      <span>Showing {paginator.from ?? 0}-{paginator.to ?? 0} of {paginator.total ?? 0}</span>
+      <div className="flex items-center gap-1">
+        {(paginator.links ?? []).map((link, index) => (
+          <Link
+            key={`${link.label}-${index}`}
+            href={link.url || "#"}
+            preserveScroll
+            className={cn(
+              "min-w-8 rounded-lg border px-2 py-1 text-center font-semibold",
+              link.active ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white hover:bg-slate-50",
+              !link.url && "pointer-events-none opacity-40",
+            )}
+            dangerouslySetInnerHTML={{ __html: link.label }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboardPage({
   stats = {},
-  recentOrders = [],
-  topProducts = [],
+  recentOrders = { data: [], links: [] },
+  topProducts = { data: [], links: [] },
   lowStock = [],
+  categorySales = [],
+  activity = [],
   monthlyRevenue = [],
+  weeklyRevenue = [],
+  orderTableFilter: serverOrderTableFilter = "all",
 }) {
   const [timeRange, setTimeRange] = useState("monthly");
   const [chartMetric, setChartMetric] = useState("revenue");
   const [hoveredPoint, setHoveredPoint] = useState(null);
-  const [orderTableFilter, setOrderTableFilter] = useState("all");
+  const [orderTableFilter, setOrderTableFilter] = useState(serverOrderTableFilter);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Merge server monthly revenue into chart data format
   const activeChartData = timeRange === "monthly"
-    ? (monthlyRevenue.length > 0
-        ? monthlyRevenue.map((d) => ({
+    ? monthlyRevenue.map((d) => ({
             label: new Date(d.month + "-01").toLocaleString("en-US", { month: "short" }),
             revenue: parseFloat(d.revenue) || 0,
             orders: parseInt(d.orders) || 0,
             aov: d.orders > 0 ? Math.round(d.revenue / d.orders) : 0,
           }))
-        : [])
-      : [];
+      : weeklyRevenue.map((d) => ({
+          label: new Date(`${d.day}T00:00:00`).toLocaleString("en-US", { weekday: "short" }),
+          revenue: parseFloat(d.revenue) || 0,
+          orders: parseInt(d.orders) || 0,
+          aov: d.orders > 0 ? Math.round(d.revenue / d.orders) : 0,
+        }));
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -194,8 +226,7 @@ export function AdminDashboardPage({
   };
 
   // Use only persisted orders.
-  const ordersSource = recentOrders.length > 0
-    ? recentOrders.map((o) => ({
+  const ordersSource = (recentOrders.data ?? []).map((o) => ({
         id: o.order_number,
         customer: { name: o.customer_name, email: o.customer_email },
         total: parseFloat(o.total_amount),
@@ -203,8 +234,7 @@ export function AdminDashboardPage({
         fulfillmentStatus: o.status === "delivered" ? "Fulfilled" : o.status === "shipped" ? "In Transit" : "Unfulfilled",
         date: new Date(o.placed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
         itemsCount: o.items_count || 0,
-      }))
-    : [];
+      }));
 
   // Show persisted KPI values, including zero when the store is empty.
   const kpiStats = {
@@ -217,13 +247,12 @@ export function AdminDashboardPage({
     ordersByStatus: stats.ordersByStatus ?? {},
   };
 
-  const filteredOrders = useMemo(() => {
-    if (orderTableFilter === "all") return ordersSource;
-    if (orderTableFilter === "unfulfilled") return ordersSource.filter((o) => o.fulfillmentStatus === "Unfulfilled");
-    if (orderTableFilter === "pending") return ordersSource.filter((o) => o.paymentStatus === "Pending");
-    if (orderTableFilter === "fulfilled") return ordersSource.filter((o) => o.fulfillmentStatus === "Fulfilled");
-    return ordersSource;
-  }, [orderTableFilter, ordersSource]);
+  const filteredOrders = ordersSource;
+
+  const handleOrderFilter = (filter) => {
+    setOrderTableFilter(filter);
+    router.get("/admin", { order_filter: filter }, { preserveScroll: true, preserveState: true });
+  };
 
   // SVG Chart Dimensions & Calculations
   const chartHeight = 220;
@@ -260,7 +289,7 @@ export function AdminDashboardPage({
             </h1>
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-              38 Live Shoppers
+              {kpiStats.customers.toLocaleString()} Customers
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -379,9 +408,9 @@ export function AdminDashboardPage({
         {/* KPI 4: Conversion Rate */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Conversion Rate</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Customers</span>
             <div className="grid size-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
-              <Percent className="size-4.5" />
+              <Users className="size-4.5" />
             </div>
           </div>
           <div className="mt-4">
@@ -526,7 +555,7 @@ export function AdminDashboardPage({
 
             {/* Visual Doughnut Bar */}
             <div className="h-3 w-full rounded-full overflow-hidden flex shadow-2xs">
-              {([]).map((cat) => (
+              {categorySales.map((cat) => (
                 <div
                   key={cat.name}
                   style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }}
@@ -537,7 +566,7 @@ export function AdminDashboardPage({
 
             {/* Legend Breakdown */}
             <div className="space-y-2.5 pt-2">
-              {([]).map((cat) => (
+              {categorySales.map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
@@ -556,17 +585,15 @@ export function AdminDashboardPage({
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs space-y-3">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900">Conversion Funnel</h3>
-              <span className="text-[11px] font-bold text-emerald-600">3.82% Conv.</span>
+              <span className="text-[11px] font-bold text-emerald-600">Live order mix</span>
             </div>
 
             <div className="space-y-3 pt-1 text-xs">
-              {[
-                { stage: "1. Store Sessions", val: "48.2k", pct: 100 },
-                { stage: "2. Product Views", val: "29.1k", pct: 60.3 },
-                { stage: "3. Added to Bag", val: "8.4k", pct: 28.9 },
-                { stage: "4. Reached Checkout", val: "3.2k", pct: 11.2 },
-                { stage: "5. Completed Order", val: "1.8k", pct: 3.82 },
-              ].map((step, idx) => (
+              {Object.entries(kpiStats.ordersByStatus).map(([status, count], idx, statuses) => {
+                const total = statuses.reduce((sum, [, value]) => sum + Number(value), 0);
+                const pct = total > 0 ? Math.round((Number(count) / total) * 100) : 0;
+                const step = { stage: `${idx + 1}. ${status}`, val: count, pct };
+                return (
                 <div key={idx} className="space-y-1">
                   <div className="flex justify-between font-semibold text-slate-700 text-[11px]">
                     <span>{step.stage}</span>
@@ -579,7 +606,8 @@ export function AdminDashboardPage({
                     />
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -604,7 +632,7 @@ export function AdminDashboardPage({
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setOrderTableFilter(f.id)}
+                onClick={() => handleOrderFilter(f.id)}
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-bold transition-all",
                   orderTableFilter === f.id
@@ -686,6 +714,7 @@ export function AdminDashboardPage({
             </tbody>
           </table>
         </div>
+        <TablePagination paginator={recentOrders} />
       </div>
 
       {/* ================= 5. LOWER SECTION: TOP PRODUCTS & LIVE STREAM ================= */}
@@ -700,7 +729,7 @@ export function AdminDashboardPage({
           </div>
 
           <div className="space-y-3">
-            {topProducts.slice(0, 4).map((p, idx) => (
+            {(topProducts.data ?? []).map((p, idx) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-3 hover:bg-slate-50 transition-colors"
@@ -732,6 +761,7 @@ export function AdminDashboardPage({
               </div>
             ))}
           </div>
+          <TablePagination paginator={topProducts} />
         </div>
 
         {/* Real-time Activity Stream (5 cols) */}
@@ -742,13 +772,13 @@ export function AdminDashboardPage({
           </div>
 
           <div className="space-y-3">
-            {([]).map((act) => (
+            {activity.map((act) => (
               <div
                 key={act.id}
                 className="flex items-start gap-3 rounded-2xl border border-slate-100 p-3 bg-slate-50/40"
               >
                 <div className={cn("grid size-8 place-items-center rounded-xl border shrink-0 mt-0.5", act.color)}>
-                  <act.icon className="size-4" />
+                  <ShoppingBag className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">

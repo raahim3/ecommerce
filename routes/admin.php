@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\ContactSubmissionController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/api/broadcasting/auth', [AdminNotificationController::class, 'broadcastAuth'])->name('broadcasting.auth');
 
     // File Upload API
     Route::post('/api/upload', [UploadController::class, 'upload'])->name('upload');
@@ -45,6 +46,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Inventory
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory');
+    Route::get('/inventory/activities', [InventoryController::class, 'activities'])->name('inventory.activities');
     Route::post('/inventory/bulk-update', [InventoryController::class, 'bulkUpdateStock'])->name('inventory.bulk-update');
 
     // Orders
@@ -52,6 +54,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('/orders/{id}/payment', [OrderController::class, 'updatePaymentStatus'])->name('orders.payment');
     Route::post('/orders/{id}/tracking', [OrderController::class, 'addTracking'])->name('orders.tracking');
+    Route::post('/orders/{id}/resend-email', [OrderController::class, 'resendEmail'])->name('orders.resend-email');
+    Route::get('/orders/{id}/packing-slip', [OrderController::class, 'packingSlip'])->name('orders.packing-slip');
+    Route::post('/orders/{id}/notes', [OrderController::class, 'addNote'])->name('orders.notes');
     Route::delete('/orders/{id}', [OrderController::class, 'destroy'])->name('orders.destroy');
 
     // Reports & Analytics

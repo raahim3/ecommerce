@@ -42,7 +42,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] pt-28 pb-16 flex items-center justify-center px-4 sm:px-6">
+    <div className="relative min-h-[calc(100vh-80px)] mt-16 pt-28 pb-16 flex items-center justify-center px-4 sm:px-6">
       {/* Background Ambience */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden">
         <div className="size-[500px] rounded-full bg-accent/5 blur-[120px]" />
@@ -50,14 +50,6 @@ export function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="group mb-6 inline-flex items-center gap-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-1" />
-          Back to Store
-        </Link>
 
         {/* Card Container */}
         <div className="rounded-3xl border border-border bg-surface p-7 shadow-soft sm:p-9">

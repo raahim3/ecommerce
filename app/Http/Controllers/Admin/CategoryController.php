@@ -12,17 +12,24 @@ use Inertia\Response;
 
 class CategoryController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $categories = Category::whereNull('parent_id')
+            ->when($request->filled('search'), fn($q) => $q->where(function ($searchQuery) use ($request) {
+                $searchQuery->where('name', 'like', '%' . $request->search . '%')
+                    ->orWhereHas('children', fn($childQuery) => $childQuery->where('name', 'like', '%' . $request->search . '%'));
+            }))
+            ->when($request->filled('status'), fn($q) => $q->where('is_active', $request->status === 'active'))
             ->with(['children' => fn($q) => $q->withCount('products')->orderBy('sort_order')->orderBy('name')])
             ->withCount('products')
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->get();
+            ->paginate(20)
+            ->withQueryString();
 
         return Inertia::render('Admin/categories', [
             'categories' => $categories,
+            'filters' => $request->only(['search', 'status']),
         ]);
     }
 

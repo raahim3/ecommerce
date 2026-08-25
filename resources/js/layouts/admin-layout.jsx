@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import Pusher from "pusher-js";
 
 const ADMIN_NAV = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard, exact: true },
@@ -61,6 +62,50 @@ export function AdminLayout({ children }) {
       setUnreadCount(props.admin_notifications.unread_count || 0);
     }
   }, [props?.admin_notifications]);
+
+  useEffect(() => {
+    const realtime = props?.app_settings?.realtime;
+    if (!realtime?.enabled || !realtime.key || !realtime.cluster) return undefined;
+
+    Pusher.logToConsole = true;
+    const pusher = new Pusher(realtime.key, {
+      cluster: realtime.cluster,
+      forceTLS: true,
+      authEndpoint: "/admin/api/broadcasting/auth",
+      auth: {
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRF-TOKEN": csrfToken(),
+        },
+      },
+    });
+    const channel = pusher.subscribe("private-admin-notifications");
+    pusher.connection.bind("state_change", (states) => {
+      console.info("Pusher state", states.previous, "->", states.current);
+    });
+    pusher.connection.bind("connected", () => {
+      console.info("Pusher connected", pusher.connection.socket_id);
+    });
+    pusher.connection.bind("error", (error) => {
+      console.error("Pusher connection error", error);
+    });
+    channel.bind("pusher:subscription_error", (error) => {
+      console.error("Pusher subscription error", error);
+      toast.error("Realtime notifications could not connect.");
+    });
+    channel.bind("admin.notification", (notification) => {
+      setNotifications((previous) => [notification, ...previous.filter((item) => item.id !== notification.id)].slice(0, 10));
+      setUnreadCount((count) => count + 1);
+      toast.info(notification.title, { description: notification.message });
+    });
+
+    return () => {
+      channel.unbind_all();
+      pusher.unsubscribe("private-admin-notifications");
+      pusher.disconnect();
+    };
+  }, [props?.app_settings?.realtime?.enabled, props?.app_settings?.realtime?.key, props?.app_settings?.realtime?.cluster]);
 
   // Close menus on route change or outside click
   useEffect(() => {

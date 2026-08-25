@@ -120,7 +120,14 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     fulfillmentStatus: o.status === "delivered" ? "Fulfilled" : o.status === "shipped" ? "In Transit" : o.status === "cancelled" ? "Cancelled" : "Unfulfilled",
     trackingNumber: o.tracking_number ?? "",
     carrier: o.carrier ?? "",
-    notes: [],
+    notes: (() => {
+      try {
+        const parsed = JSON.parse(o.notes || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return o.notes ? [{ author: "System", text: o.notes, time: "" }] : [];
+      }
+    })(),
   })) : []);
 
   const [activeTab, setActiveTab] = useState("All Orders");
@@ -184,26 +191,107 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     setFulfillModalOpen(false);
   };
 
-  const handleRefund = () => {
+  const updateOrder = async (endpoint, body, successMessage) => {
+    const serverId = selectedOrder?._serverId;
+    if (!serverId) {
+      toast.warning("Demo order — this change is not persisted to the database.");
+      return false;
+    }
+
+    try {
+      const res = await fetch(`/admin/orders/${serverId}/${endpoint}`, {
+        method: endpoint === "status" || endpoint === "payment" ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || "Failed to update order.");
+        return false;
+      }
+      toast.success(successMessage);
+      return true;
+    } catch {
+      toast.error("Network error — could not update the order.");
+      return false;
+    }
+  };
+
+  const handleMarkFulfilled = async () => {
+    const updated = await updateOrder("status", { status: "delivered" }, `Order #${selectedOrder.id} marked as fulfilled.`);
+    if (!updated) return;
+    setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, fulfillmentStatus: "Fulfilled" } : o));
+    setSelectedOrder((prev) => ({ ...prev, fulfillmentStatus: "Fulfilled" }));
+  };
+
+  const handleCancel = async () => {
+    const updated = await updateOrder("status", { status: "cancelled" }, `Order #${selectedOrder.id} cancelled.`);
+    if (!updated) return;
+    setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, fulfillmentStatus: "Cancelled" } : o));
+    setSelectedOrder((prev) => ({ ...prev, fulfillmentStatus: "Cancelled" }));
+  };
+
+  const handleMarkPaid = async () => {
+    const updated = await updateOrder("payment", { payment_status: "paid" }, `Order #${selectedOrder.id} marked as paid.`);
+    if (!updated) return;
+    setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, paymentStatus: "Paid" } : o));
+    setSelectedOrder((prev) => ({ ...prev, paymentStatus: "Paid" }));
+  };
+
+  const handleRefund = async () => {
     if (!refundData.amount) { toast.error("Enter a refund amount."); return; }
+    const updated = await updateOrder("payment", { payment_status: "refunded" }, `Refund of ${formatPrice(Number(refundData.amount))} issued for order #${selectedOrder.id}`);
+    if (!updated) return;
     setOrders((prev) => prev.map((o) =>
       o.id === selectedOrder.id ? { ...o, paymentStatus: "Refunded", fulfillmentStatus: "Cancelled" } : o
     ));
     setSelectedOrder((prev) => ({ ...prev, paymentStatus: "Refunded", fulfillmentStatus: "Cancelled" }));
-    toast.success(`Refund of ${formatPrice(Number(refundData.amount))} issued for order #${selectedOrder.id}`);
     setRefundModalOpen(false);
   };
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
-    const note = { author: "You (Admin)", text: newNote, time: "Just now" };
-    setOrders((prev) => prev.map((o) =>
-      o.id === selectedOrder.id ? { ...o, notes: [...o.notes, note] } : o
-    ));
-    setSelectedOrder((prev) => ({ ...prev, notes: [...(prev.notes || []), note] }));
-    toast.success("Note added to order.");
-    setNewNote("");
-    setNoteModalOpen(false);
+    const serverId = selectedOrder?._serverId;
+    if (!serverId) {
+      toast.warning("Demo order — note was not saved to the database.");
+      return;
+    }
+
+    fetch(`/admin/orders/${serverId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+      body: JSON.stringify({ note: newNote }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || "Failed to save note.");
+        return;
+      }
+      const data = await res.json();
+      const note = data.notes?.at(-1) || { author: "Admin", text: newNote, time: "Just now" };
+      setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, notes: data.notes } : o));
+      setSelectedOrder((prev) => ({ ...prev, notes: data.notes }));
+      toast.success("Note saved to order.");
+      setNewNote("");
+      setNoteModalOpen(false);
+    }).catch(() => toast.error("Network error — could not save note."));
+  };
+
+  const handleResendEmail = async () => {
+    const updated = await updateOrder("resend-email", {}, "Order confirmation email sent.");
+    if (updated) return;
+  };
+
+  const handlePrintPackingSlip = () => {
+    if (!selectedOrder?._serverId) {
+      toast.warning("Demo order — packing slip is not available.");
+      return;
+    }
+    window.open(`/admin/orders/${selectedOrder._serverId}/packing-slip`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownloadInvoice = () => {
+    window.open(`/invoices/${selectedOrder.id}`, "_blank", "noopener,noreferrer");
   };
 
   const countForTab = (tab) => {
@@ -461,6 +549,33 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                   <Truck className="size-3.5" /> Mark Fulfilled
                 </button>
               )}
+              {selectedOrder.fulfillmentStatus === "In Transit" && (
+                <button
+                  type="button"
+                  onClick={handleMarkFulfilled}
+                  className="flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700"
+                >
+                  <CheckCircle2 className="size-3.5" /> Mark Fulfilled
+                </button>
+              )}
+              {selectedOrder.fulfillmentStatus !== "Cancelled" && selectedOrder.fulfillmentStatus !== "Fulfilled" && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="flex h-9 items-center gap-1.5 rounded-xl border border-red-200 px-4 text-xs font-bold text-red-600 hover:bg-red-50"
+                >
+                  <X className="size-3.5" /> Cancel Order
+                </button>
+              )}
+              {selectedOrder.paymentStatus === "Pending" && (
+                <button
+                  type="button"
+                  onClick={handleMarkPaid}
+                  className="flex h-9 items-center gap-1.5 rounded-xl border border-emerald-200 px-4 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                >
+                  <Check className="size-3.5" /> Mark Paid
+                </button>
+              )}
               {selectedOrder.paymentStatus === "Paid" && (
                 <button
                   type="button"
@@ -472,21 +587,21 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
               )}
               <button
                 type="button"
-                onClick={() => toast.success("Order confirmation email resent.")}
+                onClick={handleResendEmail}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <Mail className="size-3.5" /> Resend Email
               </button>
               <button
                 type="button"
-                onClick={() => toast.success("Packing slip generated and sent to printer.")}
+                onClick={handlePrintPackingSlip}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <Printer className="size-3.5" /> Print Packing Slip
               </button>
               <button
                 type="button"
-                onClick={() => toast.success("Tax invoice PDF downloaded.")}
+                onClick={handleDownloadInvoice}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <FileText className="size-3.5" /> Download Invoice

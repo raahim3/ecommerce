@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { Link, router } from "@inertiajs/react";
 import {
   Search,
   Download,
@@ -18,8 +19,8 @@ import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { AdminPagination } from "@/components/admin/pagination";
 
-const WAREHOUSES = ["Copenhagen Main Hub", "New York Warehouse", "All Locations"];
 const ADJUST_REASONS = ["Restock / Replenishment", "Physical Count Correction", "Damage / Write-off", "Customer Return", "Promotion Reserve"];
 
 export function AdminInventoryPage({ products: serverProducts = { data: [] }, summary: serverSummary = {}, filters = {} }) {
@@ -28,6 +29,7 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
     ? serverData.map((p) => ({
         id: p.id,
         name: p.name,
+        image: p.images?.find((image) => image.is_primary)?.image_url || p.images?.[0]?.image_url || p.image || null,
         sku: p.sku ?? `ATL-PRD-${p.id}`,
         category: p.category?.name ?? "General",
         onHand: p.stock_quantity ?? 0,
@@ -43,13 +45,30 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
 
   const [inventory, setInventory] = useState(initialData);
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
-  const [selectedWarehouse, setSelectedWarehouse] = useState("All Locations");
   const [stockFilter, setStockFilter] = useState(filters.stock ?? "all"); // all | low | out | ok
   const [adjustModalItem, setAdjustModalItem] = useState(null);
   const [adjustReason, setAdjustReason] = useState(ADJUST_REASONS[0]);
   const [adjustQty, setAdjustQty] = useState(0);
   const [adjustType, setAdjustType] = useState("set"); // set | add | subtract
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    setInventory(serverData.map((p) => ({
+      id: p.id,
+      name: p.name,
+      image: p.images?.find((image) => image.is_primary)?.image_url || p.images?.[0]?.image_url || p.image || null,
+      sku: p.sku ?? `ATL-PRD-${p.id}`,
+      category: p.category?.name ?? "General",
+      onHand: p.stock_quantity ?? 0,
+      committed: 0,
+      incoming: 0,
+      warehouse: "Main Logistics Hub",
+      bin: `A-${p.id}`,
+      cost: Math.round((parseFloat(p.price) || 50) * 0.45),
+      price: parseFloat(p.price) || 0,
+      lowStockThreshold: 10,
+    })));
+  }, [serverProducts]);
 
   const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
 
@@ -73,12 +92,20 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
     else if (adjustType === "subtract") newQty = Math.max(0, adjustModalItem.onHand - Number(adjustQty));
 
     try {
-      await fetch(`/admin/products/${adjustModalItem.id}/stock`, {
+      const response = await fetch(`/admin/products/${adjustModalItem.id}/stock`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
-        body: JSON.stringify({ stock_quantity: newQty }),
+        body: JSON.stringify({
+          stock_quantity: newQty,
+          adjustment_type: adjustType,
+          reason: adjustReason,
+        }),
       });
-    } catch {}
+      if (!response.ok) throw new Error("Stock update failed");
+    } catch {
+      toast.error("Could not save stock adjustment.");
+      return;
+    }
 
     setInventory((prev) =>
       prev.map((item) => {
@@ -92,20 +119,11 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
     setAdjustModalItem(null);
   };
 
-  const filteredInventory = useMemo(() => {
-    return inventory.filter((item) => {
-      const available = item.onHand - item.committed;
-      if (stockFilter === "low" && !(available > 0 && available <= item.lowStockThreshold)) return false;
-      if (stockFilter === "out" && item.onHand !== 0) return false;
-      if (stockFilter === "ok" && available <= item.lowStockThreshold) return false;
-      if (selectedWarehouse !== "All Locations" && item.warehouse !== selectedWarehouse) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return item.name.toLowerCase().includes(q) || item.sku.toLowerCase().includes(q);
-      }
-      return true;
-    });
-  }, [inventory, searchQuery, selectedWarehouse, stockFilter]);
+  const filteredInventory = inventory;
+  const applyFilters = (next = {}) => router.get("/admin/inventory", {
+    search: (next.search ?? searchQuery) || undefined,
+    stock: next.stock ?? (stockFilter === "all" ? undefined : stockFilter === "ok" ? "in" : stockFilter),
+  }, { preserveState: true, preserveScroll: true });
 
   const getStockStatus = (item) => {
     const available = item.onHand - item.committed;
@@ -136,19 +154,21 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
           >
             <RotateCw className={cn("size-3.5", isRefreshing && "animate-spin")} /> Sync Warehouse
           </button>
+          <Link href="/admin/inventory/activities" className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+            <BarChart3 className="size-3.5" /> Inventory Activities
+          </Link>
           <button
             type="button"
             onClick={() => {
               if (inventory.length === 0) { toast.info("No inventory data to export."); return; }
-              const headers = ["Product Name", "SKU", "Category", "Stock Quantity", "Status", "Retail Price", "Incoming Units"];
+                      const headers = ["Product Name", "SKU", "Category", "Stock Quantity", "Status", "Retail Price"];
               const rows = inventory.map((item) => [
                 item.name,
                 item.sku,
                 item.category,
-                item.stock,
-                item.status,
+                        item.onHand,
+                        getStockStatus(item).label,
                 item.price,
-                item.incoming,
               ]);
               downloadCsv("inventory_audit_report", headers, rows);
               toast.success(`Exported ${inventory.length} inventory records to CSV!`);
@@ -163,19 +183,19 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
       {/* Summary Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-xs">
-          <div className="text-2xl font-extrabold text-slate-900">{totalUnits.toLocaleString()}</div>
+            <div className="text-2xl font-extrabold text-slate-900">{(serverSummary.total_units ?? 0).toLocaleString()}</div>
           <div className="text-[11px] font-semibold text-slate-500 mt-0.5">Total Units On Hand</div>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center shadow-xs">
-          <div className="text-2xl font-extrabold text-emerald-700">{inventory.filter((i) => (i.onHand - i.committed) > i.lowStockThreshold).length}</div>
+            <div className="text-2xl font-extrabold text-emerald-700">{serverSummary.in_stock ?? 0}</div>
           <div className="text-[11px] font-semibold text-emerald-600 mt-0.5">Products In Stock</div>
         </div>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center shadow-xs">
-          <div className="text-2xl font-extrabold text-amber-700">{lowStockCount}</div>
+            <div className="text-2xl font-extrabold text-amber-700">{serverSummary.low_stock ?? 0}</div>
           <div className="text-[11px] font-semibold text-amber-600 mt-0.5">Low Stock Alerts</div>
         </div>
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center shadow-xs">
-          <div className="text-2xl font-extrabold text-red-700">{outOfStockCount}</div>
+            <div className="text-2xl font-extrabold text-red-700">{serverSummary.out_of_stock ?? 0}</div>
           <div className="text-[11px] font-semibold text-red-600 mt-0.5">Out of Stock</div>
         </div>
       </div>
@@ -188,17 +208,11 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilters({ search: e.currentTarget.value })}
             placeholder="Search by product name or SKU..."
             className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 text-xs focus:border-slate-900 focus:outline-none"
           />
         </div>
-        <select
-          value={selectedWarehouse}
-          onChange={(e) => setSelectedWarehouse(e.target.value)}
-          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 focus:outline-none"
-        >
-          {WAREHOUSES.map((w) => <option key={w}>{w}</option>)}
-        </select>
         <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1">
           {[
             { id: "all", label: "All" },
@@ -209,7 +223,7 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
             <button
               key={f.id}
               type="button"
-              onClick={() => setStockFilter(f.id)}
+              onClick={() => { setStockFilter(f.id); applyFilters({ stock: f.id }); }}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap",
                 stockFilter === f.id ? "bg-slate-900 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
@@ -229,10 +243,6 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
               <tr>
                 <th className="p-4">Product / SKU</th>
                 <th className="p-4 text-center">On Hand</th>
-                <th className="p-4 text-center hidden md:table-cell">Committed</th>
-                <th className="p-4 text-center hidden md:table-cell">Available</th>
-                <th className="p-4 text-center hidden lg:table-cell">Incoming</th>
-                <th className="p-4 hidden lg:table-cell">Warehouse</th>
                 <th className="p-4 text-center">Status</th>
                 <th className="p-4 text-right">Adjust</th>
               </tr>
@@ -259,20 +269,6 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
                     <td className="p-4 text-center">
                       <span className="text-base font-extrabold text-slate-900">{item.onHand}</span>
                     </td>
-                    <td className="p-4 text-center hidden md:table-cell">
-                      <span className="text-xs font-semibold text-amber-600">{item.committed}</span>
-                    </td>
-                    <td className="p-4 text-center hidden md:table-cell">
-                      <span className={cn("text-sm font-extrabold", available <= 0 ? "text-red-600" : available <= item.lowStockThreshold ? "text-amber-600" : "text-emerald-600")}>
-                        {available}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center hidden lg:table-cell">
-                      <span className="text-xs font-semibold text-sky-600">+{item.incoming}</span>
-                    </td>
-                    <td className="p-4 hidden lg:table-cell">
-                      <span className="text-[11px] text-slate-500">{item.warehouse}</span>
-                    </td>
                     <td className="p-4 text-center">
                       <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold", status.cls)}>
                         <span className={cn("size-1.5 rounded-full", status.dot)} />
@@ -294,6 +290,7 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
             </tbody>
           </table>
         </div>
+        <div className="p-4"><AdminPagination paginator={serverProducts} /></div>
       </div>
 
       {/* Adjust Modal */}

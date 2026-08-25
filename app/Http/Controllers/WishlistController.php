@@ -25,8 +25,15 @@ class WishlistController extends Controller
             $wishlistProducts = $wishlistItems->pluck('product')->filter();
         }
 
+        $recommendedProducts = Product::active()
+            ->with(['category', 'images', 'variants'])
+            ->latest()
+            ->take(4)
+            ->get();
+
         return Inertia::render('Wishlist', [
             'initialWishlist' => $wishlistProducts,
+            'recommendedProducts' => $recommendedProducts,
         ]);
     }
 

@@ -160,6 +160,13 @@ class SettingsController extends Controller
                 'codEnabled' => true,
                 'testMode' => true,
             ]),
+            'pusher' => Setting::get('pusher', [
+                'enabled' => false,
+                'key' => '',
+                'secret' => '',
+                'app_id' => '',
+                'cluster' => 'mt1',
+            ]),
             'shipping' => Setting::get('shipping', [
                 'zones' => [
                     ['id' => 1, 'name' => 'Domestic Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free', 'active' => true],
@@ -181,7 +188,7 @@ class SettingsController extends Controller
     public function saveSettings(Request $request): JsonResponse
     {
         $request->validate([
-            'group' => ['required', 'string', 'in:general,homepage,navigation,contact,about,terms,privacy,seo,smtp,payments,shipping'],
+            'group' => ['required', 'string', 'in:general,homepage,navigation,contact,about,terms,privacy,seo,smtp,payments,shipping,pusher'],
             'data' => ['required', 'array'],
         ]);
 
