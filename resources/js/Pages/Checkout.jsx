@@ -514,8 +514,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                   </h2>
                   {[
                     { id: "standard", label: "Complimentary Standard Delivery", time: "3–5 business days", cost: "FREE" },
-                    { id: "express", label: "DHL Express Priority", time: "2 business days", cost: "$15.00" },
-                    { id: "overnight", label: "Overnight Next-Morning Dispatch", time: "Next business day", cost: "$25.00" },
+                    { id: "express", label: "DHL Express Priority", time: "2 business days", cost: formatPrice(15) },
+                    { id: "overnight", label: "Overnight Next-Morning Dispatch", time: "Next business day", cost: formatPrice(25) },
                   ].map((m) => (
                     <label
                       key={m.id}

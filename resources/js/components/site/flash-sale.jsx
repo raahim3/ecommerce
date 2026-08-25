@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { ArrowRight } from "lucide-react";
-import saleImage from "@/assets/sale.jpg";
+import saleImageFallback from "@/assets/sale.jpg";
 import { Reveal } from "./reveal";
 
-const DURATION = 1000 * 60 * 60 * 34; // 34h campaign window
-
-function useCountdown() {
-  const [remaining, setRemaining] = useState(DURATION);
+function useCountdown(hours) {
+  const duration = 1000 * 60 * 60 * hours;
+  const [remaining, setRemaining] = useState(duration);
   useEffect(() => {
-    const end = Date.now() + DURATION;
+    const end = Date.now() + duration;
     const tick = () => setRemaining(Math.max(0, end - Date.now()));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [duration]);
   const total = Math.floor(remaining / 1000);
   return [
     { label: "Days", value: Math.floor(total / 86400) },
@@ -25,13 +24,16 @@ function useCountdown() {
 }
 
 export function FlashSale() {
-  const units = useCountdown();
+  const { app_settings: appSettings = {} } = usePage().props;
+  const settings = appSettings.homepage || {};
+  const title = String(settings.flashSaleTitle || "The Essentials\nSale").split("\n").filter(Boolean);
+  const units = useCountdown(Number(settings.flashSaleDurationHours) || 48);
 
   return (
     <section id="sale" className="px-5 py-4 md:px-8 lg:py-6">
       <div className="relative mx-auto max-w-[84rem] overflow-hidden rounded-3xl bg-ink text-ink-foreground">
-        <img
-          src={saleImage}
+          <img
+          src={settings.flashSaleImage || saleImageFallback}
           alt=""
           aria-hidden="true"
           width={1408}
@@ -45,20 +47,18 @@ export function FlashSale() {
 
         <div className="relative grid gap-8 px-6 py-12 sm:px-10 lg:grid-cols-[1.1fr_auto] lg:items-end lg:px-16 lg:py-16">
           <Reveal className="min-w-0">
-            <p className="eyebrow text-ink-foreground/60">Up to 40% off</p>
+            <p className="eyebrow text-ink-foreground/60">{settings.flashSaleEyebrow || "Up to 40% off"}</p>
             <h2 className="mt-4 text-[clamp(2.25rem,6vw,4.5rem)] leading-[0.95] font-extrabold">
-              The Essentials
-              <br />
-              Sale
+              {title.map((line) => <span key={line} className="block">{line}</span>)}
             </h2>
             <p className="mt-5 max-w-md text-ink-foreground/70">
-              Two days only. Our most-loved pieces, marked down across every department.
+              {settings.flashSaleDescription || "Two days only. Our most-loved pieces, marked down across every department."}
             </p>
             <Link
-              to="/shop?sale=true"
+              to={settings.flashSaleActionUrl || "/shop?sale=true"}
               className="group mt-7 inline-flex h-13 items-center gap-2 rounded-full bg-accent px-8 text-sm font-semibold text-accent-foreground transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift"
             >
-              Shop the sale
+              {settings.flashSaleActionLabel || "Shop the sale"}
               <ArrowRight
                 className="size-4 transition-transform duration-300 group-hover:translate-x-1"
                 strokeWidth={2}

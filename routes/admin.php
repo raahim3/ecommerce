@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\CustomersController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\UploadController;
+use App\Http\Controllers\Admin\ContactSubmissionController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -68,4 +69,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Customers
     Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
     Route::get('/customers/{id}', [CustomersController::class, 'show'])->name('customers.show');
+    Route::get('/contact-submissions', [ContactSubmissionController::class, 'index'])->name('contact-submissions');
+    Route::patch('/contact-submissions/{id}', [ContactSubmissionController::class, 'update'])->name('contact-submissions.update');
+    Route::delete('/contact-submissions/{id}', [ContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
 });

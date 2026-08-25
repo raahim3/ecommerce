@@ -3,7 +3,7 @@ import { Link } from "@inertiajs/react";
 import { Heart, ShoppingBag, Trash2, ArrowRight, Share2, Sparkles, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "@/components/site/cart";
-import { products, formatPrice } from "@/lib/shop-data";
+import { formatPrice } from "@/lib/shop-data";
 import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
@@ -14,7 +14,7 @@ export function WishlistPage({ initialWishlist = [] }) {
     if (initialWishlist && initialWishlist.length > 0) {
       return initialWishlist;
     }
-    return products.filter((p) => wishlist.includes(p.id));
+    return [];
   }, [initialWishlist, wishlist]);
 
   const handleMoveAllToBag = () => {

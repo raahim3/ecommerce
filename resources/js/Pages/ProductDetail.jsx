@@ -30,7 +30,7 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products, formatPrice } from "@/lib/shop-data";
+import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/components/site/cart";
 import { ProductCard } from "@/components/site/product-card";
@@ -41,12 +41,9 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   const navigate = (href) => router.visit(href);
   const { addItem, wishlist, toggleWish } = useCart();
 
-  // Resolve product from server prop or fallback by id/slug
+  // Resolve product only from persisted server data.
   const product = useMemo(() => {
-    if (serverProduct) return serverProduct;
-    return products.find(
-      (p) => String(p.id) === String(id) || p.slug === String(id),
-    ) || products[0];
+    return serverProduct || null;
   }, [serverProduct, id]);
 
   // Resolve category name and slug
@@ -81,8 +78,8 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   // Frequently Bought Together bundle items state
   const bundleAccessories = useMemo(() => {
     if (!product) return [];
-    return products.filter((p) => p.id !== product.id).slice(0, 2);
-  }, [product]);
+    return serverRelatedProducts || [];
+  }, [product, serverRelatedProducts]);
 
   const [bundleChecked, setBundleChecked] = useState([true, true, true]); // [main, acc1, acc2]
 
@@ -313,12 +310,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   });
 
   // Related products
-  const relatedProducts = (serverRelatedProducts && serverRelatedProducts.length > 0)
-    ? serverRelatedProducts
-    : products
-        .filter((p) => p.id !== product?.id && p.category === product?.category)
-        .concat(products.filter((p) => p.id !== product?.id && p.category !== product?.category))
-        .slice(0, 4);
+  const relatedProducts = serverRelatedProducts || [];
 
   return (
     <main className="min-h-screen pb-20 pt-28 lg:pt-36">

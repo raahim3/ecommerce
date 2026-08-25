@@ -4,8 +4,13 @@ import { CartProvider } from '@/components/site/cart';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
+const setStoreCurrency = (page) => {
+    window.__STORE_CURRENCY__ = page?.props?.app_settings?.general?.currency || 'USD — US Dollar';
+};
+
 // Global flash messages listener via Inertia router events
 router.on('navigate', (event) => {
+    setStoreCurrency(event.detail.page);
     const flash = event.detail.page.props.flash;
     if (flash?.success) {
         toast.success(flash.success);
@@ -33,6 +38,7 @@ createInertiaApp({
         throw new Error(`Page not found: ${name}`);
     },
     setup({ el, App, props }) {
+        setStoreCurrency(props.initialPage);
         createRoot(el).render(
             <CartProvider>
                 <App {...props} />

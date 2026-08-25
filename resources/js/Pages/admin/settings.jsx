@@ -29,14 +29,22 @@ import {
   ToggleRight,
   Edit2,
   Search,
+  FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { RichTextEditor } from "@/components/admin/rich-text-editor";
 
 const TABS = [
   { id: "general", label: "General & Branding", icon: Globe },
+  { id: "homepage", label: "Homepage", icon: Image },
+  { id: "navigation", label: "Navigation & Footer", icon: Globe },
+  { id: "contact", label: "Contact Page", icon: Mail },
+  { id: "about", label: "About Page", icon: FileText },
+  { id: "terms", label: "Terms of Service", icon: FileText },
+  { id: "privacy", label: "Privacy Policy", icon: FileText },
   { id: "coupons", label: "Promo Codes & Discounts", icon: Tag },
   { id: "seo", label: "SEO & Social", icon: Globe },
   { id: "smtp", label: "Mail & SMTP", icon: Mail },
@@ -61,7 +69,7 @@ const EMPTY_COUPON = {
   is_active: true,
 };
 
-export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }) {
+export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], products = [], categories = [] }) {
   const [activeTab, setActiveTab] = useState("general");
   const [savingGroup, setSavingGroup] = useState(null);
 
@@ -79,6 +87,89 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
     logoDark: "",
     favicon: "",
     ...(settings.general || {}),
+  });
+
+  const [homepage, setHomepage] = useState({
+    heroEyebrow: "New Season / 2026 Collection",
+    heroTitle: "Discover\nWhat's\nNext.",
+    heroDescription: "Curated essentials designed for modern living — made in small runs, built to outlast the season.",
+    heroPrimaryLabel: "Shop Collection",
+    heroPrimaryUrl: "/shop",
+    heroSecondaryLabel: "Explore New Arrivals",
+    heroSecondaryUrl: "/shop?sort=newest",
+    heroImage: "",
+    heroImageAlt: "Model wearing an off-white oversized wool coat against a soft concrete wall",
+    heroProductId: "",
+    heroBadge: "Just dropped",
+    categoriesEyebrow: "Shop by category",
+    categoriesTitle: "Everything, carefully edited.",
+    categoriesSubtitle: "Four departments, one standard of quality.",
+    categoriesActionLabel: "View all collections",
+    categoriesActionUrl: "/shop",
+    selectedCategoryIds: [],
+    trendingEyebrow: "Trending now",
+    trendingTitle: "Products everyone is talking about.",
+    trendingSubtitle: "",
+    trendingActionLabel: "View all products",
+    trendingActionUrl: "/shop",
+    trendingMode: "automatic",
+    trendingProductIds: [],
+    flashSaleEyebrow: "Up to 40% off",
+    flashSaleTitle: "The Essentials\nSale",
+    flashSaleDescription: "Two days only. Our most-loved pieces, marked down across every department.",
+    flashSaleActionLabel: "Shop the sale",
+    flashSaleActionUrl: "/shop?sale=true",
+    flashSaleImage: "",
+    flashSaleDurationHours: 48,
+    bestSellerEyebrow: "Customer favorites",
+    bestSellerTitle: "The pieces that keep selling out.",
+    bestSellerSubtitle: "",
+    bestSellerCategoryIds: [],
+    editorialEyebrow: "Our philosophy",
+    editorialTitle: "More than just shopping.",
+    editorialDescription: "Thoughtfully selected products. Exceptional quality. Designed for the way you live — and made by people we know by name.",
+    editorialImage: "",
+    editorialImageAlt: "A calm minimal living room with a linen sofa and warm daylight",
+    editorialStat1Value: "120+",
+    editorialStat1Label: "Makers",
+    editorialStat2Value: "18",
+    editorialStat2Label: "Countries",
+    editorialStat3Value: "94%",
+    editorialStat3Label: "Repeat buyers",
+    editorialActionLabel: "Our story",
+    editorialActionUrl: "/about",
+    reviewsEyebrow: "Loved by thousands",
+    reviewsTitle: "Reviews that keep us honest.",
+    reviewsMode: "original",
+    manualReviews: [],
+    newsletterEyebrow: "Stay in the loop",
+    newsletterTitle: "First access to every drop.",
+    newsletterDescription: "Get first access to new drops, exclusive offers and curated collections. No noise, one email a week.",
+    newsletterPlaceholder: "Enter your email",
+    newsletterButtonLabel: "Subscribe",
+    socialEyebrow: "Follow the journey",
+    socialTitle: "@atelier",
+    socialGalleryImages: [],
+    ...(settings.homepage || {}),
+  });
+  const [navigation, setNavigation] = useState({
+    marqueeText: "Free shipping on orders over {currency}100 • Easy 30-day returns • Use code ATELIER10 for 10% off",
+    headerMenuItems: [],
+    footerDescription: "Curated essentials for modern living. Designed in Copenhagen, shipped worldwide with sustainable packaging.",
+    footerCopyright: "© {year} {store} All rights reserved.",
+    footerShopLinks: [], footerServiceLinks: [], footerCompanyLinks: [],
+    ...(settings.navigation || {}),
+  });
+  const [contact, setContact] = useState({
+    eyebrow: "Client Services", title: "How can we assist you?", description: "Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.",
+    emailTitle: "Email Client Care", emailDescription: "Average reply time: under 2 hours during studio hours.", email: "care@atelier-studios.com",
+    phoneTitle: "Phone Concierge", phoneDescription: "Monday-Saturday, 9:00 AM - 6:00 PM EST.", phone: "+1 (800) 555-ATELIER", messageTitle: "Send a Message", faqTitle: "Frequently Asked Questions", faqDescription: "Find quick answers to common questions.", faqs: [],
+    ...(settings.contact || {}),
+  });
+  const [legal, setLegal] = useState({
+    about: { eyebrow: "The Atelier Manifesto", title: "Purity in form. Integrity in craft.", intro: "We exist to counter the culture of disposable trends.", image: "", body: "<h2>Our story</h2><p>We make considered essentials with integrity, quality, and care.</p>", ...(settings.about || {}) },
+    terms: { eyebrow: "Legal", title: "Terms of Service", intro: "The terms that govern your use of Atelier.", body: "<h2>Using our store</h2><p>By using this website, you agree to these terms and our policies.</p>", ...(settings.terms || {}) },
+    privacy: { eyebrow: "Legal", title: "Privacy Policy", intro: "How Atelier collects and protects your information.", body: "<h2>Your privacy matters</h2><p>We use your information only to provide and improve our services.</p>", ...(settings.privacy || {}) },
   });
 
   // 2. SEO & Social
@@ -127,9 +218,9 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
   // 5. Shipping & Taxes
   const [shipping, setShipping] = useState(settings.shipping || {
     zones: [
-      { id: 1, name: "Domestic Free Shipping", condition: "Orders > $100", rate: "Free", active: true },
-      { id: 2, name: "Priority Express (US)", condition: "All US orders", rate: "$15.00", active: true },
-      { id: 3, name: "International Standard", condition: "All International", rate: "$25.00", active: true },
+      { id: 1, name: "Domestic Free Shipping", condition: `Orders > ${formatPrice(100)}`, rate: "Free", active: true },
+      { id: 2, name: "Priority Express (US)", condition: "All US orders", rate: formatPrice(15), active: true },
+      { id: 3, name: "International Standard", condition: "All International", rate: formatPrice(25), active: true },
     ],
     tax: { automated: true, flatRate: "8.0", taxIncluded: false },
   });
@@ -279,6 +370,7 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">Store Settings & Configuration</h1>
         <p className="text-xs text-slate-500 mt-1">Configure global store rules, payment gateways, shipping zones, and promotional discounts.</p>
+
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -537,6 +629,528 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [] }
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "navigation" && (
+            <div className="space-y-5">
+              <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div><h2 className="text-base font-bold text-slate-900">Navigation & Footer</h2><p className="mt-0.5 text-xs text-slate-500">Manage the marquee, header menu, footer links, and legal copy.</p></div>
+                  <button type="button" onClick={() => handleSaveSettings("navigation", navigation)} disabled={savingGroup === "navigation"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "navigation" ? "Saving..." : "Save Changes"}</button>
+                </div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">Top Bar Marquee Text</label>
+                <input value={navigation.marqueeText || ""} onChange={(e) => setNavigation({ ...navigation, marqueeText: e.target.value })} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                <div className="border-t border-slate-100 pt-5"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Header Menu</h3><p className="mt-1 text-[11px] text-slate-400">Choose Page, Category, or Custom URL for each item.</p>
+                  {(navigation.headerMenuItems || []).map((item, index) => (
+                    <div key={index} className="mt-3 grid grid-cols-[1fr_140px_1fr_auto] gap-2">
+                      <input value={item.label || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, label: e.target.value } : x) })} placeholder="Label" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />
+                      <select value={item.type || "page"} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, type: e.target.value, target: "" } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="page">Page</option><option value="category">Category</option><option value="custom">Custom URL</option></select>
+                      {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
+                      <button type="button" onClick={() => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.filter((_, i) => i !== index) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setNavigation({ ...navigation, headerMenuItems: [...(navigation.headerMenuItems || []), { label: "New link", type: "page", target: "shop" }] })} className="mt-3 flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold"><Plus className="size-3.5" /> Add menu item</button>
+                </div>
+                <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
+                  {[['footerDescription', 'Footer Description'], ['footerCopyright', 'Copyright Text']].map(([field, label]) => <div key={field} className="sm:col-span-2"><label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label><textarea rows={2} value={navigation[field] || ""} onChange={(e) => setNavigation({ ...navigation, [field]: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" /></div>)}
+                </div>
+                {[["footerShopLinks", "Shop Links"], ["footerServiceLinks", "Service Links"], ["footerCompanyLinks", "Company Links"]].map(([group, title]) => (
+                  <div key={group} className="border-t border-slate-100 pt-5"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">{title}</h3>
+                    {(navigation[group] || []).map((item, index) => (
+                      <div key={index} className="mt-3 grid grid-cols-[1fr_120px_1fr_auto] gap-2">
+                        <input value={item.label || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, label: e.target.value } : x) })} placeholder="Label" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />
+                        <select value={item.type || "page"} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, type: e.target.value, target: "" } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="page">Page</option><option value="category">Category</option><option value="custom">Custom URL</option></select>
+                        {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
+                        <button type="button" onClick={() => setNavigation({ ...navigation, [group]: navigation[group].filter((_, i) => i !== index) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button>
+                      </div>
+                    ))}
+                    <button type="button" onClick={() => setNavigation({ ...navigation, [group]: [...(navigation[group] || []), { label: "New link", type: "page", target: "shop" }] })} className="mt-3 flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold"><Plus className="size-3.5" /> Add link</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "contact" && (
+            <div className="space-y-5">
+              <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h2 className="text-base font-bold text-slate-900">Contact Page</h2><p className="mt-0.5 text-xs text-slate-500">Manage contact copy and frequently asked questions.</p></div><button type="button" onClick={() => handleSaveSettings("contact", contact)} disabled={savingGroup === "contact"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "contact" ? "Saving..." : "Save Changes"}</button></div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[["eyebrow", "Eyebrow"], ["title", "Page Title"], ["description", "Page Description"], ["emailTitle", "Email Card Title"], ["emailDescription", "Email Card Description"], ["email", "Support Email"], ["phoneTitle", "Phone Card Title"], ["phoneDescription", "Phone Card Description"], ["phone", "Phone Number"], ["messageTitle", "Message Form Title"], ["faqTitle", "FAQ Title"], ["faqDescription", "FAQ Description"]].map(([field, label]) => <div key={field} className={field === "description" || field === "faqDescription" ? "sm:col-span-2" : ""}><label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label><input value={contact[field] || ""} onChange={(e) => setContact({ ...contact, [field]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /></div>)}</div>
+                <div className="space-y-3 border-t border-slate-100 pt-5"><div className="flex items-center justify-between"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Frequently Asked Questions</h3><button type="button" onClick={() => setContact({ ...contact, faqs: [...(contact.faqs || []), { id: Date.now(), category: "General", q: "", a: "" }] })} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold"><Plus className="size-3.5" /> Add FAQ</button></div>{(contact.faqs || []).map((faq, index) => <div key={faq.id || index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]"><input value={faq.category || ""} placeholder="Category" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, category: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs" /><input value={faq.q || ""} placeholder="Question" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, q: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs" /><button type="button" onClick={() => setContact({ ...contact, faqs: contact.faqs.filter((x) => x.id !== faq.id) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button></div><textarea value={faq.a || ""} placeholder="Answer" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, a: e.target.value } : x) })} rows={3} className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs" /></div>)}{(contact.faqs || []).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-400">No custom FAQs configured. Add one to replace the default FAQ list.</p>}</div>
+              </div>
+            </div>
+          )}
+
+          {(activeTab === "about" || activeTab === "terms" || activeTab === "privacy") && (() => {
+            const data = legal[activeTab];
+            const label = activeTab === "about" ? "About Page" : activeTab === "terms" ? "Terms of Service" : "Privacy Policy";
+            return <div className="space-y-5"><div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8"><div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h2 className="text-base font-bold text-slate-900">{label}</h2><p className="mt-0.5 text-xs text-slate-500">Edit this public page with rich text formatting.</p></div><button type="button" onClick={() => handleSaveSettings(activeTab, data)} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white"><Save className="size-3.5" />Save Page</button></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><input value={data.eyebrow || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, eyebrow: e.target.value } })} placeholder="Eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /><input value={data.title || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, title: e.target.value } })} placeholder="Title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /><input value={data.intro || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, intro: e.target.value } })} placeholder="Intro" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs sm:col-span-2" /></div>{activeTab === "about" && <input value={data.image || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, image: e.target.value } })} placeholder="About image URL" className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />}<RichTextEditor value={data.body || ""} onChange={(body) => setLegal({ ...legal, [activeTab]: { ...data, body } })} /></div></div>;
+          })()}
+
+          {activeTab === "homepage" && (
+            <div className="space-y-5">
+              <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Homepage Hero</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">Manage the first section and choose the product shown on the right.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveSettings("homepage", homepage)}
+                    disabled={savingGroup === "homepage"}
+                    className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    <Save className="size-3.5" />
+                    <span>{savingGroup === "homepage" ? "Saving..." : "Save Changes"}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {[
+                    ["heroEyebrow", "Eyebrow"],
+                    ["heroBadge", "Top Badge"],
+                    ["heroPrimaryLabel", "Primary Button Label"],
+                    ["heroPrimaryUrl", "Primary Button URL"],
+                    ["heroSecondaryLabel", "Secondary Button Label"],
+                    ["heroSecondaryUrl", "Secondary Button URL"],
+                    ["heroImage", "Hero Image URL"],
+                    ["heroImageAlt", "Hero Image Alt Text"],
+                  ].map(([field, label]) => (
+                    <div key={field}>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                      <input
+                        type="text"
+                        value={homepage[field] || ""}
+                        onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Title</label>
+                    <textarea
+                      value={homepage.heroTitle || ""}
+                      onChange={(e) => setHomepage({ ...homepage, heroTitle: e.target.value })}
+                      rows={3}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">Use one line for each line of the headline.</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Description</label>
+                    <textarea
+                      value={homepage.heroDescription || ""}
+                      onChange={(e) => setHomepage({ ...homepage, heroDescription: e.target.value })}
+                      rows={3}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Right-Side Product</label>
+                  <select
+                    value={homepage.heroProductId || ""}
+                    onChange={(e) => setHomepage({ ...homepage, heroProductId: e.target.value || null })}
+                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                  >
+                    <option value="">Automatically show latest product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>{product.name} ({formatPrice(product.price)})</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-400">Leave automatic to use the newest active product. Select a product to override it.</p>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Homepage Categories Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Set the section copy and choose which categories appear below the hero.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[
+                      ["categoriesEyebrow", "Section Eyebrow"],
+                      ["categoriesTitle", "Section Title"],
+                      ["categoriesSubtitle", "Section Subtitle"],
+                      ["categoriesActionLabel", "Action Button Label"],
+                      ["categoriesActionUrl", "Action Button URL"],
+                    ].map(([field, label]) => (
+                      <div key={field} className={field === "categoriesSubtitle" ? "sm:col-span-2" : ""}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input
+                          type="text"
+                          value={homepage[field] || ""}
+                          onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+                          className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Categories to Display</label>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {categories.map((category) => {
+                        const selected = (homepage.selectedCategoryIds || []).map(Number).includes(Number(category.id));
+                        return (
+                          <label key={category.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-white">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => setHomepage({
+                                ...homepage,
+                                selectedCategoryIds: selected
+                                  ? homepage.selectedCategoryIds.filter((id) => Number(id) !== Number(category.id))
+                                  : [...(homepage.selectedCategoryIds || []), category.id],
+                              })}
+                              className="size-4 accent-slate-900"
+                            />
+                            <span>{category.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">Leave all unchecked to show every active category. More than four selected categories become a carousel.</p>
+                  </div>
+
+                  <div className="space-y-4 border-t border-slate-100 pt-5">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Trending Products Section</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">Choose automatic sales-based ranking or a manual product list.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {[
+                        ["trendingEyebrow", "Section Eyebrow"],
+                        ["trendingTitle", "Section Title"],
+                        ["trendingSubtitle", "Section Subtitle"],
+                        ["trendingActionLabel", "Action Button Label"],
+                        ["trendingActionUrl", "Action Button URL"],
+                      ].map(([field, label]) => (
+                        <div key={field}>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                          <input
+                            type="text"
+                            value={homepage[field] || ""}
+                            onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+                            className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Trending Source</label>
+                      <select
+                        value={homepage.trendingMode || "automatic"}
+                        onChange={(e) => setHomepage({ ...homepage, trendingMode: e.target.value })}
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      >
+                        <option value="automatic">Automatic: most purchased products</option>
+                        <option value="manual">Manual: choose products below</option>
+                      </select>
+                    </div>
+                    {homepage.trendingMode === "manual" && (
+                      <div>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Manual Trending Products</label>
+                        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {products.map((product) => {
+                            const selected = (homepage.trendingProductIds || []).map(Number).includes(Number(product.id));
+                            return (
+                              <label key={product.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-white">
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => setHomepage({
+                                    ...homepage,
+                                    trendingProductIds: selected
+                                      ? homepage.trendingProductIds.filter((id) => Number(id) !== Number(product.id))
+                                      : [...(homepage.trendingProductIds || []), product.id],
+                                  })}
+                                  className="size-4 accent-slate-900"
+                                />
+                                <span className="truncate">{product.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-2 text-[11px] text-slate-400">Select up to 8 products. They appear in the order selected.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Flash Sale Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Control the campaign content, background, and countdown duration.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[
+                      ["flashSaleEyebrow", "Sale Eyebrow"],
+                      ["flashSaleActionLabel", "Button Label"],
+                      ["flashSaleActionUrl", "Button URL"],
+                      ["flashSaleImage", "Background Image URL"],
+                      ["flashSaleDurationHours", "Countdown Hours"],
+                    ].map(([field, label]) => (
+                      <div key={field}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input
+                          type={field === "flashSaleDurationHours" ? "number" : "text"}
+                          min={1}
+                          value={homepage[field] ?? ""}
+                          onChange={(e) => setHomepage({ ...homepage, [field]: field === "flashSaleDurationHours" ? Number(e.target.value) : e.target.value })}
+                          className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sale Title</label>
+                      <textarea
+                        value={homepage.flashSaleTitle || ""}
+                        onChange={(e) => setHomepage({ ...homepage, flashSaleTitle: e.target.value })}
+                        rows={2}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sale Description</label>
+                      <textarea
+                        value={homepage.flashSaleDescription || ""}
+                        onChange={(e) => setHomepage({ ...homepage, flashSaleDescription: e.target.value })}
+                        rows={3}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Best Sellers Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Configure the section copy and the category tabs shown on the homepage.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[
+                      ["bestSellerEyebrow", "Section Eyebrow"],
+                      ["bestSellerTitle", "Section Title"],
+                      ["bestSellerSubtitle", "Section Subtitle"],
+                    ].map(([field, label]) => (
+                      <div key={field} className={field === "bestSellerSubtitle" ? "sm:col-span-2" : ""}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input
+                          type="text"
+                          value={homepage[field] || ""}
+                          onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+                          className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Category Tabs</label>
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {categories.map((category) => {
+                        const selected = (homepage.bestSellerCategoryIds || []).map(Number).includes(Number(category.id));
+                        return (
+                          <label key={category.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-white">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => setHomepage({
+                                ...homepage,
+                                bestSellerCategoryIds: selected
+                                  ? homepage.bestSellerCategoryIds.filter((id) => Number(id) !== Number(category.id))
+                                  : [...(homepage.bestSellerCategoryIds || []), category.id],
+                              })}
+                              className="size-4 accent-slate-900"
+                            />
+                            <span>{category.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">Selected categories become tabs. Leave all unchecked to show all active category tabs.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Editorial Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Manage the editorial story, image, statistics, and link.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[
+                      ["editorialEyebrow", "Eyebrow"],
+                      ["editorialImage", "Image URL"],
+                      ["editorialImageAlt", "Image Alt Text"],
+                      ["editorialActionLabel", "Link Label"],
+                      ["editorialActionUrl", "Link URL"],
+                      ["editorialStat1Value", "Stat 1 Value"],
+                      ["editorialStat1Label", "Stat 1 Label"],
+                      ["editorialStat2Value", "Stat 2 Value"],
+                      ["editorialStat2Label", "Stat 2 Label"],
+                      ["editorialStat3Value", "Stat 3 Value"],
+                      ["editorialStat3Label", "Stat 3 Label"],
+                    ].map(([field, label]) => (
+                      <div key={field}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input
+                          type="text"
+                          value={homepage[field] || ""}
+                          onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+                          className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Title</label>
+                      <textarea
+                        value={homepage.editorialTitle || ""}
+                        onChange={(e) => setHomepage({ ...homepage, editorialTitle: e.target.value })}
+                        rows={2}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Description</label>
+                      <textarea
+                        value={homepage.editorialDescription || ""}
+                        onChange={(e) => setHomepage({ ...homepage, editorialDescription: e.target.value })}
+                        rows={3}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Reviews Section</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">Show original customer reviews or manage homepage reviews manually.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setHomepage({
+                        ...homepage,
+                        reviewsMode: "manual",
+                        manualReviews: [...(homepage.manualReviews || []), { id: Date.now(), quote: "", name: "", role: "Verified Customer" }],
+                      })}
+                      className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Plus className="size-3.5" /> Add Review
+                    </button>
+                  </div>
+                  <select
+                    value={homepage.reviewsMode || "original"}
+                    onChange={(e) => setHomepage({ ...homepage, reviewsMode: e.target.value })}
+                    className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                  >
+                    <option value="original">Original Reviews: approved customer reviews</option>
+                    <option value="manual">Manual Reviews: use reviews created below</option>
+                  </select>
+                  {homepage.reviewsMode === "manual" && (
+                    <div className="space-y-3">
+                      {(homepage.manualReviews || []).map((review, index) => (
+                        <div key={review.id || index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700">Review {index + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => setHomepage({ ...homepage, manualReviews: homepage.manualReviews.filter((item) => item.id !== review.id) })}
+                              className="grid size-7 place-items-center rounded-lg text-red-500 hover:bg-red-50"
+                              title="Delete review"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {[['name', 'Reviewer Name'], ['role', 'Reviewer Role']].map(([field, label]) => (
+                              <div key={field}>
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                                <input
+                                  value={review[field] || ""}
+                                  onChange={(e) => setHomepage({ ...homepage, manualReviews: homepage.manualReviews.map((item) => item.id === review.id ? { ...item, [field]: e.target.value } : item) })}
+                                  className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none"
+                                />
+                              </div>
+                            ))}
+                            <div className="sm:col-span-2">
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Review Text</label>
+                              <textarea
+                                value={review.quote || ""}
+                                onChange={(e) => setHomepage({ ...homepage, manualReviews: homepage.manualReviews.map((item) => item.id === review.id ? { ...item, quote: e.target.value } : item) })}
+                                rows={3}
+                                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:border-slate-900 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {homepage.manualReviews?.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-400">No manual reviews yet. Click Add Review.</p>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Newsletter Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Customize the subscription call-to-action shown on the homepage.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[["newsletterEyebrow", "Eyebrow"], ["newsletterPlaceholder", "Email Placeholder"], ["newsletterButtonLabel", "Button Label"], ["newsletterTitle", "Title"]].map(([field, label]) => (
+                      <div key={field}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input value={homepage[field] || ""} onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                      </div>
+                    ))}
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Description</label>
+                      <textarea value={homepage.newsletterDescription || ""} onChange={(e) => setHomepage({ ...homepage, newsletterDescription: e.target.value })} rows={3} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Social Gallery Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Upload gallery images and set the section heading. Click any image on the storefront for a large preview.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {[["socialEyebrow", "Eyebrow"], ["socialTitle", "Title"]].map(([field, label]) => (
+                      <div key={field}>
+                        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+                        <input value={homepage[field] || ""} onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                      </div>
+                    ))}
+                  </div>
+                  <label className="flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs font-bold text-slate-600 hover:bg-white">
+                    <Upload className="size-4" /> Upload Gallery Image
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const formData = new FormData(); formData.append("image", file); formData.append("folder", "homepage");
+                      try {
+                        const response = await fetch("/admin/api/upload", { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken() }, body: formData });
+                        const data = await response.json();
+                        if (!response.ok || !data.url) throw new Error("Upload failed");
+                        setHomepage({ ...homepage, socialGalleryImages: [...(homepage.socialGalleryImages || []), { url: data.url, alt: file.name.replace(/\.[^/.]+$/, "") }] });
+                        toast.success("Gallery image uploaded.");
+                      } catch { toast.error("Gallery image upload failed."); }
+                    }} />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {(homepage.socialGalleryImages || []).map((image, index) => (
+                      <div key={`${image.url}-${index}`} className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                        <img src={image.url} alt={image.alt || "Gallery preview"} className="aspect-square w-full object-cover" />
+                        <input value={image.alt || ""} onChange={(e) => setHomepage({ ...homepage, socialGalleryImages: homepage.socialGalleryImages.map((item, itemIndex) => itemIndex === index ? { ...item, alt: e.target.value } : item) })} placeholder="Alt text" className="h-8 w-full border-t border-slate-200 bg-white px-2 text-[10px] outline-none" />
+                        <button type="button" onClick={() => setHomepage({ ...homepage, socialGalleryImages: homepage.socialGalleryImages.filter((_, itemIndex) => itemIndex !== index) })} className="absolute top-1 right-1 grid size-7 place-items-center rounded-full bg-red-600 text-white" title="Remove image"><X className="size-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

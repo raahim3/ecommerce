@@ -1,25 +1,27 @@
 import { useEffect, useState } from "react";
+import { usePage } from "@inertiajs/react";
 import { BadgeCheck, Star } from "lucide-react";
-import { testimonials } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { Reveal, SectionHeading } from "./reveal";
 
-export function Reviews() {
+export function Reviews({ items = [] }) {
+  const { app_settings: appSettings = {} } = usePage().props;
+  const settings = appSettings.homepage || {};
   const [active, setActive] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setActive((n) => (n + 1) % testimonials.length), 6000);
+    const id = setInterval(() => setActive((n) => (n + 1) % Math.max(items.length, 1)), 6000);
     return () => clearInterval(id);
-  }, []);
+  }, [items.length]);
 
   return (
     <section className="py-14 lg:py-20">
       <div className="shell">
-        <SectionHeading eyebrow="Loved by thousands" title="Reviews that keep us honest." />
+        <SectionHeading eyebrow={settings.reviewsEyebrow || "Loved by thousands"} title={settings.reviewsTitle || "Reviews that keep us honest."} />
 
         <div className="mt-8 grid gap-4 lg:grid-cols-3 lg:gap-6">
-          {testimonials.map((item, i) => (
-            <Reveal key={item.name} delay={i * 90}>
+          {items.map((item, i) => (
+            <Reveal key={item.id || item.name} delay={i * 90}>
               <figure
                 className={cn(
                   "flex h-full flex-col rounded-2xl border border-border bg-surface p-7 transition-all duration-500",
@@ -47,9 +49,9 @@ export function Reviews() {
         </div>
 
         <div className="mt-8 flex justify-center gap-2">
-          {testimonials.map((item, i) => (
+          {items.map((item, i) => (
             <button
-              key={item.name}
+              key={item.id || item.name}
               type="button"
               onClick={() => setActive(i)}
               aria-label={`Highlight review from ${item.name}`}

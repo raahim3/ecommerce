@@ -17,7 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products as CATALOG, formatPrice } from "@/lib/shop-data";
+import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
@@ -33,7 +33,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  // Merge server products with mock fallback
+  // Use only persisted catalog products.
   const serverData = serverProducts?.data ?? [];
   const [managedProducts, setManagedProducts] = useState(
     serverData.length > 0
@@ -51,11 +51,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
           is_active: p.is_active,
           badge: p.is_new ? "New" : p.original_price ? "Sale" : null,
         }))
-      : CATALOG.map((p) => ({
-          ...p,
-          status: "Active",
-          stock: p.stock || Math.floor(Math.random() * 60) + 4,
-        }))
+      : []
   );
 
   const allCategories = ["All", ...new Set([

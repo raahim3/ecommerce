@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { ArrowRight, Star } from "lucide-react";
-import heroImage from "@/assets/hero.jpg";
+import heroImageFallback from "@/assets/hero.jpg";
 import { cn } from "@/lib/utils";
-
-const HEADLINE = ["Discover", "What's", "Next."];
+import { formatPrice } from "@/lib/shop-data";
 
 export function Hero() {
+  const { app_settings: appSettings = {}, heroProduct = null } = usePage().props;
+  const settings = appSettings.homepage || {};
+  const editorProduct = heroProduct;
+  const headline = String(settings.heroTitle || "Discover\nWhat's\nNext.").split("\n").filter(Boolean);
+  const heroImage = settings.heroImage || editorProduct?.image || editorProduct?.images?.[0]?.image_url || heroImageFallback;
   const [ready, setReady] = useState(false);
   const [offset, setOffset] = useState(0);
 
@@ -30,11 +34,11 @@ export function Hero() {
               ready ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0",
             )}
           >
-            New Season / 2026 Collection
+            {settings.heroEyebrow || "New Season / 2026 Collection"}
           </p>
 
           <h1 className="mt-4 text-[clamp(2.25rem,7vw,5.5rem)] leading-[0.94] font-extrabold">
-            {HEADLINE.map((word, i) => (
+            {headline.map((word, i) => (
               <span key={word} className="block overflow-hidden">
                 <span
                   className="block transition-all duration-[900ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)]"
@@ -56,8 +60,7 @@ export function Hero() {
               ready ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
             )}
           >
-            Curated essentials designed for modern living — made in small runs, built to outlast
-            the season.
+            {settings.heroDescription || "Curated essentials designed for modern living — made in small runs, built to outlast the season."}
           </p>
 
           <div
@@ -67,20 +70,20 @@ export function Hero() {
             )}
           >
             <Link
-              to="/shop"
+              to={settings.heroPrimaryUrl || "/shop"}
               className="group inline-flex h-13 items-center justify-center gap-2 rounded-full bg-primary px-8 text-sm font-semibold tracking-wide text-primary-foreground transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0"
             >
-              Shop Collection
+              {settings.heroPrimaryLabel || "Shop Collection"}
               <ArrowRight
                 className="size-4 transition-transform duration-300 group-hover:translate-x-1"
                 strokeWidth={2}
               />
             </Link>
             <Link
-              to="/shop?sort=newest"
+              to={settings.heroSecondaryUrl || "/shop?sort=newest"}
               className="inline-flex h-13 items-center justify-center rounded-full border border-border px-8 text-sm font-semibold tracking-wide transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/40 hover:bg-foreground/[0.03]"
             >
-              Explore New Arrivals
+              {settings.heroSecondaryLabel || "Explore New Arrivals"}
             </Link>
           </div>
 
@@ -108,7 +111,7 @@ export function Hero() {
           >
             <img
               src={heroImage}
-              alt="Model wearing an off-white oversized wool coat against a soft concrete wall"
+              alt={settings.heroImageAlt || "Model wearing an off-white oversized wool coat against a soft concrete wall"}
               width={1200}
               height={1504}
               fetchPriority="high"
@@ -127,9 +130,9 @@ export function Hero() {
             )}
           >
             <p className="eyebrow">Editor's pick</p>
-            <p className="mt-1 text-sm font-semibold">Wool Overcoat — Bone</p>
+            <p className="mt-1 text-sm font-semibold">{editorProduct?.name || "Latest product"}</p>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              $420 <span className="ml-1 text-accent">In stock</span>
+              {formatPrice(editorProduct?.price || 0)} <span className="ml-1 text-accent">{editorProduct?.stock_quantity > 0 ? "In stock" : "Out of stock"}</span>
             </p>
           </div>
 
@@ -140,7 +143,7 @@ export function Hero() {
             )}
           >
             <span className="mr-2 inline-block size-2 rounded-full bg-accent align-middle" />
-            Just dropped
+            {settings.heroBadge || "Just dropped"}
           </div>
         </div>
       </div>

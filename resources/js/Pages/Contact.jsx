@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import {
   Mail,
   Phone,
@@ -58,8 +58,13 @@ const FAQS = [
 export const FAQ_CATEGORIES = ["All", "Orders & Shipping", "Returns & Exchanges", "Warranty & Repairs", "Product Care & Sizing"];
 
 export function ContactPage() {
+  const { props } = usePage();
+  const content = props?.app_settings?.contact || {};
+  const faqs = content.faqs?.length ? content.faqs : FAQS;
+  const faqCategories = ["All", ...new Set(faqs.map((faq) => faq.category).filter(Boolean))];
   const [activeFaqCategory, setActiveFaqCategory] = useState("All");
   const [faqSearchQuery, setFaqSearchQuery] = useState("");
+  const [isSending , setIsSending ] = useState(false);
   const [openFaqIdx, setOpenFaqIdx] = useState(0);
 
   // Form State
@@ -127,7 +132,7 @@ export function ContactPage() {
   };
 
   const filteredFaqs = useMemo(() => {
-    return FAQS.filter((faq) => {
+    return faqs.filter((faq) => {
       if (activeFaqCategory !== "All" && faq.category !== activeFaqCategory) return false;
       if (faqSearchQuery.trim()) {
         const query = faqSearchQuery.toLowerCase();
@@ -135,7 +140,7 @@ export function ContactPage() {
       }
       return true;
     });
-  }, [activeFaqCategory, faqSearchQuery]);
+  }, [activeFaqCategory, faqSearchQuery, faqs]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -145,13 +150,16 @@ export function ContactPage() {
     }
 
     setIsSending(true);
-    setTimeout(() => {
-      setIsSending(false);
-      toast.success("Message sent successfully!", {
-        description: "Our client care team will respond within 2 to 4 business hours.",
-      });
+    fetch("/api/contact/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "" },
+      body: JSON.stringify(contactForm),
+    }).then(async (response) => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Message could not be sent.");
+      toast.success(data.message || "Message sent successfully!");
       setContactForm({ name: "", email: "", subject: "General Inquiry", orderId: "", message: "" });
-    }, 800);
+    }).catch((error) => toast.error(error.message)).finally(() => setIsSending(false));
   };
 
   return (
@@ -168,12 +176,12 @@ export function ContactPage() {
 
         {/* Header */}
         <div className="border-b border-border pb-8 text-center max-w-2xl mx-auto">
-          <span className="eyebrow">Client Services</span>
+          <span className="eyebrow">{content.eyebrow || "Client Services"}</span>
           <h1 className="mt-2 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-foreground">
-            How can we assist you?
+            {content.title || "How can we assist you?"}
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
-            Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.
+            {content.description || "Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling."}
           </p>
         </div>
 
@@ -184,16 +192,16 @@ export function ContactPage() {
               <div className="grid size-10 place-items-center rounded-2xl bg-accent/10 text-accent">
                 <Mail className="size-5" />
               </div>
-              <h3 className="mt-4 text-base font-bold text-foreground">Email Client Care</h3>
+              <h3 className="mt-4 text-base font-bold text-foreground">{content.emailTitle || "Email Client Care"}</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Average reply time: under 2 hours during studio hours.
+                {content.emailDescription || "Average reply time: under 2 hours during studio hours."}
               </p>
             </div>
             <a
-              href="mailto:care@atelier-studios.com"
+              href={`mailto:${content.email || "care@atelier-studios.com"}`}
               className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
             >
-              care@atelier-studios.com
+              {content.email || "care@atelier-studios.com"}
             </a>
           </div>
 
@@ -221,16 +229,16 @@ export function ContactPage() {
               <div className="grid size-10 place-items-center rounded-2xl bg-accent/10 text-accent">
                 <Phone className="size-5" />
               </div>
-              <h3 className="mt-4 text-base font-bold text-foreground">Phone Concierge</h3>
+              <h3 className="mt-4 text-base font-bold text-foreground">{content.phoneTitle || "Phone Concierge"}</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Monday–Saturday, 9:00 AM – 6:00 PM EST.
+                {content.phoneDescription || "Monday-Saturday, 9:00 AM - 6:00 PM EST."}
               </p>
             </div>
             <a
-              href="tel:+18005558942"
+              href={`tel:${content.phone || "+18005558942"}`}
               className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
             >
-              +1 (800) 555-ATELIER
+              {content.phone || "+1 (800) 555-ATELIER"}
             </a>
           </div>
         </div>
@@ -240,7 +248,7 @@ export function ContactPage() {
           {/* ================= LEFT: CONTACT FORM (5 cols) ================= */}
           <div className="lg:col-span-5 rounded-3xl border border-border/80 bg-surface p-6 sm:p-8 shadow-xs">
             <h2 className="text-xl font-bold text-foreground border-b border-border pb-3">
-              Send a Message
+              {content.messageTitle || "Send a Message"}
             </h2>
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div>
@@ -332,7 +340,7 @@ export function ContactPage() {
             <div className="rounded-3xl border border-border/80 bg-surface p-6 sm:p-8 shadow-xs">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">Frequently Asked Questions</h2>
+                  <h2 className="text-xl font-bold text-foreground">{content.faqTitle || "Frequently Asked Questions"}</h2>
                   <p className="text-xs text-muted-foreground">Instant answers to our most common inquiries.</p>
                 </div>
               </div>
@@ -351,7 +359,7 @@ export function ContactPage() {
 
               {/* Category Filter Pills */}
               <div className="no-scrollbar mt-4 flex gap-1.5 overflow-x-auto pb-1">
-                {FAQ_CATEGORIES.map((cat) => (
+                {faqCategories.map((cat) => (
                   <button
                     key={cat}
                     type="button"

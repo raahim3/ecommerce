@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Review;
+use App\Models\Setting;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,11 +19,44 @@ class HomeController extends Controller
             ->orderBy('sort_order')
             ->get();
 
-        $trendingProducts = Product::active()
-            ->with(['category', 'images', 'variants'])
-            ->latest()
-            ->take(8)
-            ->get();
+        $homepage = Setting::get('homepage', []);
+        $trendingIds = collect($homepage['trendingProductIds'] ?? [])
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->values();
+
+        $productRelations = ['category', 'images', 'variants'];
+        if (($homepage['trendingMode'] ?? 'automatic') === 'manual' && $trendingIds->isNotEmpty()) {
+            $trendingProducts = Product::active()
+                ->with($productRelations)
+                ->whereIn('id', $trendingIds)
+                ->get()
+                ->sortBy(fn ($product) => $trendingIds->search($product->id))
+                ->values()
+                ->take(8);
+        } else {
+            $trendingSales = DB::table('order_items')
+                ->join('orders', function ($join) {
+                    $join->on('orders.id', '=', 'order_items.order_id')
+                        ->where('orders.payment_status', 'paid');
+                })
+                ->select(
+                    'order_items.product_id',
+                    DB::raw('SUM(order_items.quantity) as total_sold')
+                )
+                ->groupBy('order_items.product_id');
+
+            $trendingProducts = Product::active()
+                ->leftJoinSub($trendingSales, 'trending_sales', function ($join) {
+                    $join->on('trending_sales.product_id', '=', 'products.id');
+                })
+                ->select('products.*')
+                ->with($productRelations)
+                ->orderByDesc(DB::raw('COALESCE(trending_sales.total_sold, 0)'))
+                ->orderByDesc('products.created_at')
+                ->take(8)
+                ->get();
+        }
 
         $flashSaleProducts = Product::active()
             ->onSale()
@@ -29,24 +64,65 @@ class HomeController extends Controller
             ->take(6)
             ->get();
 
+        $bestSellerCategoryIds = collect($homepage['bestSellerCategoryIds'] ?? [])
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->values();
+        $bestSellerCategories = $bestSellerCategoryIds->isNotEmpty()
+            ? $categories->filter(fn ($category) => $bestSellerCategoryIds->contains($category->id))->values()
+            : $categories;
+
+        $bestSellerSales = DB::table('order_items')
+            ->join('orders', function ($join) {
+                $join->on('orders.id', '=', 'order_items.order_id')
+                    ->where('orders.payment_status', 'paid');
+            })
+            ->select(
+                'order_items.product_id',
+                DB::raw('SUM(order_items.quantity) as total_sold')
+            )
+            ->groupBy('order_items.product_id');
+
         $bestSellers = Product::active()
-            ->featured()
+            ->leftJoinSub($bestSellerSales, 'best_seller_sales', function ($join) {
+                $join->on('best_seller_sales.product_id', '=', 'products.id');
+            })
+            ->select('products.*')
             ->with(['category', 'images', 'variants'])
-            ->take(4)
+            ->orderByDesc(DB::raw('COALESCE(best_seller_sales.total_sold, 0)'))
+            ->orderByDesc('products.created_at')
+            ->take(20)
             ->get();
 
-        $reviews = Review::where('status', 'approved')
+        $originalReviews = Review::where('status', 'approved')
             ->with('product')
             ->latest()
             ->take(6)
-            ->get();
+            ->get()
+            ->map(fn ($review) => [
+                'id' => $review->id,
+                'quote' => $review->comment,
+                'name' => $review->author_name,
+                'role' => $review->product?->name ?: 'Verified Customer',
+            ]);
+        $reviews = ($homepage['reviewsMode'] ?? 'original') === 'manual'
+            ? collect($homepage['manualReviews'] ?? [])->take(6)->values()
+            : $originalReviews;
+
+        $heroProductQuery = Product::active()->with(['category', 'images', 'variants']);
+        $heroProduct = !empty($homepage['heroProductId'])
+            ? (clone $heroProductQuery)->find($homepage['heroProductId'])
+            : null;
+        $heroProduct ??= $heroProductQuery->latest()->first();
 
         return Inertia::render('Home', [
             'categories' => $categories,
             'trendingProducts' => $trendingProducts,
             'flashSaleProducts' => $flashSaleProducts,
             'bestSellers' => $bestSellers,
+            'bestSellerCategories' => $bestSellerCategories,
             'recentReviews' => $reviews,
+            'heroProduct' => $heroProduct,
         ]);
     }
 }

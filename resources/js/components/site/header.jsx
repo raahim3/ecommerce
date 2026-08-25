@@ -5,16 +5,17 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useScrolled } from "@/hooks/use-reveal";
 import { useCart } from "./cart";
+import { formatPrice } from "@/lib/shop-data";
 
-const NAV = [
-  { label: "Shop All", href: "/shop" },
-  { label: "Fashion", href: "/shop?category=Fashion" },
-  { label: "Electronics", href: "/shop?category=Electronics" },
-  { label: "Accessories", href: "/shop?category=Accessories" },
-  { label: "Our Story", href: "/about" },
-  { label: "Contact", href: "/contact" },
-  { label: "Sale", href: "/shop?sale=true" },
-];
+const PAGE_URLS = { shop: "/shop", about: "/about", contact: "/contact", wishlist: "/wishlist", account: "/account" };
+
+function menuHref(item, categories) {
+  if (item.type === "category") {
+    const category = categories.find((entry) => String(entry.id) === String(item.target));
+    return category ? `/shop?category=${encodeURIComponent(category.slug || category.name)}` : "/shop";
+  }
+  return item.type === "custom" ? item.target || "/" : PAGE_URLS[item.target] || item.target || "/";
+}
 
 function IconButton({ label, children, className, ...rest }) {
   return (
@@ -37,6 +38,10 @@ export function Header() {
   const { url, props } = usePage();
   const user = props?.auth?.user;
   const generalSettings = props?.app_settings?.general || {};
+  const navigation = props?.app_settings?.navigation || {};
+  const categories = props?.app_settings?.navigationCategories || [];
+  const navItems = navigation.headerMenuItems || [];
+  const marqueeText = (navigation.marqueeText || "").replace("{currency}", formatPrice(0).replace("0", ""));
   const navigate = (href) => router.visit(href);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -47,9 +52,7 @@ export function Header() {
   const isHome = url === "/";
 
   // Select logo depending on header background contrast
-  const activeLogo = (scrolled || !isHome)
-    ? (generalSettings.logoDark || generalSettings.logoLight)
-    : (generalSettings.logoLight || generalSettings.logoDark);
+  const activeLogo = generalSettings.logoDark;
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -88,7 +91,7 @@ export function Header() {
         <div className="flex w-max animate-marquee gap-16 py-2.5 pr-16 text-[11px] font-medium tracking-[0.2em] uppercase">
           {Array.from({ length: 4 }).map((_, i) => (
             <span key={i} className="whitespace-nowrap">
-              Free shipping on orders over $100 &nbsp;•&nbsp; Easy 30-day returns &nbsp;•&nbsp; Use code <strong className="text-accent">ATELIER10</strong> for 10% off
+              {marqueeText}
             </span>
           ))}
         </div>
@@ -112,7 +115,7 @@ export function Header() {
               <img
                 src={activeLogo}
                 alt={generalSettings.storeName || "Store Logo"}
-                className="h-8 max-w-[150px] object-contain"
+                className="h-14 w-auto object-contain"
               />
             ) : (
               <span>
@@ -123,10 +126,10 @@ export function Header() {
           </Link>
 
           <nav aria-label="Primary" className="hidden justify-center gap-7 lg:flex">
-            {NAV.map((item) => (
+            {navItems.map((item) => (
               <Link
                 key={item.label}
-                href={item.href}
+                href={menuHref(item, categories)}
                 className={cn(
                   "link-underline text-sm font-medium transition-colors duration-300 hover:text-accent cursor-pointer",
                   item.label === "Sale" && "text-accent font-semibold",
@@ -353,11 +356,11 @@ export function Header() {
           </div>
 
           <div className="mt-8 flex flex-col">
-            {NAV.map((item, i) => (
+            {navItems.map((item, i) => (
               <a
                 key={item.label}
-                href={item.href}
-                onClick={(e) => handleNavClick(e, item.href)}
+                href={menuHref(item, categories)}
+                onClick={(e) => handleNavClick(e, menuHref(item, categories))}
                 style={{ transitionDelay: `${menuOpen ? 100 + i * 40 : 0}ms` }}
                 className={cn(
                   "border-b border-border py-3.5 text-xl font-bold tracking-tight transition-all duration-500",

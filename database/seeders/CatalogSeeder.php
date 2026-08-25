@@ -48,7 +48,7 @@ class CatalogSeeder extends Seeder
 
         $categories = [];
         foreach ($categoriesData as $cat) {
-            $categories[$cat['slug']] = Category::firstOrCreate(
+            $categories[$cat['slug']] = Category::updateOrCreate(
                 ['slug' => $cat['slug']],
                 $cat
             );
@@ -335,12 +335,70 @@ class CatalogSeeder extends Seeder
             ],
         ];
 
+        $additionalProducts = [
+            ['category_slug' => 'fashion', 'name' => 'Merino Travel Overshirt', 'slug' => 'merino-travel-overshirt', 'sku' => 'ATL-FSH-009', 'price' => 185, 'compare_at_price' => 220, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Organic Cotton Poplin Shirt', 'slug' => 'organic-cotton-poplin-shirt', 'sku' => 'ATL-FSH-010', 'price' => 120, 'compare_at_price' => 150, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Relaxed Linen Camp Shirt', 'slug' => 'relaxed-linen-camp-shirt', 'sku' => 'ATL-FSH-011', 'price' => 135, 'compare_at_price' => 165, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Tailored Wool Trousers', 'slug' => 'tailored-wool-trousers', 'sku' => 'ATL-FSH-012', 'price' => 210, 'compare_at_price' => 250, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Brushed Alpaca Cardigan', 'slug' => 'brushed-alpaca-cardigan', 'sku' => 'ATL-FSH-013', 'price' => 265, 'compare_at_price' => 310, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Water-Resistant Field Jacket', 'slug' => 'water-resistant-field-jacket', 'sku' => 'ATL-FSH-014', 'price' => 295, 'compare_at_price' => 350, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Merino Rib Beanie', 'slug' => 'merino-rib-beanie', 'sku' => 'ATL-FSH-015', 'price' => 58, 'compare_at_price' => 72, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'fashion', 'name' => 'Cashmere Lounge Scarf', 'slug' => 'cashmere-lounge-scarf', 'sku' => 'ATL-FSH-016', 'price' => 110, 'compare_at_price' => 135, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Compact Wireless Speaker', 'slug' => 'compact-wireless-speaker', 'sku' => 'ATL-AUD-009', 'price' => 129, 'compare_at_price' => 159, 'image' => '/resources/js/assets/p-headphones.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Studio USB-C Microphone', 'slug' => 'studio-usb-c-microphone', 'sku' => 'ATL-AUD-010', 'price' => 175, 'compare_at_price' => 210, 'image' => '/resources/js/assets/p-headphones.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Noise-Isolating Earbuds', 'slug' => 'noise-isolating-earbuds', 'sku' => 'ATL-AUD-011', 'price' => 99, 'compare_at_price' => 129, 'image' => '/resources/js/assets/p-headphones.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Aluminum Laptop Stand', 'slug' => 'aluminum-laptop-stand', 'sku' => 'ATL-DSK-012', 'price' => 85, 'compare_at_price' => 105, 'image' => '/resources/js/assets/p-lamp.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Braided USB-C Cable Set', 'slug' => 'braided-usb-c-cable-set', 'sku' => 'ATL-DSK-013', 'price' => 42, 'compare_at_price' => 55, 'image' => '/resources/js/assets/p-headphones.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Portable E-Ink Notebook', 'slug' => 'portable-e-ink-notebook', 'sku' => 'ATL-DSK-014', 'price' => 199, 'compare_at_price' => 239, 'image' => '/resources/js/assets/p-watch.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Mechanical Desk Timer', 'slug' => 'mechanical-desk-timer', 'sku' => 'ATL-DSK-015', 'price' => 64, 'compare_at_price' => 79, 'image' => '/resources/js/assets/p-watch.jpg'],
+            ['category_slug' => 'electronics', 'name' => 'Ambient Light Bar', 'slug' => 'ambient-light-bar', 'sku' => 'ATL-DSK-016', 'price' => 115, 'compare_at_price' => 145, 'image' => '/resources/js/assets/p-lamp.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Slim Italian Leather Wallet', 'slug' => 'slim-italian-leather-wallet', 'sku' => 'ATL-ACC-009', 'price' => 95, 'compare_at_price' => 120, 'image' => '/resources/js/assets/p-bag.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Braided Leather Belt', 'slug' => 'braided-leather-belt', 'sku' => 'ATL-ACC-010', 'price' => 78, 'compare_at_price' => 98, 'image' => '/resources/js/assets/p-bag.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Canvas Travel Organizer', 'slug' => 'canvas-travel-organizer', 'sku' => 'ATL-ACC-011', 'price' => 68, 'compare_at_price' => 85, 'image' => '/resources/js/assets/p-bag.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Sterling Silver Signet Ring', 'slug' => 'sterling-silver-signet-ring', 'sku' => 'ATL-ACC-012', 'price' => 125, 'compare_at_price' => 150, 'image' => '/resources/js/assets/p-watch.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Brushed Steel Cufflinks', 'slug' => 'brushed-steel-cufflinks', 'sku' => 'ATL-ACC-013', 'price' => 88, 'compare_at_price' => 110, 'image' => '/resources/js/assets/p-watch.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Italian Leather Card Case', 'slug' => 'italian-leather-card-case', 'sku' => 'ATL-ACC-014', 'price' => 62, 'compare_at_price' => 78, 'image' => '/resources/js/assets/p-bag.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Chronograph Leather Strap', 'slug' => 'chronograph-leather-strap', 'sku' => 'ATL-WAT-015', 'price' => 72, 'compare_at_price' => 90, 'image' => '/resources/js/assets/p-watch.jpg'],
+            ['category_slug' => 'accessories', 'name' => 'Structured Weekender Bag', 'slug' => 'structured-weekender-bag', 'sku' => 'ATL-ACC-016', 'price' => 320, 'compare_at_price' => 390, 'image' => '/resources/js/assets/p-bag.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Hand-Thrown Stoneware Vase', 'slug' => 'hand-thrown-stoneware-vase', 'sku' => 'ATL-HOM-009', 'price' => 92, 'compare_at_price' => 115, 'image' => '/resources/js/assets/cat-home.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Cedar and Moss Candle', 'slug' => 'cedar-and-moss-candle', 'sku' => 'ATL-HOM-010', 'price' => 48, 'compare_at_price' => 60, 'image' => '/resources/js/assets/p-scent.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Linen Table Runner', 'slug' => 'linen-table-runner', 'sku' => 'ATL-HOM-011', 'price' => 55, 'compare_at_price' => 70, 'image' => '/resources/js/assets/cat-home.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Oak Serving Board', 'slug' => 'oak-serving-board', 'sku' => 'ATL-HOM-012', 'price' => 75, 'compare_at_price' => 95, 'image' => '/resources/js/assets/cat-home.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Recycled Wool Throw', 'slug' => 'recycled-wool-throw', 'sku' => 'ATL-HOM-013', 'price' => 145, 'compare_at_price' => 175, 'image' => '/resources/js/assets/p-knit.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Ceramic Incense Holder', 'slug' => 'ceramic-incense-holder', 'sku' => 'ATL-HOM-014', 'price' => 38, 'compare_at_price' => 48, 'image' => '/resources/js/assets/cat-home.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Hinoki Bath Salt Soak', 'slug' => 'hinoki-bath-salt-soak', 'sku' => 'ATL-HOM-015', 'price' => 36, 'compare_at_price' => 45, 'image' => '/resources/js/assets/p-scent.jpg'],
+            ['category_slug' => 'lifestyle', 'name' => 'Brass Minimalist Tray', 'slug' => 'brass-minimalist-tray', 'sku' => 'ATL-HOM-016', 'price' => 105, 'compare_at_price' => 130, 'image' => '/resources/js/assets/p-lamp.jpg'],
+        ];
+
+        $productsData = array_merge($productsData, array_map(function (array $data): array {
+            return array_merge([
+                'stock_quantity' => 25,
+                'is_featured' => false,
+                'is_on_sale' => true,
+                'tagline' => 'A considered essential designed for everyday use.',
+                'description' => 'Thoughtfully designed with durable materials, refined details, and a long service life in mind.',
+                'highlights' => ['Purposeful design', 'Durable premium materials', 'Designed for everyday use'],
+                'specs' => [['label' => 'Collection', 'value' => 'Atelier Essentials']],
+                'rating' => 4.80,
+                'reviews_count' => 0,
+                'images' => [],
+                'variants' => [],
+            ], $data, [
+                'images' => [
+                    ['url' => $data['image'], 'is_primary' => true],
+                ],
+                'variants' => [
+                    ['color_name' => 'Standard', 'color_hex' => '#334155', 'image_url' => $data['image']],
+                ],
+            ]);
+        }, $additionalProducts));
+
         $demoUser = User::where('email', 'demo@atelier.luxury')->first();
 
         foreach ($productsData as $data) {
             $cat = $categories[$data['category_slug']];
 
-            $product = Product::firstOrCreate(
+            $product = Product::updateOrCreate(
                 ['slug' => $data['slug']],
                 [
                     'category_id' => $cat->id,
@@ -348,6 +406,10 @@ class CatalogSeeder extends Seeder
                     'sku' => $data['sku'],
                     'price' => $data['price'],
                     'compare_at_price' => $data['compare_at_price'],
+                    'original_price' => $data['compare_at_price'],
+                    'image' => $data['images'][0]['url'],
+                    'gallery' => array_column($data['images'], 'url'),
+                    'available_colors' => array_column($data['variants'], 'color_name'),
                     'stock_quantity' => $data['stock_quantity'],
                     'is_featured' => $data['is_featured'],
                     'is_on_sale' => $data['is_on_sale'],

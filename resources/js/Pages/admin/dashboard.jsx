@@ -26,7 +26,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products, formatPrice } from "@/lib/shop-data";
+import { formatPrice, getCurrencySymbol } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/layouts/admin-layout";
 
@@ -168,8 +168,8 @@ export function AdminDashboardPage({
             orders: parseInt(d.orders) || 0,
             aov: d.orders > 0 ? Math.round(d.revenue / d.orders) : 0,
           }))
-        : REVENUE_DATA_MONTHLY)
-    : REVENUE_DATA_WEEKLY;
+        : [])
+      : [];
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -193,7 +193,7 @@ export function AdminDashboardPage({
     } catch { toast.success("Exporting store_sales_analytics.csv"); }
   };
 
-  // Merge server recent orders with mock fallback
+  // Use only persisted orders.
   const ordersSource = recentOrders.length > 0
     ? recentOrders.map((o) => ({
         id: o.order_number,
@@ -204,16 +204,16 @@ export function AdminDashboardPage({
         date: new Date(o.placed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
         itemsCount: o.items_count || 0,
       }))
-    : RECENT_ORDERS_ADMIN;
+    : [];
 
-  // Real KPI stats with fallback to mock
+  // Show persisted KPI values, including zero when the store is empty.
   const kpiStats = {
-    revenue: stats.totalRevenue > 0 ? stats.totalRevenue : 382400,
-    revenueChange: stats.revenueChange ?? 18.4,
-    orders: stats.totalOrders > 0 ? stats.totalOrders : 2847,
-    ordersChange: stats.ordersChange ?? 12.1,
-    customers: stats.totalCustomers > 0 ? stats.totalCustomers : 1284,
-    avgOrderValue: stats.avgOrderValue > 0 ? stats.avgOrderValue : 134,
+    revenue: stats.totalRevenue ?? 0,
+    revenueChange: stats.revenueChange ?? 0,
+    orders: stats.totalOrders ?? 0,
+    ordersChange: stats.ordersChange ?? 0,
+    customers: stats.totalCustomers ?? 0,
+    avgOrderValue: stats.avgOrderValue ?? 0,
     ordersByStatus: stats.ordersByStatus ?? {},
   };
 
@@ -228,11 +228,11 @@ export function AdminDashboardPage({
   // SVG Chart Dimensions & Calculations
   const chartHeight = 220;
   const chartWidth = 700;
-  const maxVal = Math.max(...activeChartData.map((d) => d[chartMetric])) * 1.15;
+  const maxVal = Math.max(...activeChartData.map((d) => d[chartMetric]), 1) * 1.15;
   const minVal = 0;
 
   const points = activeChartData.map((d, i) => {
-    const x = (i / (activeChartData.length - 1)) * (chartWidth - 40) + 20;
+    const x = activeChartData.length === 1 ? chartWidth / 2 : (i / (activeChartData.length - 1)) * (chartWidth - 40) + 20;
     const y = chartHeight - ((d[chartMetric] - minVal) / (maxVal - minVal)) * (chartHeight - 40) - 20;
     return { x, y, data: d };
   });
@@ -247,7 +247,7 @@ export function AdminDashboardPage({
     return `${acc} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${pt.x} ${pt.y}`;
   }, "");
 
-  const areaD = `${pathD} L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z`;
+  const areaD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} ${chartHeight} L ${points[0].x} ${chartHeight} Z` : "";
 
   return (
     <div className="space-y-8">
@@ -326,7 +326,7 @@ export function AdminDashboardPage({
           </div>
           <div className="mt-4">
             <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              ${kpiStats.revenue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatPrice(kpiStats.revenue, 2)}
             </div>
             <div className={cn("mt-2 flex items-center gap-1.5 text-xs font-bold", kpiStats.revenueChange >= 0 ? "text-emerald-600" : "text-red-500")}>
               {kpiStats.revenueChange >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
@@ -366,7 +366,7 @@ export function AdminDashboardPage({
           </div>
           <div className="mt-4">
             <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              ${parseFloat(kpiStats.avgOrderValue).toFixed(2)}
+              {formatPrice(kpiStats.avgOrderValue, 2)}
             </div>
             <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
               <TrendingUp className="size-3.5" />
@@ -410,9 +410,9 @@ export function AdminDashboardPage({
             {/* Metric Switcher */}
             <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
               {[
-                { id: "revenue", label: "Revenue ($)" },
+                { id: "revenue", label: `Revenue (${getCurrencySymbol()})` },
                 { id: "orders", label: "Orders" },
-                { id: "aov", label: "AOV ($)" },
+                { id: "aov", label: `AOV (${getCurrencySymbol()})` },
               ].map((m) => (
                 <button
                   key={m.id}
@@ -526,7 +526,7 @@ export function AdminDashboardPage({
 
             {/* Visual Doughnut Bar */}
             <div className="h-3 w-full rounded-full overflow-hidden flex shadow-2xs">
-              {CATEGORY_DISTRIBUTION.map((cat) => (
+              {([]).map((cat) => (
                 <div
                   key={cat.name}
                   style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }}
@@ -537,7 +537,7 @@ export function AdminDashboardPage({
 
             {/* Legend Breakdown */}
             <div className="space-y-2.5 pt-2">
-              {CATEGORY_DISTRIBUTION.map((cat) => (
+              {([]).map((cat) => (
                 <div key={cat.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
@@ -700,32 +700,33 @@ export function AdminDashboardPage({
           </div>
 
           <div className="space-y-3">
-            {products.slice(0, 4).map((p, idx) => (
+            {topProducts.slice(0, 4).map((p, idx) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/50 p-3 hover:bg-slate-50 transition-colors"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="font-mono text-xs font-bold text-slate-400">0{idx + 1}</span>
-                  <img
-                    src={p.image}
-                    alt={p.name}
-                    className="size-11 rounded-xl object-cover border border-slate-200 shrink-0"
-                  />
+                    <div
+                    className="grid size-11 shrink-0 place-items-center rounded-xl border border-slate-200 bg-slate-100 text-xs font-bold text-slate-400"
+                    aria-hidden="true"
+                  >
+                    {idx + 1}
+                  </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 truncate">{p.name}</h4>
+                    <h4 className="text-xs font-bold text-slate-900 truncate">{p.product_name}</h4>
                     <p className="text-[11px] text-slate-400">
-                      {p.category} • {formatPrice(p.price)}
+                      {p.units_sold} units sold
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <span className="text-xs font-extrabold text-slate-900">
-                    {formatPrice(p.price * (idx === 0 ? 142 : idx === 1 ? 98 : 64))}
+                    {formatPrice(p.revenue)}
                   </span>
                   <p className="text-[10px] text-slate-400 font-medium">
-                    {idx === 0 ? "142 units sold" : idx === 1 ? "98 units sold" : "64 units sold"}
+                    {p.units_sold} units sold
                   </p>
                 </div>
               </div>
@@ -741,7 +742,7 @@ export function AdminDashboardPage({
           </div>
 
           <div className="space-y-3">
-            {ACTIVITY_STREAM.map((act) => (
+            {([]).map((act) => (
               <div
                 key={act.id}
                 className="flex items-start gap-3 rounded-2xl border border-slate-100 p-3 bg-slate-50/40"

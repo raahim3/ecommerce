@@ -19,7 +19,7 @@ import {
   Tag,
   Filter,
 } from "lucide-react";
-import { products as staticProducts, categories as staticCategories, filters, sortOptions, formatPrice } from "@/lib/shop-data";
+import { filters, sortOptions, formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { ProductCard } from "@/components/site/product-card";
 import { QuickViewModal } from "@/components/site/quick-view-modal";
@@ -41,7 +41,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   const sourceProducts = useMemo(() => {
     if (serverProducts?.data) return serverProducts.data;
     if (Array.isArray(serverProducts) && serverProducts.length > 0) return serverProducts;
-    return staticProducts;
+    return [];
   }, [serverProducts]);
 
   const sourceCategories = useMemo(() => {
@@ -58,7 +58,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
         }))
       ];
     }
-    return staticCategories;
+    return [];
   }, [serverCategories, sourceProducts]);
 
   // Search & Filter State
@@ -370,9 +370,9 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { id: "all", label: "All" },
-                { id: "under-100", label: "< $100" },
-                { id: "100-200", label: "$100-$200" },
-                { id: "200-plus", label: "$200+" },
+                { id: "under-100", label: `< ${formatPrice(100)}` },
+                { id: "100-200", label: `${formatPrice(100)}-${formatPrice(200)}` },
+                { id: "200-plus", label: `${formatPrice(200)}+` },
               ].map((p) => (
                 <button
                   key={p.id}

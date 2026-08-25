@@ -42,6 +42,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\WishlistController;
+use App\Http\Controllers\NewsletterController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/shop', [ShopController::class, 'index'])->name('shop');
@@ -49,6 +50,7 @@ Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product
 
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist');
 Route::post('/api/wishlist/toggle', [WishlistController::class, 'toggle']);
+Route::post('/api/newsletter/subscribe', [NewsletterController::class, 'subscribe'])->name('newsletter.subscribe');
 Route::get('/api/wishlist/ids', [WishlistController::class, 'getWishlistIds']);
 
 // Cart Endpoints
@@ -78,6 +80,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderTrackingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ContactController;
 
 // Phase 4: Payment
 Route::post('/api/payment/intent', [PaymentController::class, 'createPaymentIntent']);
@@ -91,10 +94,14 @@ Route::get('/invoices/{orderNumber}', [InvoiceController::class, 'show'])->name(
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 Route::post('/api/account/profile', [AccountController::class, 'updateProfile'])->middleware('auth');
 Route::post('/api/account/password', [AccountController::class, 'updatePassword'])->middleware('auth');
+Route::post('/api/contact/submit', [ContactController::class, 'submit'])->name('contact.submit');
 
 Route::get('/about', function () {
-    return Inertia::render('About');
+    return Inertia::render('About', ['pageContent' => \App\Models\Setting::get('about', [])]);
 })->name('about');
+
+Route::get('/terms-of-service', fn () => Inertia::render('LegalPage', ['page' => 'terms']))->name('terms');
+Route::get('/privacy-policy', fn () => Inertia::render('LegalPage', ['page' => 'privacy']))->name('privacy');
 
 Route::get('/contact', function () {
     return Inertia::render('Contact');

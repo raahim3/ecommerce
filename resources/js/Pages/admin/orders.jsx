@@ -100,7 +100,7 @@ const MOCK_ORDERS = [
 const STATUS_TABS = ["All Orders", "Unfulfilled", "In Transit", "Fulfilled", "Pending Payment", "Cancelled"];
 
 export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }, filters = {} }) {
-  // Merge server paginated data with mock fallback
+  // Use only persisted orders.
   const serverData = serverOrders?.data ?? [];
   const [orders, setOrders] = useState(serverData.length > 0 ? serverData.map((o) => ({
     id: o.order_number,
@@ -121,7 +121,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     trackingNumber: o.tracking_number ?? "",
     carrier: o.carrier ?? "",
     notes: [],
-  })) : MOCK_ORDERS);
+  })) : []);
 
   const [activeTab, setActiveTab] = useState("All Orders");
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");

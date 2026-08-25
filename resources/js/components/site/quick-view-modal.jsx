@@ -311,7 +311,7 @@ export function QuickViewModal({ product, isOpen, onClose }) {
 
                 <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Truck className="size-3 text-accent" /> Free shipping $100+
+                    <Truck className="size-3 text-accent" /> Free shipping {formatPrice(100)}+
                   </span>
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="size-3 text-accent" /> 2-Yr Warranty

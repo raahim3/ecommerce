@@ -12,50 +12,11 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products as CATALOG, formatPrice } from "@/lib/shop-data";
+import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const DATE_RANGES = ["Last 7 Days", "Last 30 Days", "This Quarter", "This Year", "All Time"];
-
-const REPORT_DATA = {
-  "Last 7 Days": {
-    grossSales: 53200, discounts: 5320, returns: 1200, netSales: 46680, shippingCollected: 840, taxes: 3734,
-    orderCount: 312, customerCount: 284, newCustomers: 120, avgOrder: 170.51, conversionRate: 4.1,
-    topProducts: [
-      { name: "Atelier Studio Headphones", sku: "ATL-AUD-001", units: 48, revenue: 7152, category: "Electronics" },
-      { name: "Heavy Rib Cashmere Knit", sku: "ATL-KNT-003", units: 36, revenue: 6804, category: "Fashion" },
-      { name: "Meridian Steel Watch", sku: "ATL-WTC-001", units: 22, revenue: 7040, category: "Accessories" },
-      { name: "Court Leather Sneakers", sku: "ATL-SNK-001", units: 29, revenue: 4785, category: "Fashion" },
-      { name: "Everyday Leather Tote", sku: "ATL-BAG-001", units: 18, revenue: 3870, category: "Accessories" },
-    ],
-    channelData: [
-      { channel: "Direct Web", revenue: 28400, pct: 60.5 },
-      { channel: "Mobile App", revenue: 14200, pct: 30.2 },
-      { channel: "VIP Concierge", revenue: 4400, pct: 9.3 },
-    ],
-    dailyRevenue: [4200, 5600, 7100, 6400, 8900, 11200, 9800],
-    dailyLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-  },
-  "Last 30 Days": {
-    grossSales: 212800, discounts: 18940, returns: 4200, netSales: 189660, shippingCollected: 3200, taxes: 15173,
-    orderCount: 1248, customerCount: 1120, newCustomers: 480, avgOrder: 170.40, conversionRate: 3.82,
-    topProducts: [
-      { name: "Atelier Studio Headphones", sku: "ATL-AUD-001", units: 192, revenue: 28608, category: "Electronics" },
-      { name: "Meridian Steel Watch", sku: "ATL-WTC-001", units: 88, revenue: 28160, category: "Accessories" },
-      { name: "Heavy Rib Cashmere Knit", sku: "ATL-KNT-003", units: 144, revenue: 27216, category: "Fashion" },
-      { name: "Court Leather Sneakers", sku: "ATL-SNK-001", units: 116, revenue: 19140, category: "Fashion" },
-      { name: "Everyday Leather Tote", sku: "ATL-BAG-001", units: 72, revenue: 15480, category: "Accessories" },
-    ],
-    channelData: [
-      { channel: "Direct Web", revenue: 121600, pct: 64.1 },
-      { channel: "Mobile App", revenue: 56400, pct: 29.7 },
-      { channel: "VIP Concierge", revenue: 11900, pct: 6.2 },
-    ],
-    dailyRevenue: [6200, 7400, 5800, 8900, 9200, 12100, 8400, 7200, 6900, 10400, 11200, 8800, 7600, 9400, 12800, 11500, 8200, 9800, 7400, 10200, 13100, 11800, 8900, 9600, 11200, 10800, 9200, 12400, 13600, 10900],
-    dailyLabels: Array.from({ length: 30 }, (_, i) => `D${i + 1}`),
-  },
-};
 
 export function AdminReportsPage({
   revenue = null,
@@ -69,8 +30,23 @@ export function AdminReportsPage({
   const [hoveredBar, setHoveredBar] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
 
-  // Fallback to static mockup if server data is empty
-  const defaultData = REPORT_DATA[dateRange] || REPORT_DATA["Last 30 Days"];
+  const defaultData = {
+    grossSales: 0,
+    discounts: 0,
+    returns: 0,
+    netSales: 0,
+    shippingCollected: 0,
+    taxes: 0,
+    orderCount: 0,
+    customerCount: 0,
+    newCustomers: 0,
+    avgOrder: 0,
+    conversionRate: 0,
+    topProducts: [],
+    channelData: [],
+    dailyRevenue: [],
+    dailyLabels: [],
+  };
 
   const totalRev = parseFloat(revenue?.total_revenue || 0);
   const totalDisc = parseFloat(revenue?.total_discounts || 0);
@@ -84,11 +60,11 @@ export function AdminReportsPage({
     netSales: totalRev - totalDisc,
     shippingCollected: parseFloat(revenue?.total_shipping || 0),
     taxes: parseFloat(revenue?.total_tax || 0),
-    orderCount: orderCnt || defaultData.orderCount,
-    customerCount: newCustomers > 0 ? newCustomers : defaultData.customerCount,
-    newCustomers: newCustomers || defaultData.newCustomers,
-    avgOrder: avgVal || defaultData.avgOrder,
-    conversionRate: defaultData.conversionRate || 3.8,
+    orderCount: orderCnt,
+    customerCount: newCustomers,
+    newCustomers,
+    avgOrder: avgVal,
+    conversionRate: 0,
     topProducts: topProducts.length > 0
       ? topProducts.map((p) => ({
           name: p.product_name,
@@ -97,10 +73,10 @@ export function AdminReportsPage({
           revenue: parseFloat(p.revenue || 0),
           category: "General",
         }))
-      : defaultData.topProducts,
-    channelData: defaultData.channelData,
-    dailyRevenue: dailyRevenue.length > 0 ? dailyRevenue.map((d) => parseFloat(d.revenue || 0)) : defaultData.dailyRevenue,
-    dailyLabels: dailyRevenue.length > 0 ? dailyRevenue.map((d) => d.day) : defaultData.dailyLabels,
+      : [],
+    channelData: [],
+    dailyRevenue: dailyRevenue.map((d) => parseFloat(d.revenue || 0)),
+    dailyLabels: dailyRevenue.map((d) => d.day),
   } : defaultData;
 
   const handleExportPDF = () => {

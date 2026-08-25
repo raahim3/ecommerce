@@ -65,32 +65,11 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Orders — merge server orders with any localStorage fallback
-  const [orders, setOrders] = useState(() => {
-    if (serverOrders.length > 0) return serverOrders;
-    try {
-      const stored = JSON.parse(localStorage.getItem("atelier_orders") || "[]");
-      return stored.length > 0 ? stored : INITIAL_ORDERS;
-    } catch {
-      return INITIAL_ORDERS;
-    }
-  });
+  // Use only persisted orders.
+  const [orders, setOrders] = useState(serverOrders);
 
   // Addresses — seeded from server
-  const [addresses, setAddresses] = useState(serverAddresses.length > 0 ? serverAddresses : [
-    {
-      id: 1,
-      first_name: "Alex",
-      last_name: "Rivers",
-      address_line1: "742 Evergreen Terrace, Apt 4B",
-      city: "New York",
-      state: "NY",
-      postal_code: "10001",
-      country: "US",
-      phone: "+1 (555) 234-5678",
-      is_default: true,
-    },
-  ]);
+  const [addresses, setAddresses] = useState(serverAddresses);
 
   // Saved Cards state
   const [cards, setCards] = useState([

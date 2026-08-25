@@ -1,15 +1,17 @@
+import { Link, usePage } from "@inertiajs/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { products as staticProducts } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { ProductCard } from "./product-card";
 import { Reveal, SectionHeading } from "./reveal";
 
 export function Trending({ items }) {
+    const { app_settings: appSettings = {} } = usePage().props;
+    const settings = appSettings.homepage || {};
   const scroller = useRef(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(false);
-  const displayProducts = (items && items.length > 0) ? items : staticProducts.slice(0, 6);
+  const displayProducts = items || [];
 
   const sync = useCallback(() => {
     const el = scroller.current;
@@ -32,10 +34,15 @@ export function Trending({ items }) {
     <section id="trending" className="bg-surface py-14 lg:py-20">
       <div className="shell">
         <SectionHeading
-          eyebrow="Trending now"
-          title="Products everyone is talking about."
+          eyebrow={settings.trendingEyebrow || "Trending now"}
+          title={settings.trendingTitle || "Products everyone is talking about."}
+          subtitle={settings.trendingSubtitle || undefined}
           action={
-            <div className="flex gap-2">
+            <div className="flex items-center gap-4">
+              <Link href={settings.trendingActionUrl || "/shop"} className="link-underline text-sm font-semibold">
+                {settings.trendingActionLabel || "View all products"}
+              </Link>
+              <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => scrollBy(-1)}
@@ -60,6 +67,7 @@ export function Trending({ items }) {
               >
                 <ArrowRight className="size-4" strokeWidth={1.8} />
               </button>
+              </div>
             </div>
           }
         />

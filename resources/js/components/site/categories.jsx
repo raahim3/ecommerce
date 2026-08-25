@@ -1,30 +1,49 @@
-import { Link } from "@inertiajs/react";
-import { ArrowUpRight } from "lucide-react";
-import { categories as staticCategories } from "@/lib/shop-data";
+import { useRef } from "react";
+import { Link, usePage } from "@inertiajs/react";
+import { ArrowLeft, ArrowRight, ArrowUpRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Reveal, SectionHeading } from "./reveal";
 
 export function Categories({ items }) {
-  const displayCategories = (items && items.length > 0)
-    ? items.filter((c) => c.name !== "All Products" && c.slug !== "all")
-    : staticCategories.filter((c) => c.name !== "All Products");
+  const { app_settings: appSettings = {} } = usePage().props;
+  const settings = appSettings.homepage || {};
+  const scroller = useRef(null);
+  const selectedIds = (settings.selectedCategoryIds || []).map(Number);
+  const allCategories = (items || []).filter((c) => c.name !== "All Products" && c.slug !== "all");
+  const displayCategories = selectedIds.length > 0
+    ? allCategories.filter((category) => selectedIds.includes(Number(category.id)))
+    : allCategories;
+  const isCarousel = displayCategories.length > 4;
+  const scroll = (direction) => scroller.current?.scrollBy({ left: direction * scroller.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
     <section id="shop" className="py-14 lg:py-20">
       <div className="shell">
         <SectionHeading
-          eyebrow="Shop by category"
-          title="Everything, carefully edited."
-          subtitle="Four departments, one standard of quality."
+          eyebrow={settings.categoriesEyebrow || "Shop by category"}
+          title={settings.categoriesTitle || "Everything, carefully edited."}
+          subtitle={settings.categoriesSubtitle || "Four departments, one standard of quality."}
           action={
-            <Link href="/shop" className="link-underline text-sm font-semibold">
-              View all collections
+            <Link href={settings.categoriesActionUrl || "/shop"} className="link-underline text-sm font-semibold">
+              {settings.categoriesActionLabel || "View all collections"}
             </Link>
           }
         />
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+        {isCarousel && (
+          <div className="mt-6 flex justify-end gap-2">
+            <button type="button" onClick={() => scroll(-1)} aria-label="Previous categories" className="grid size-10 place-items-center rounded-full border border-border hover:border-foreground/40">
+              <ArrowLeft className="size-4" />
+            </button>
+            <button type="button" onClick={() => scroll(1)} aria-label="Next categories" className="grid size-10 place-items-center rounded-full border border-border hover:border-foreground/40">
+              <ArrowRight className="size-4" />
+            </button>
+          </div>
+        )}
+
+        <div ref={scroller} className={cn("mt-8", isCarousel ? "no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 lg:gap-5" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5")}>
           {displayCategories.map((cat, i) => (
-            <Reveal key={cat.name || cat.id} delay={i * 90}>
+            <Reveal key={cat.name || cat.id} delay={i * 90} className={isCarousel ? "w-[78%] shrink-0 snap-start sm:w-[42%] lg:w-[calc((100%-3.75rem)/4)]" : undefined}>
               <Link
                 href={`/shop?category=${cat.slug || cat.name}`}
                 className="group relative block overflow-hidden rounded-2xl bg-muted"

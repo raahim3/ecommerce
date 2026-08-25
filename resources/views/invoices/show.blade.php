@@ -177,8 +177,8 @@
                             @endif
                         </td>
                         <td style="text-align: center;">{{ $item->quantity }}</td>
-                        <td style="text-align: right;">${{ number_format($item->price, 2) }}</td>
-                        <td style="text-align: right; font-weight: 600;">${{ number_format($item->total, 2) }}</td>
+                        <td style="text-align: right;">{{ \App\Services\CurrencyService::format($item->price) }}</td>
+                        <td style="text-align: right; font-weight: 600;">{{ \App\Services\CurrencyService::format($item->total) }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -188,25 +188,25 @@
             <div class="totals-box">
                 <div class="totals-row">
                     <span>Subtotal:</span>
-                    <span>${{ number_format($order->subtotal, 2) }}</span>
+                    <span>{{ \App\Services\CurrencyService::format($order->subtotal) }}</span>
                 </div>
                 @if($order->discount_amount > 0)
                     <div class="totals-row" style="color: #16a34a;">
                         <span>Discount ({{ $order->coupon_code }}):</span>
-                        <span>-${{ number_format($order->discount_amount, 2) }}</span>
+                        <span>-{{ \App\Services\CurrencyService::format($order->discount_amount) }}</span>
                     </div>
                 @endif
                 <div class="totals-row">
                     <span>Shipping:</span>
-                    <span>{{ $order->shipping_amount > 0 ? '$' . number_format($order->shipping_amount, 2) : 'Complimentary' }}</span>
+                    <span>{{ $order->shipping_amount > 0 ? \App\Services\CurrencyService::format($order->shipping_amount) : 'Complimentary' }}</span>
                 </div>
                 <div class="totals-row">
                     <span>Estimated Tax:</span>
-                    <span>${{ number_format($order->tax_amount, 2) }}</span>
+                    <span>{{ \App\Services\CurrencyService::format($order->tax_amount) }}</span>
                 </div>
                 <div class="totals-total">
                     <span>Total Paid:</span>
-                    <span>${{ number_format($order->total_amount, 2) }}</span>
+                    <span>{{ \App\Services\CurrencyService::format($order->total_amount) }}</span>
                 </div>
             </div>
         </div>

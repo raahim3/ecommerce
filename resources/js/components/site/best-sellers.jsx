@@ -1,54 +1,55 @@
 import { useEffect, useState } from "react";
-import { filters, products as staticProducts } from "@/lib/shop-data";
+import { usePage } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { ProductCard, ProductCardSkeleton } from "./product-card";
 import { Reveal, SectionHeading } from "./reveal";
 
-export function BestSellers({ items }) {
-  const sourceProducts = (items && items.length > 0) ? items : staticProducts;
-  const [active, setActive] = useState("All");
+export function BestSellers({ items, categories = [] }) {
+  const { app_settings: appSettings = {} } = usePage().props;
+  const settings = appSettings.homepage || {};
+  const sourceProducts = items || [];
+  const tabs = [{ id: "all", name: "All" }, ...categories];
+  const [active, setActive] = useState("all");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (active === "All") return;
+    if (active === "all") return;
     setLoading(true);
     const id = setTimeout(() => setLoading(false), 320);
     return () => clearTimeout(id);
   }, [active]);
 
-  const visible = active === "All"
+  const visible = active === "all"
     ? sourceProducts
-    : sourceProducts.filter((p) => {
-        const catName = typeof p.category === "object" ? p.category?.name : (p.category || "");
-        return catName.toLowerCase() === active.toLowerCase();
-      });
+    : sourceProducts.filter((p) => Number(p.category_id || p.category?.id) === Number(active));
 
   return (
     <section id="favorites" className="py-14 lg:py-20">
       <div className="shell">
         <SectionHeading
-          eyebrow="Customer favorites"
-          title="The pieces that keep selling out."
+          eyebrow={settings.bestSellerEyebrow || "Customer favorites"}
+          title={settings.bestSellerTitle || "The pieces that keep selling out."}
+          subtitle={settings.bestSellerSubtitle || undefined}
         />
 
         <Reveal
           delay={60}
           className="no-scrollbar mt-6 -mx-5 flex gap-2 overflow-x-auto px-5 md:-mx-8 md:px-8"
         >
-          {filters.map((filter) => (
+          {tabs.map((filter) => (
             <button
               key={filter}
               type="button"
-              onClick={() => setActive(filter)}
-              aria-pressed={active === filter}
+              onClick={() => setActive(filter.id)}
+              aria-pressed={active === filter.id}
               className={cn(
                 "h-10 shrink-0 rounded-full border px-5 text-sm font-medium transition-all duration-300",
-                active === filter
+                active === filter.id
                   ? "border-transparent bg-primary text-primary-foreground"
                   : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
               )}
             >
-              {filter}
+              {filter.name}
             </button>
           ))}
         </Reveal>
@@ -71,7 +72,7 @@ export function BestSellers({ items }) {
             </p>
             <button
               type="button"
-              onClick={() => setActive("All")}
+              onClick={() => setActive("all")}
               className="mt-6 h-11 rounded-full border border-border px-6 text-sm font-semibold transition-colors hover:border-foreground/40"
             >
               View all products

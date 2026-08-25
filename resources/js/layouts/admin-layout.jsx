@@ -23,6 +23,7 @@ import {
   AlertCircle,
   CreditCard,
   ShoppingBag,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ const ADMIN_NAV = [
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
   { label: "Store Settings", href: "/admin/settings", icon: Settings },
+  { label: "Contact Messages", href: "/admin/contact-submissions", icon: Mail },
 ];
 
 export function AdminLayout({ children }) {
@@ -148,7 +150,7 @@ export function AdminLayout({ children }) {
         <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
           <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
             {generalSettings.logoDark ? (
-              <img src={generalSettings.logoDark} alt="Store Logo" className="h-8 max-w-[140px] object-contain shrink-0" />
+              <img src={generalSettings.logoDark} alt="Store Logo" className="h-14 w-auto object-contain shrink-0" />
             ) : (
               <div className="grid size-9 place-items-center rounded-xl bg-slate-900 text-white font-extrabold text-sm shadow-xs shrink-0">
                 {generalSettings.storeName ? generalSettings.storeName.charAt(0).toUpperCase() : "A"}

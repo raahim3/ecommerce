@@ -13,18 +13,18 @@ class UploadController extends Controller
     {
         $request->validate([
             'image' => ['required', 'file', 'image', 'max:20480'], // 20MB max
-            'folder' => ['nullable', 'string', 'in:products,branding,general'],
+            'folder' => ['nullable', 'string', 'in:products,branding,general,homepage'],
         ]);
 
         $file = $request->file('image');
         $folder = $request->input('folder', 'products');
+        $size = $file->getSize();
         
         $subDir = $folder === 'products' ? 'products/temp' : $folder;
         $destinationPath = storage_path("app/public/{$subDir}");
         if (!file_exists($destinationPath)) {
             mkdir($destinationPath, 0755, true);
         }
-
         $filename = time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
         $file->move($destinationPath, $filename);
 
@@ -34,7 +34,7 @@ class UploadController extends Controller
             'success' => true,
             'url' => $url,
             'filename' => $filename,
-            'size' => $file->getSize(),
+            'size' => $size,
         ]);
     }
 }

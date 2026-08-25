@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Models\NewsletterSubscriber;
+use App\Mail\ProductPublishedEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -129,6 +132,10 @@ class ProductController extends Controller
             'gallery' => $imageResult['gallery'],
         ]);
 
+        if ($product->is_active) {
+            $this->notifySubscribers($product);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Product published successfully',
@@ -220,6 +227,10 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $product->update(['is_active' => !$product->is_active]);
 
+        if ($product->is_active) {
+            $this->notifySubscribers($product);
+        }
+
         return response()->json(['success' => true, 'is_active' => $product->is_active]);
     }
 
@@ -231,5 +242,11 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function notifySubscribers(Product $product): void
+    {
+        NewsletterSubscriber::where('is_active', true)
+            ->each(fn ($subscriber) => Mail::to($subscriber->email)->send(new ProductPublishedEmail($product)));
     }
 }

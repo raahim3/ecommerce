@@ -14,27 +14,13 @@ import {
   Edit2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { products as CATALOG, formatPrice } from "@/lib/shop-data";
+import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 
 const WAREHOUSES = ["Copenhagen Main Hub", "New York Warehouse", "All Locations"];
 const ADJUST_REASONS = ["Restock / Replenishment", "Physical Count Correction", "Damage / Write-off", "Customer Return", "Promotion Reserve"];
-
-const initialInventory = CATALOG.map((p, i) => ({
-  id: p.id,
-  name: p.name,
-  sku: p.sku || `ATL-${(i + 1).toString().padStart(4, "0")}`,
-  category: p.category,
-  image: p.image,
-  price: p.price,
-  onHand: p.stock || Math.floor(Math.random() * 60) + 5,
-  committed: Math.floor(Math.random() * 8),
-  incoming: Math.floor(Math.random() * 20),
-  warehouse: i % 2 === 0 ? "Copenhagen Main Hub" : "New York Warehouse",
-  lowStockThreshold: 5,
-}));
 
 export function AdminInventoryPage({ products: serverProducts = { data: [] }, summary: serverSummary = {}, filters = {} }) {
   const serverData = serverProducts?.data ?? [];
@@ -53,7 +39,7 @@ export function AdminInventoryPage({ products: serverProducts = { data: [] }, su
         price: parseFloat(p.price) || 0,
         lowStockThreshold: 10,
       }))
-    : initialInventory;
+    : [];
 
   const [inventory, setInventory] = useState(initialData);
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");

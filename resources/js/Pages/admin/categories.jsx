@@ -24,63 +24,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/layouts/admin-layout";
 
-const INITIAL_CATEGORIES = [
-  {
-    id: 1,
-    name: "Fashion & Knitwear",
-    slug: "fashion",
-    productCount: 14,
-    isActive: true,
-    isFeatured: true,
-    sortOrder: 1,
-    subcategories: [
-      { id: 11, name: "Cashmere Knitwear", slug: "cashmere-knitwear", productCount: 8, isActive: true },
-      { id: 12, name: "Linen Shirts", slug: "linen-shirts", productCount: 4, isActive: true },
-      { id: 13, name: "Outerwear", slug: "outerwear", productCount: 2, isActive: false },
-    ],
-  },
-  {
-    id: 2,
-    name: "Studio Electronics",
-    slug: "electronics",
-    productCount: 9,
-    isActive: true,
-    isFeatured: true,
-    sortOrder: 2,
-    subcategories: [
-      { id: 21, name: "Headphones & Audio", slug: "headphones", productCount: 5, isActive: true },
-      { id: 22, name: "Cables & Accessories", slug: "cables", productCount: 4, isActive: true },
-    ],
-  },
-  {
-    id: 3,
-    name: "Leather & Accessories",
-    slug: "accessories",
-    productCount: 12,
-    isActive: true,
-    isFeatured: false,
-    sortOrder: 3,
-    subcategories: [
-      { id: 31, name: "Timepieces & Watches", slug: "watches", productCount: 6, isActive: true },
-      { id: 32, name: "Leather Bags", slug: "bags", productCount: 4, isActive: true },
-      { id: 33, name: "Eyewear", slug: "eyewear", productCount: 2, isActive: true },
-    ],
-  },
-  {
-    id: 4,
-    name: "Home & Lifestyle",
-    slug: "lifestyle",
-    productCount: 7,
-    isActive: true,
-    isFeatured: false,
-    sortOrder: 4,
-    subcategories: [
-      { id: 41, name: "Ceramics & Vessels", slug: "ceramics", productCount: 3, isActive: true },
-      { id: 42, name: "Fragrance & Diffusers", slug: "fragrance", productCount: 4, isActive: true },
-    ],
-  },
-];
-
 const EMPTY_FORM = {
   name: "",
   slug: "",
@@ -93,8 +36,7 @@ const EMPTY_FORM = {
 
 export function AdminCategoriesPage({ categories: serverCategories = [] }) {
   // Normalize server categories into component hierarchy
-  const initialData = serverCategories.length > 0
-    ? serverCategories.map((c) => ({
+  const initialData = serverCategories.map((c) => ({
         id: c.id,
         name: c.name,
         slug: c.slug,
@@ -113,11 +55,10 @@ export function AdminCategoriesPage({ categories: serverCategories = [] }) {
           isFeatured: false,
           sortOrder: sub.sort_order ?? 1,
         })),
-      }))
-    : INITIAL_CATEGORIES;
+  }));
 
   const [categories, setCategories] = useState(initialData);
-  const [expandedIds, setExpandedIds] = useState([1, 2]);
+  const [expandedIds, setExpandedIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all"); // all | active | inactive
   const [modalOpen, setModalOpen] = useState(false);

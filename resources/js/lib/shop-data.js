@@ -835,4 +835,11 @@ export const socialImages = [
   { src: scent, alt: "Reed diffuser in warm daylight" },
 ];
 
-export const formatPrice = (value) => `$${Number(value).toFixed(0)}`;
+const CURRENCY_SYMBOLS = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", SEK: "kr" };
+
+export const getCurrencySymbol = (currency = globalThis.__STORE_CURRENCY__) => {
+  const code = String(currency || "USD").split(" ")[0].toUpperCase();
+  return CURRENCY_SYMBOLS[code] || code;
+};
+
+export const formatPrice = (value, decimals = 0) => `${getCurrencySymbol()}${Number(value).toFixed(decimals)}`;

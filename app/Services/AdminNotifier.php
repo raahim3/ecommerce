@@ -6,6 +6,7 @@ use App\Models\AdminNotification;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\CurrencyService;
 
 class AdminNotifier
 {
@@ -23,11 +24,11 @@ class AdminNotifier
 
     public static function notifyNewOrder(Order $order): AdminNotification
     {
-        $amount = number_format((float) $order->total_amount, 2);
+        $amount = CurrencyService::format($order->total_amount);
         return static::create(
             'order',
             "New Order #{$order->order_number}",
-            "{$order->customer_name} placed an order for \${$amount}.",
+            "{$order->customer_name} placed an order for {$amount}.",
             "/admin/orders",
             [
                 'order_id' => $order->id,

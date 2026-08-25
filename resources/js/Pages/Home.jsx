@@ -10,14 +10,14 @@ import { Newsletter } from "@/components/site/newsletter";
 import { SocialGallery } from "@/components/site/social-gallery";
 import { SiteLayout } from "@/layouts/site-layout";
 
-export function Home({ categories, trendingProducts, flashSaleProducts, bestSellers, recentReviews }) {
+export function Home({ categories, trendingProducts, flashSaleProducts, bestSellers, bestSellerCategories, recentReviews }) {
   return (
     <main>
       <Hero />
       <Categories items={categories} />
       <Trending items={trendingProducts} />
       <FlashSale items={flashSaleProducts} />
-      <BestSellers items={bestSellers} />
+      <BestSellers items={bestSellers} categories={bestSellerCategories || categories} />
       <Editorial />
       <Benefits />
       <Reviews items={recentReviews} />
