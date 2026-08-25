@@ -1,58 +1,129 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Ecommerce Platform
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A complete ecommerce platform for managing products, customers, orders and online payments from one place. The project includes a customer storefront and a protected administration panel.
 
-## About Laravel
+## Features
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Customer Storefront
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- Homepage with featured catalog content
+- Product browsing and product detail pages
+- Category-based product organization
+- Product variants, pricing and stock visibility
+- Wishlist management
+- Shopping cart with add, update, remove, clear and cart synchronization actions
+- Coupon code validation and discount support
+- Guest and authenticated checkout
+- Saved customer addresses with default address selection
+- Stripe payment intent, payment confirmation and webhook handling
+- Order tracking by order number
+- Downloadable order invoices
+- Customer account profile and password management
+- Registration, login, logout and password reset flows
+- Newsletter subscription
+- Contact form and informational pages
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Admin Panel
 
-## Learning Laravel
+- Dashboard for store operations
+- Product creation, editing, activation and deletion
+- Product stock updates and inventory bulk updates
+- Category management and activation controls
+- Order list and order status management
+- Payment status updates and shipment tracking details
+- Customer list and customer detail views
+- Sales reports and report export
+- Coupon creation, editing, activation and deletion
+- Store settings management
+- Contact submission management
+- Admin notification center with read, clear and delete actions
+- Authenticated admin-only access
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Platform Services
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- Transactional email support for welcome, product publication and order confirmation messages
+- Product image upload and storage management
+- Role-based access control for administrators
+- Database-backed catalog, cart, order, review, coupon and customer data
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Tech Stack
 
-## Agentic Development
+- PHP 8.3+
+- Laravel 13
+- Inertia.js
+- Vite
+- MySQL or SQLite
+- Stripe for payment processing
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Requirements
+
+- PHP 8.3 or newer
+- Composer
+- Node.js and npm
+- A configured database
+- Stripe credentials for online payments
+
+## Installation
+
+1. Install PHP dependencies:
+
+	```bash
+	composer install
+	```
+
+2. Create the environment file and application key:
+
+	```bash
+	copy .env.example .env
+	php artisan key:generate
+	```
+
+3. Configure the database, mail and Stripe values in `.env`, then run migrations:
+
+	```bash
+	php artisan migrate
+	```
+
+4. Install frontend dependencies and build the assets:
+
+	```bash
+	npm install
+	npm run build
+	```
+
+5. Create the public storage link:
+
+	```bash
+	php artisan storage:link
+	```
+
+## Development
+
+Run the application and Vite development server with:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+composer run dev
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The storefront is available at `/`. Administrators can access the panel at `/admin` after signing in with an administrator account.
 
-## Contributing
+To run the test suite:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+composer test
+```
 
-## Code of Conduct
+## Configuration
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+At minimum, configure the following values in `.env`:
 
-## Security Vulnerabilities
+- Database connection settings
+- Mail transport settings for transactional emails
+- Stripe publishable and secret keys
+- Stripe webhook signing secret
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Keep payment and mail credentials private and do not commit `.env` to source control.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced under the MIT license.

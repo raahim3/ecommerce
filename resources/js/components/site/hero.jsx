@@ -106,7 +106,7 @@ export function Hero() {
 
         <div className="relative min-w-0">
           <div
-            className="relative max-h-[52vh] overflow-hidden rounded-3xl bg-muted lg:max-h-[640px]"
+            className="relative max-h-[52vh] flex justify-center overflow-hidden rounded-3xl lg:max-h-[640px]"
             style={{ transform: `translateY(${offset * -0.04}px)` }}
           >
             <img
@@ -116,7 +116,7 @@ export function Hero() {
               height={1504}
               fetchPriority="high"
               className={cn(
-                "aspect-4/5 w-full object-cover transition-all duration-[1400ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] lg:aspect-4/5",
+                "aspect-4/5 w-[75%] object-cover transition-all duration-[1400ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] lg:aspect-4/5",
                 ready ? "scale-100 opacity-100 blur-0" : "scale-105 opacity-0 blur-md",
               )}
               style={{ transform: `scale(${1 + offset * 0.00006})` }}
@@ -145,15 +145,6 @@ export function Hero() {
             <span className="mr-2 inline-block size-2 rounded-full bg-accent align-middle" />
             {settings.heroBadge || "Just dropped"}
           </div>
-        </div>
-      </div>
-
-      <div className="shell hidden pb-8 lg:block">
-        <div className="flex items-center gap-4">
-          <span className="relative h-12 w-px overflow-hidden bg-border">
-            <span className="animate-scroll-hint absolute inset-x-0 h-4 bg-accent" />
-          </span>
-          <span className="eyebrow">Scroll</span>
         </div>
       </div>
     </section>
