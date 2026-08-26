@@ -86,12 +86,109 @@ Route::post('/api/account/password', [AccountController::class, 'updatePassword'
 Route::post('/api/contact/submit', [ContactController::class, 'submit'])->name('contact.submit');
 
 Route::get('/about', function () {
-    return Inertia::render('About', ['pageContent' => \App\Models\Setting::get('about', [])]);
+    $general = \App\Models\Setting::get('general', []);
+    $storeName = $general['storeName'] ?? 'Atelier';
+    $canonicalUrl = route('about');
+    return Inertia::render('About', ['pageContent' => \App\Models\Setting::get('about', [])])
+        ->withViewData([
+            'metaTitle' => 'Our Story | ' . $storeName,
+            'metaDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+            'metaRobots' => 'index,follow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => 'Our Story | ' . $storeName,
+            'ogDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary_large_image',
+            'twitterTitle' => 'Our Story | ' . $storeName,
+            'twitterDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+        ]);
 })->name('about');
 
-Route::get('/terms-of-service', fn () => Inertia::render('LegalPage', ['page' => 'terms']))->name('terms');
-Route::get('/privacy-policy', fn () => Inertia::render('LegalPage', ['page' => 'privacy']))->name('privacy');
+Route::get('/terms-of-service', function () {
+    $general = \App\Models\Setting::get('general', []);
+    $storeName = $general['storeName'] ?? 'Atelier';
+    $canonicalUrl = route('terms');
+    return Inertia::render('LegalPage', ['page' => 'terms'])
+        ->withViewData([
+            'metaTitle' => 'Terms of Service | ' . $storeName,
+            'metaDescription' => 'Read our terms of service and conditions of use.',
+            'metaRobots' => 'index,nofollow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => 'Terms of Service | ' . $storeName,
+            'ogDescription' => 'Read our terms of service and conditions of use.',
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary',
+            'twitterTitle' => 'Terms of Service | ' . $storeName,
+            'twitterDescription' => 'Read our terms of service and conditions of use.',
+        ]);
+})->name('terms');
+
+Route::get('/privacy-policy', function () {
+    $general = \App\Models\Setting::get('general', []);
+    $storeName = $general['storeName'] ?? 'Atelier';
+    $canonicalUrl = route('privacy');
+    return Inertia::render('LegalPage', ['page' => 'privacy'])
+        ->withViewData([
+            'metaTitle' => 'Privacy Policy | ' . $storeName,
+            'metaDescription' => 'Read our privacy policy and learn how we protect your data.',
+            'metaRobots' => 'index,nofollow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => 'Privacy Policy | ' . $storeName,
+            'ogDescription' => 'Read our privacy policy and learn how we protect your data.',
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary',
+            'twitterTitle' => 'Privacy Policy | ' . $storeName,
+            'twitterDescription' => 'Read our privacy policy and learn how we protect your data.',
+        ]);
+})->name('privacy');
 
 Route::get('/contact', function () {
-    return Inertia::render('Contact');
+    $general = \App\Models\Setting::get('general', []);
+    $storeName = $general['storeName'] ?? 'Atelier';
+    $canonicalUrl = route('contact');
+    return Inertia::render('Contact')
+        ->withViewData([
+            'metaTitle' => 'Contact ' . $storeName . ' Client Care',
+            'metaDescription' => 'Get help with orders, shipping, returns, sizing and product questions from ' . $storeName . ' Client Care.',
+            'metaRobots' => 'index,follow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => 'Contact ' . $storeName . ' Client Care',
+            'ogDescription' => 'Get help with orders, shipping, returns, sizing and product questions.',
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary_large_image',
+            'twitterTitle' => 'Contact ' . $storeName . ' Client Care',
+            'twitterDescription' => 'Get help with orders, shipping, returns, sizing and product questions.',
+        ]);
 })->name('contact');
+
+Route::get('/sitemap.xml', function () {
+    $urls = collect([
+        ['loc' => url('/'), 'changefreq' => 'weekly', 'priority' => '1.0'],
+        ['loc' => url('/shop'), 'changefreq' => 'daily', 'priority' => '0.9'],
+        ['loc' => url('/about'), 'changefreq' => 'monthly', 'priority' => '0.5'],
+        ['loc' => url('/contact'), 'changefreq' => 'monthly', 'priority' => '0.4'],
+        ['loc' => url('/terms-of-service'), 'changefreq' => 'monthly', 'priority' => '0.3'],
+        ['loc' => url('/privacy-policy'), 'changefreq' => 'monthly', 'priority' => '0.3']
+    ])->concat(
+        \App\Models\Product::active()->get(['slug', 'updated_at'])->map(fn ($product) => [
+            'loc' => url('/product/' . $product->slug),
+            'lastmod' => optional($product->updated_at)->toAtomString(),
+            'changefreq' => 'weekly',
+            'priority' => '0.8',
+        ])
+    );
+
+    return response()->view('sitemap', ['urls' => $urls])->header('Content-Type', 'application/xml');
+})->name('sitemap');

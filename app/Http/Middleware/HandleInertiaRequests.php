@@ -79,6 +79,12 @@ class HandleInertiaRequests extends Middleware
             'ogTitle' => 'ATELIER — Modern Essentials',
             'ogDescription' => 'Curated essentials for conscious modern living.',
         ]);
+        if (($general['storeName'] ?? null) && ($seo['metaTitle'] ?? null)) {
+            $seo['metaTitle'] = preg_replace('/^ATELIER\\b/', $general['storeName'], $seo['metaTitle']);
+        }
+        if (($general['storeName'] ?? null) && ($seo['ogTitle'] ?? null)) {
+            $seo['ogTitle'] = preg_replace('/^ATELIER\\b/', $general['storeName'], $seo['ogTitle']);
+        }
 
         // 3. Public Payment Settings (excluding secret keys)
         $payments = Setting::get('payments', [

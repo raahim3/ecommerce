@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -78,6 +79,10 @@ class ShopController extends Controller
             ->orderBy('sort_order')
             ->get();
 
+        $general = Setting::get('general', []);
+        $storeName = $general['storeName'] ?? 'Atelier';
+        $canonicalUrl = route('shop');
+
         return Inertia::render('Shop', [
             'products' => $products,
             'categories' => $categories,
@@ -91,6 +96,20 @@ class ShopController extends Controller
                 'rating' => $request->input('rating'),
                 'in_stock' => $request->boolean('in_stock'),
             ],
+        ])->withViewData([
+            'metaTitle' => 'Shop Curated Essentials | ' . $storeName,
+            'metaDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials, from precision timepieces and audio to fashion and home goods.',
+            'metaRobots' => 'index,follow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => 'Shop Curated Essentials | ' . $storeName,
+            'ogDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials.',
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary_large_image',
+            'twitterTitle' => 'Shop Curated Essentials | ' . $storeName,
+            'twitterDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials.',
         ]);
     }
 }

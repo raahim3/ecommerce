@@ -1,4 +1,4 @@
-import { Link, usePage } from "@inertiajs/react";
+import { Head, Link, usePage } from "@inertiajs/react";
 import { Sparkles, ShieldCheck, Leaf, Globe, ArrowRight, Award, Compass, Heart } from "lucide-react";
 import editorialImg from "@/assets/editorial.jpg";
 import heroImg from "@/assets/hero.jpg";
@@ -9,9 +9,25 @@ import { SiteLayout } from "@/layouts/site-layout";
 export function AboutPage() {
   const { props } = usePage();
   const content = props?.pageContent || {};
+  const general = props?.app_settings?.general || {};
+
+  const orgSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": general.storeName || "Atelier",
+    "url": typeof window !== "undefined" ? window.location.origin : undefined,
+    "logo": general.logoLight ? new URL(general.logoLight, typeof window !== "undefined" ? window.location.origin : undefined).href : undefined,
+    "description": content.intro || "Curated essentials for conscious modern living.",
+  };
   if (content.body) {
     return (
       <main className="min-h-screen pb-24 pt-28 lg:pt-36">
+        <Head>
+          <title head-key="title">Our Story | Atelier</title>
+          <meta head-key="description" name="description" content={content.intro || "Discover Atelier's approach to considered design, enduring materials and responsible craftsmanship."} />
+          <meta head-key="robots" name="robots" content="index,follow" />
+          <script type="application/ld+json">{JSON.stringify(orgSchema)}</script>
+        </Head>
         <div className="shell max-w-5xl">
           <nav aria-label="Breadcrumb" className="mb-8 flex items-center gap-2 text-xs text-muted-foreground"><Link href="/" className="hover:text-foreground">Home</Link><span>/</span><span className="font-semibold text-foreground">About</span></nav>
           <header className="grid items-end gap-8 border-b border-border pb-12 lg:grid-cols-[1fr_0.8fr]">
@@ -25,6 +41,12 @@ export function AboutPage() {
   }
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">
+      <Head>
+        <title head-key="title">Our Story | Atelier</title>
+        <meta head-key="description" name="description" content={content.intro || "Discover Atelier's approach to considered design, enduring materials and responsible craftsmanship."} />
+        <meta head-key="robots" name="robots" content="index,follow" />
+        <script type="application/ld+json">{JSON.stringify(orgSchema)}</script>
+      </Head>
       <div className="shell">
         {/* Breadcrumbs */}
         <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">

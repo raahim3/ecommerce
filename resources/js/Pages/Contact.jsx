@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Link, usePage } from "@inertiajs/react";
+import { Head, Link, usePage } from "@inertiajs/react";
 import {
   Mail,
   Phone,
@@ -60,7 +60,34 @@ export const FAQ_CATEGORIES = ["All", "Orders & Shipping", "Returns & Exchanges"
 export function ContactPage() {
   const { props } = usePage();
   const content = props?.app_settings?.contact || {};
+  const general = props?.app_settings?.general || {};
   const faqs = content.faqs?.length ? content.faqs : FAQS;
+
+  const contactSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": general.storeName || "Atelier",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "Customer Support",
+      "email": content.email || general.supportEmail || "support@atelier-studios.com",
+      "telephone": content.phone || general.phone || "+1 (800) 555-ATELIER",
+    },
+  };
+  
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map((faq) => ({
+      "@type": "Question",
+      "name": faq.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.a,
+      },
+    })),
+  };
+
   const faqCategories = ["All", ...new Set(faqs.map((faq) => faq.category).filter(Boolean))];
   const [activeFaqCategory, setActiveFaqCategory] = useState("All");
   const [faqSearchQuery, setFaqSearchQuery] = useState("");
@@ -164,6 +191,13 @@ export function ContactPage() {
 
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">
+      <Head>
+        <title head-key="title">Contact Atelier Client Care</title>
+        <meta head-key="description" name="description" content="Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care. Multiple contact methods available." />
+        <meta head-key="robots" name="robots" content="index,follow" />
+        <script type="application/ld+json">{JSON.stringify(contactSchema)}</script>
+        <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
+      </Head>
       <div className="shell">
         {/* Breadcrumbs */}
         <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">

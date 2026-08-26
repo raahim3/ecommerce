@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, router } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import {
   Search,
   SlidersHorizontal,
@@ -37,6 +37,17 @@ const COLOR_FILTERS = [
 export function ShopPage({ products: serverProducts, categories: serverCategories, filters: serverFilters }) {
   const searchParams = new URLSearchParams(window.location.search);
   const setSearchParams = (params) => { router.visit(window.location.pathname + '?' + params.toString()); };
+
+  const pageTitle = "Shop Curated Essentials | Atelier";
+  const pageDesc = "Explore Atelier's collection of modern essentials. Discover luxury audio, timepieces, cashmere fashion, leather goods, and home décor.";
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": typeof window !== "undefined" ? `${window.location.origin}/` : undefined },
+      { "@type": "ListItem", "position": 2, "name": "Shop", "item": typeof window !== "undefined" ? window.location.href.split("?")[0] : undefined },
+    ],
+  };
 
   const sourceProducts = useMemo(() => {
     if (serverProducts?.data) return serverProducts.data;

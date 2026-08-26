@@ -1378,6 +1378,17 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Meta Keywords</label>
+                    <input
+                      type="text"
+                      value={seo.metaKeywords}
+                      onChange={(e) => setSeo({ ...seo, metaKeywords: e.target.value })}
+                      placeholder="luxury essentials, cashmere knitwear, studio headphones..."
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                    <p className="mt-1 text-xs text-slate-400">Comma-separated keywords for search engine optimization (max 160 characters).</p>
+                  </div>
                 </div>
               </div>
             </div>

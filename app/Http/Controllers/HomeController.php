@@ -115,6 +115,17 @@ class HomeController extends Controller
             : null;
         $heroProduct ??= $heroProductQuery->latest()->first();
 
+        $seo = Setting::get('seo', []);
+        $general = Setting::get('general', []);
+        $storeName = $general['storeName'] ?? 'Atelier';
+        if (($seo['metaTitle'] ?? null)) {
+            $seo['metaTitle'] = preg_replace('/^ATELIER\\b/', $storeName, $seo['metaTitle']);
+        }
+        if (($seo['ogTitle'] ?? null)) {
+            $seo['ogTitle'] = preg_replace('/^ATELIER\\b/', $storeName, $seo['ogTitle']);
+        }
+        $canonicalUrl = route('home');
+
         return Inertia::render('Home', [
             'categories' => $categories,
             'trendingProducts' => $trendingProducts,
@@ -123,6 +134,29 @@ class HomeController extends Controller
             'bestSellerCategories' => $bestSellerCategories,
             'recentReviews' => $reviews,
             'heroProduct' => $heroProduct,
+        ])->withViewData([
+            'metaTitle' => $seo['metaTitle'] ?? $storeName,
+            'metaDescription' => $seo['metaDescription'] ?? 'Curated audio, timepieces, Mongolian cashmere knitwear, and artisanal home goods.',
+            'metaKeywords' => $seo['metaKeywords'] ?? '',
+            'metaRobots' => 'index,follow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => $seo['ogTitle'] ?? $seo['metaTitle'] ?? $storeName,
+            'ogDescription' => $seo['ogDescription'] ?? $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
+            'ogImage' => $seo['ogImage'] ?? ($general['logoLight'] ?? asset('build/assets/hero.jpg')),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary_large_image',
+            'twitterTitle' => $seo['ogTitle'] ?? $seo['metaTitle'] ?? $storeName,
+            'twitterDescription' => $seo['ogDescription'] ?? $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
+            'jsonLd' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'Organization',
+                'name' => $storeName,
+                'url' => url('/'),
+                'logo' => $general['logoLight'] ? url($general['logoLight']) : null,
+                'description' => $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
+            ],
         ]);
     }
 }

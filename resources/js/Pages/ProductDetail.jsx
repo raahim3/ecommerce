@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Link, router, usePage } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import {
   Star,
   Heart,
@@ -37,7 +37,7 @@ import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function ProductDetailPage({ product: serverProduct, relatedProducts: serverRelatedProducts }) {
-  const { id } = usePage().props;
+  const { id, app_settings: appSettings = {} } = usePage().props;
   const navigate = (href) => router.visit(href);
   const { addItem, wishlist, toggleWish } = useCart();
 
@@ -321,9 +321,59 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   // Related products
   const relatedProducts = serverRelatedProducts || [];
+  const productPrice = Number(product?.price || 0);
+  const productImage = product?.images?.[0]?.image_url || product?.image;
+  
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": window.location.origin },
+      { "@type": "ListItem", "position": 2, "name": "Shop", "item": `${window.location.origin}/shop` },
+      categoryName && { "@type": "ListItem", "position": 3, "name": categoryName, "item": `${window.location.origin}/shop?category=${product?.category?.slug || "collection"}` },
+      { "@type": "ListItem", "position": 4, "name": product?.name, "item": window.location.href.split("?")[0] },
+    ].filter(Boolean),
+  };
+
+  const productSchema = product ? {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description || product.tagline || product.name,
+    sku: product.sku || undefined,
+    image: productImage ? [new URL(productImage, window.location.origin).href] : undefined,
+    brand: { "@type": "Brand", name: "Atelier" },
+    offers: {
+      "@type": "Offer",
+      url: window.location.href,
+      priceCurrency: String(appSettings.general?.currency || "USD").split(" ")[0],
+      price: productPrice.toFixed(2),
+      availability: product.stock_quantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+    aggregateRating: reviewsCount > 0 ? {
+      "@type": "AggregateRating",
+      ratingValue: Number(product.rating || 0).toFixed(2),
+      reviewCount: reviewsCount,
+      bestRating: "5",
+      worstRating: "1",
+    } : undefined,
+  } : null;
 
   return (
     <main className="min-h-screen pb-20 pt-28 lg:pt-36">
+      <Head>
+        <title head-key="title">{product?.name ? `${product.name} | Atelier` : "Product | Atelier"}</title>
+        <meta head-key="description" name="description" content={(product?.description || product?.tagline || `Shop ${product?.name || "Atelier essentials"} from Atelier.`).slice(0, 160)} />
+        <meta head-key="robots" name="robots" content="index,follow" />
+        <link head-key="canonical" rel="canonical" href={window.location.href.split("?")[0]} />
+        <meta head-key="og:type" property="og:type" content="product" />
+        <meta head-key="og:title" property="og:title" content={`${product?.name || "Product"} | Atelier`} />
+        <meta head-key="og:description" property="og:description" content={product?.tagline || product?.description || "Considered essentials from Atelier."} />
+        {productImage && <meta head-key="og:image" property="og:image" content={new URL(productImage, window.location.origin).href} />}
+        <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
+        <script type="application/ld+json">{JSON.stringify(productSchema)}</script>
+      </Head>
       {/* Lightbox Modal */}
       {isLightboxOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/90 backdrop-blur-md p-4 animate-in fade-in">
