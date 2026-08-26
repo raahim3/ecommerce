@@ -111,7 +111,9 @@ class HandleInertiaRequests extends Middleware
             'stripeEnabled' => (bool) ($payments['stripeEnabled'] ?? true),
             'stripePublishable' => $payments['stripePublishable'] ?? '',
             'paypalEnabled' => (bool) ($payments['paypalEnabled'] ?? true),
-            'paypalClientId' => $payments['paypalClientId'] ?? '',
+            'paypalClientId' => !empty($payments['paypalClientId'])
+                ? $payments['paypalClientId']
+                : config('services.paypal.client_id'),
             'codEnabled' => (bool) ($payments['codEnabled'] ?? true),
             'testMode' => (bool) ($payments['testMode'] ?? true),
         ];

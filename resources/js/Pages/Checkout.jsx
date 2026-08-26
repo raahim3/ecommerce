@@ -85,12 +85,15 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState(null);
   const [pendingPayment, setPendingPayment] = useState(null);
+  const [pendingPaypal, setPendingPaypal] = useState(null);
+  const [paypalError, setPaypalError] = useState("");
   const [paymentElementError, setPaymentElementError] = useState("");
   const [isPaymentElementLoading, setIsPaymentElementLoading] = useState(false);
   const paymentMountRef = useRef(null);
   const stripeRef = useRef(null);
   const elementsRef = useRef(null);
   const paymentElementRef = useRef(null);
+  const paypalMountRef = useRef(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
 
   // Only authenticated user data or a saved address should prefill checkout.
@@ -200,6 +203,72 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       elementsRef.current = null;
     };
   }, [pendingPayment, paymentSettings.stripePublishable]);
+
+  useEffect(() => {
+    if (!pendingPaypal?.paypalOrderId || !paypalMountRef.current) return undefined;
+
+    let cancelled = false;
+    const renderPayPal = async () => {
+      setPaypalError("");
+      if (!paymentSettings.paypalClientId) {
+        setPaypalError("PayPal is not configured. Add the client ID in the server environment.");
+        return;
+      }
+
+      try {
+        if (!window.paypal) {
+          await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(paymentSettings.paypalClientId)}&currency=${encodeURIComponent(pendingPaypal.currency)}`;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error("PayPal could not load."));
+            document.body.appendChild(script);
+          });
+        }
+        if (cancelled || !window.paypal || !paypalMountRef.current) return;
+
+        window.paypal.Buttons({
+          style: { layout: "vertical", shape: "rect", label: "paypal" },
+          createOrder: () => pendingPaypal.paypalOrderId,
+          onApprove: async (details) => {
+            setIsProcessing(true);
+            try {
+              const response = await fetch("/api/payment/paypal/capture-order", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Requested-With": "XMLHttpRequest",
+                  "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+                },
+                body: JSON.stringify({
+                  order_number: pendingPaypal.orderNumber,
+                  paypal_order_id: details.orderID,
+                }),
+              });
+              const data = await response.json();
+              if (!response.ok || !data.success) throw new Error(data.message || "PayPal payment could not be confirmed.");
+              completeOrder(pendingPaypal.checkoutData);
+              setPendingPaypal(null);
+            } catch (error) {
+              setPaypalError(error.message || "PayPal payment could not be confirmed.");
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          onCancel: () => setPaypalError("PayPal checkout was cancelled. You can try again."),
+          onError: (error) => setPaypalError(error?.message || "PayPal checkout failed. Please try again."),
+        }).render(paypalMountRef.current);
+      } catch (error) {
+        if (!cancelled) setPaypalError(error.message || "PayPal could not initialize.");
+      }
+    };
+
+    renderPayPal();
+    return () => {
+      cancelled = true;
+      if (paypalMountRef.current) paypalMountRef.current.replaceChildren();
+    };
+  }, [pendingPaypal, paymentSettings.paypalClientId]);
 
   const completeOrder = (data) => {
     const orderRecord = {
@@ -314,6 +383,28 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
           if (!intentRes.ok || !intentData.clientSecret) throw new Error(intentData.message || "Could not initialize Stripe payment.");
           setPendingPayment({ checkoutData: data, orderNumber: data.order_number, clientSecret: intentData.clientSecret });
           toast.info("Enter your card details to complete payment.");
+          return;
+        }
+
+        if (selectedPaymentMethod === "paypal") {
+          const paypalRes = await fetch("/api/payment/paypal/create-order", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+            },
+            body: JSON.stringify({ order_number: data.order_number }),
+          });
+          const paypalData = await paypalRes.json();
+          if (!paypalRes.ok || !paypalData.paypalOrderId) throw new Error(paypalData.message || "Could not initialize PayPal payment.");
+          setPendingPaypal({
+            checkoutData: data,
+            orderNumber: data.order_number,
+            paypalOrderId: paypalData.paypalOrderId,
+            currency: paypalData.currency || "USD",
+          });
+          toast.info("Complete your payment securely with PayPal.");
           return;
         }
 
@@ -761,7 +852,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                     <div className="rounded-2xl bg-muted/40 p-5 text-center text-xs text-muted-foreground border border-border/80 space-y-1">
                       <ShoppingBag className="size-6 mx-auto text-blue-600 mb-1" />
                       <p className="font-bold text-foreground">PayPal Express Checkout</p>
-                      <p>You will be securely routed to PayPal to complete and authorize your payment.</p>
+                      {!pendingPaypal && <p>Continue below to securely authorize your payment with PayPal.</p>}
+                      {pendingPaypal && <div ref={paypalMountRef} className="mx-auto mt-4 max-w-sm text-left" />}
+                      {paypalError && <p className="pt-2 font-semibold text-destructive">{paypalError}</p>}
                     </div>
                   )}
 
@@ -786,7 +879,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
                   <button
                     type="submit"
-                    disabled={isProcessing}
+                    disabled={isProcessing || Boolean(pendingPaypal)}
                     className="flex-1 h-13 rounded-full bg-primary text-sm font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2"
                   >
                     <Lock className="size-4" />
@@ -794,6 +887,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                       ? "Processing Payment..."
                       : pendingPayment
                         ? `Pay ${formatPrice(total)}`
+                        : pendingPaypal
+                          ? "Pay with PayPal above"
                         : `Continue to Secure Payment`}
                   </button>
                 </div>

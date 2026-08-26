@@ -74,6 +74,8 @@ use App\Http\Controllers\ContactController;
 // Phase 4: Payment
 Route::post('/api/payment/intent', [PaymentController::class, 'createPaymentIntent'])->middleware('throttle:payment');
 Route::post('/api/payment/confirm', [PaymentController::class, 'confirmPayment'])->middleware('throttle:payment');
+Route::post('/api/payment/paypal/create-order', [PaymentController::class, 'createPayPalOrder'])->middleware('throttle:payment');
+Route::post('/api/payment/paypal/capture-order', [PaymentController::class, 'capturePayPalOrder'])->middleware('throttle:payment');
 Route::post('/api/webhooks/stripe', [PaymentController::class, 'handleStripeWebhook']);
 
 // Phase 5: Customer Portal
