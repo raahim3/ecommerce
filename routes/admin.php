@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\CustomersController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\UploadController;
 use App\Http\Controllers\Admin\ContactSubmissionController;
+use App\Http\Controllers\Admin\ShippingMethodController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -70,6 +71,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/settings/coupons/{id}', [SettingsController::class, 'updateCoupon'])->name('settings.coupons.update');
     Route::patch('/settings/coupons/{id}/toggle', [SettingsController::class, 'toggleCoupon'])->name('settings.coupons.toggle');
     Route::delete('/settings/coupons/{id}', [SettingsController::class, 'destroyCoupon'])->name('settings.coupons.destroy');
+    Route::post('/shipping-methods', [ShippingMethodController::class, 'store'])->name('shipping-methods.store');
+    Route::patch('/shipping-methods/{id}', [ShippingMethodController::class, 'update'])->name('shipping-methods.update');
+    Route::patch('/shipping-methods/{id}/toggle', [ShippingMethodController::class, 'toggle'])->name('shipping-methods.toggle');
+    Route::delete('/shipping-methods/{id}', [ShippingMethodController::class, 'destroy'])->name('shipping-methods.destroy');
 
     // Customers
     Route::get('/customers', [CustomersController::class, 'index'])->name('customers');

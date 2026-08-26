@@ -11,6 +11,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\AdminNotifier;
+use App\Services\ShippingRateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -98,6 +99,7 @@ class CheckoutController extends Controller
             $subtotal = 0.00;
             $orderItemsData = [];
             $lowStockProducts = [];
+            $totalWeight = 0.0;
 
             // 1. Validate items and calculate subtotal
             foreach ($items as $item) {
@@ -113,6 +115,7 @@ class CheckoutController extends Controller
                     ]);
                 }
                 $price = (float) $product->price;
+                $totalWeight += (float) $product->weight_kg * $qty;
                 $itemTotal = round($price * $qty, 2);
                 $subtotal += $itemTotal;
 
@@ -163,32 +166,13 @@ class CheckoutController extends Controller
             $taxRate = isset($taxConfig['flatRate']) ? (float) $taxConfig['flatRate'] : 8.0;
             $taxIncluded = (bool) ($taxConfig['taxIncluded'] ?? false);
 
-            // Derive free-shipping threshold from configured shipping zones
-            $freeShippingThreshold = 100.00;
-            $standardShippingRate  = 15.00;
-            $paidShippingRates = [];
-            foreach (($shippingSettings['zones'] ?? []) as $zone) {
-                if (!empty($zone['active']) === false && isset($zone['active']) && !$zone['active']) {
-                    continue;
-                }
-                $rateStr = strtolower(trim($zone['rate'] ?? ''));
-                if ($rateStr === 'free') {
-                    // Extract threshold e.g. "Orders > $100"
-                    if (preg_match('/\$(\d+(?:\.\d+)?)/', $zone['condition'] ?? '', $m)) {
-                        $freeShippingThreshold = (float) $m[1];
-                    }
-                } elseif (preg_match('/\$(\d+(?:\.\d+)?)/', $rateStr, $m)) {
-                    $paidShippingRates[] = (float) $m[1];
-                }
-            }
-            if ($paidShippingRates) $standardShippingRate = $paidShippingRates[0];
-            $overnightShippingRate = $paidShippingRates[1] ?? 25.00;
-
-            $shippingAmount = match ($request->shipping_method) {
-                'express' => $standardShippingRate,
-                'overnight' => $overnightShippingRate,
-                default => 0.00,
-            };
+            $shippingRate = app(ShippingRateService::class)->rate(
+                $request->shipping_method,
+                $request->country,
+                $subtotal,
+                $totalWeight,
+            );
+            $shippingAmount = $shippingRate['amount'];
             $taxAmount      = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
             $totalAmount    = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
 

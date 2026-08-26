@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Models\ShippingMethod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -190,6 +191,7 @@ class SettingsController extends Controller
 
         return Inertia::render('Admin/settings', [
             'settings' => $settings,
+            'shippingMethods' => ShippingMethod::orderBy('sort_order')->orderBy('name')->get(),
             'coupons' => $coupons,
             'products' => $products,
             'categories' => $categories,

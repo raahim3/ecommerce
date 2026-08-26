@@ -56,6 +56,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     total,
     shippingMethod,
     setShippingMethod,
+    shippingMethods,
     appliedPromo,
     promoCode,
     setPromoCode,
@@ -67,6 +68,13 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const [step, setStep] = useState(1); // 1: Shipping, 2: Payment, 3: Completed
   const [selectedShippingMethod, setSelectedShippingMethod] = useState("standard");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(() => availablePaymentMethods[0]?.id || "card");
+
+  useEffect(() => {
+    if (shippingMethods.length > 0 && !shippingMethods.some((method) => method.code === selectedShippingMethod)) {
+      setSelectedShippingMethod(shippingMethods[0].code);
+      setShippingMethod(shippingMethods[0].code);
+    }
+  }, [shippingMethods, selectedShippingMethod, setShippingMethod]);
 
   useEffect(() => {
     if (availablePaymentMethods.length > 0 && !availablePaymentMethods.some((m) => m.id === selectedPaymentMethod)) {
@@ -647,16 +655,12 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                   <h2 className="text-lg font-bold text-foreground border-b border-border pb-3">
                     Delivery Speed
                   </h2>
-                  {[
-                    { id: "standard", label: "Complimentary Standard Delivery", time: "3–5 business days", cost: "FREE" },
-                    { id: "express", label: "DHL Express Priority", time: "2 business days", cost: formatPrice(expressShippingRate) },
-                    { id: "overnight", label: "Overnight Next-Morning Dispatch", time: "Next business day", cost: formatPrice(overnightShippingRate) },
-                  ].map((m) => (
+                  {shippingMethods.map((m) => (
                     <label
-                      key={m.id}
+                      key={m.code}
                       className={cn(
                         "flex items-center justify-between rounded-2xl border p-4 cursor-pointer transition-all",
-                        selectedShippingMethod === m.id
+                        selectedShippingMethod === m.code
                           ? "border-accent bg-accent/5"
                           : "border-border hover:border-foreground/30",
                       )}
@@ -665,19 +669,19 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                         <input
                           type="radio"
                           name="shipping_speed"
-                          checked={selectedShippingMethod === m.id}
+                          checked={selectedShippingMethod === m.code}
                           onChange={() => {
-                            setSelectedShippingMethod(m.id);
-                            setShippingMethod(m.id);
+                            setSelectedShippingMethod(m.code);
+                            setShippingMethod(m.code);
                           }}
                           className="size-4 accent-accent"
                         />
                         <div>
-                          <p className="text-xs sm:text-sm font-bold text-foreground">{m.label}</p>
-                          <p className="text-xs text-muted-foreground">{m.time}</p>
+                          <p className="text-xs sm:text-sm font-bold text-foreground">{m.name}</p>
+                          <p className="text-xs text-muted-foreground">{m.delivery_min_days === m.delivery_max_days ? `${m.delivery_min_days} business day` : `${m.delivery_min_days}–${m.delivery_max_days} business days`}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-extrabold text-foreground">{m.cost}</span>
+                      <span className="text-xs font-extrabold text-foreground">{m.pricing_type === "free_threshold" && Number(subtotal) >= Number(m.free_shipping_min || 0) ? "FREE" : formatPrice(Number(m.price || 0))}</span>
                     </label>
                   ))}
                 </div>

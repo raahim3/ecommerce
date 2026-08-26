@@ -69,6 +69,7 @@ class ProductController extends Controller
             'price' => ['required', 'numeric', 'min:0'],
             'original_price' => ['nullable', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
+            'weight_kg' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -93,6 +94,7 @@ class ProductController extends Controller
             'original_price' => $request->original_price ?? $request->compare_at_price,
             'compare_at_price' => $request->original_price ?? $request->compare_at_price,
             'stock_quantity' => $request->stock_quantity,
+            'weight_kg' => $request->input('weight_kg', 0),
             'category_id' => $categoryId,
             'sku' => $request->sku ?? 'ATL-' . strtoupper(Str::random(6)),
             'is_active' => $request->boolean('is_active', true),
@@ -153,6 +155,7 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
+            'weight_kg' => ['nullable', 'numeric', 'min:0', 'max:10000'],
         ]);
 
         $categoryId = $request->category_id ?? $product->category_id;
@@ -167,6 +170,7 @@ class ProductController extends Controller
             'original_price' => $request->original_price ?? $product->original_price,
             'compare_at_price' => $request->original_price ?? $product->compare_at_price,
             'stock_quantity' => $request->stock_quantity,
+            'weight_kg' => $request->input('weight_kg', $product->weight_kg),
             'category_id' => $categoryId,
             'sku' => $request->sku ?? $product->sku,
             'is_active' => $request->has('is_active') ? $request->boolean('is_active') : $product->is_active,

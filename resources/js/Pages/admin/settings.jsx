@@ -71,7 +71,7 @@ const EMPTY_COUPON = {
   is_active: true,
 };
 
-export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], products = [], categories = [] }) {
+export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
   const [activeTab, setActiveTab] = useState("general");
   const [savingGroup, setSavingGroup] = useState(null);
 
@@ -235,6 +235,8 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
     ],
     tax: { automated: true, flatRate: "8.0", taxIncluded: false },
   });
+  const [shippingMethods, setShippingMethods] = useState(serverShippingMethods);
+  const [shippingMethodForm, setShippingMethodForm] = useState(null);
 
   // 6. Coupons & Promo Codes
   const [coupons, setCoupons] = useState(serverCoupons || []);
@@ -274,6 +276,52 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
     } finally {
       setSavingGroup(null);
     }
+  };
+
+  const saveShippingMethod = async () => {
+    if (!shippingMethodForm?.code?.trim() || !shippingMethodForm?.name?.trim()) {
+      toast.error("Method code and name are required.");
+      return;
+    }
+    const editing = Boolean(shippingMethodForm.id);
+    const endpoint = editing ? `/admin/shipping-methods/${shippingMethodForm.id}` : "/admin/shipping-methods";
+    const res = await fetch(endpoint, {
+      method: editing ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+      body: JSON.stringify({
+        ...shippingMethodForm,
+        zones: typeof shippingMethodForm.zones === "string"
+          ? shippingMethodForm.zones.split(",").map((zone) => zone.trim()).filter(Boolean)
+          : shippingMethodForm.zones,
+        price: Number(shippingMethodForm.price || 0),
+        free_shipping_min: shippingMethodForm.free_shipping_min ? Number(shippingMethodForm.free_shipping_min) : null,
+        per_kg_rate: shippingMethodForm.per_kg_rate ? Number(shippingMethodForm.per_kg_rate) : null,
+        min_order: shippingMethodForm.min_order ? Number(shippingMethodForm.min_order) : null,
+        max_order: shippingMethodForm.max_order ? Number(shippingMethodForm.max_order) : null,
+        delivery_min_days: Number(shippingMethodForm.delivery_min_days || 0),
+        delivery_max_days: Number(shippingMethodForm.delivery_max_days || 0),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      toast.error(data.message || "Unable to save shipping method.");
+      return;
+    }
+    setShippingMethods((prev) => editing ? prev.map((method) => method.id === data.method.id ? data.method : method) : [...prev, data.method]);
+    setShippingMethodForm(null);
+    toast.success(`Shipping method ${editing ? "updated" : "created"}.`);
+  };
+
+  const toggleShippingMethod = async (method) => {
+    const res = await fetch(`/admin/shipping-methods/${method.id}/toggle`, { method: "PATCH", headers: { "X-CSRF-TOKEN": csrfToken() } });
+    const data = await res.json();
+    if (res.ok && data.success) setShippingMethods((prev) => prev.map((item) => item.id === method.id ? { ...item, active: data.active } : item));
+  };
+
+  const deleteShippingMethod = async (method) => {
+    if (!window.confirm(`Delete ${method.name}?`)) return;
+    const res = await fetch(`/admin/shipping-methods/${method.id}`, { method: "DELETE", headers: { "X-CSRF-TOKEN": csrfToken() } });
+    if (res.ok) setShippingMethods((prev) => prev.filter((item) => item.id !== method.id));
   };
 
   // Coupon Operations
@@ -1690,7 +1738,28 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Configured Shipping Zones</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Shipping Methods</h3>
+                    <button
+                      type="button"
+                      onClick={() => setShippingMethodForm({ code: "", name: "", description: "", zones: "*", pricing_type: "flat_rate", price: 0, free_shipping_min: "", per_kg_rate: "", min_order: "", max_order: "", delivery_min_days: 3, delivery_max_days: 5, active: true, sort_order: shippingMethods.length + 1 })}
+                      className="flex h-8 items-center gap-1 rounded-lg bg-slate-900 px-3 text-[11px] font-bold text-white hover:bg-slate-800"
+                    ><Plus className="size-3" /> Add Method</button>
+                  </div>
+                  {shippingMethods.map((method) => (
+                    <div key={method.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2"><p className="font-bold text-xs text-slate-900">{method.name}</p><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", method.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500")}>{method.active ? "Active" : "Paused"}</span></div>
+                        <p className="mt-1 text-[11px] text-slate-500">{method.code} · {method.pricing_type.replace("_", " ")} · {method.delivery_min_days}–{method.delivery_max_days} days</p>
+                      </div>
+                      <div className="flex items-center gap-2"><span className="font-extrabold text-xs text-slate-900">{method.pricing_type === "free_threshold" ? `Free over ${formatPrice(method.free_shipping_min)}` : formatPrice(method.price)}</span><button type="button" onClick={() => toggleShippingMethod(method)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{method.active ? "Pause" : "Enable"}</button><button type="button" onClick={() => setShippingMethodForm({ ...method, zones: (method.zones || ["*"]).join(",") })} className="grid size-7 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500"><Edit2 className="size-3" /></button><button type="button" onClick={() => deleteShippingMethod(method)} className="grid size-7 place-items-center rounded-lg border border-red-100 bg-white text-red-500"><Trash2 className="size-3" /></button></div>
+                    </div>
+                  ))}
+                  {shippingMethods.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-500">No shipping methods configured.</p>}
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Legacy Shipping Zones</h3>
                   {shipping.zones.map((zone) => (
                     <div key={zone.id} className="flex items-center justify-between rounded-2xl border border-slate-200 p-4 bg-slate-50">
                       <div>
@@ -1701,6 +1770,22 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
                     </div>
                   ))}
                 </div>
+
+                {shippingMethodForm && (
+                  <div className="border-t border-slate-100 pt-5 space-y-4">
+                    <div className="flex items-center justify-between"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">{shippingMethodForm.id ? "Edit Shipping Method" : "New Shipping Method"}</h3><button type="button" onClick={() => setShippingMethodForm(null)} className="text-xs font-bold text-slate-400">Cancel</button></div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {[["code", "Code"], ["name", "Display Name"], ["description", "Description"], ["zones", "Countries (comma separated, use * for all)"]].map(([field, label]) => <div key={field} className={field === "description" || field === "zones" ? "sm:col-span-2" : ""}><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</label><input value={shippingMethodForm[field] || ""} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, [field]: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none" /></div>)}
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Pricing Type</label><select value={shippingMethodForm.pricing_type} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, pricing_type: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs"><option value="flat_rate">Flat Rate</option><option value="free_threshold">Free Above Order Total</option><option value="weight_based">Weight Based</option></select></div>
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Base Price</label><input type="number" min="0" step="0.01" value={shippingMethodForm.price} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, price: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs" /></div>
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Free Above ($)</label><input type="number" min="0" value={shippingMethodForm.free_shipping_min || ""} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, free_shipping_min: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs" /></div>
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Per Kg Rate</label><input type="number" min="0" step="0.01" value={shippingMethodForm.per_kg_rate || ""} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, per_kg_rate: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs" /></div>
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Delivery Min Days</label><input type="number" min="0" value={shippingMethodForm.delivery_min_days} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, delivery_min_days: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs" /></div>
+                      <div><label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Delivery Max Days</label><input type="number" min="0" value={shippingMethodForm.delivery_max_days} onChange={(e) => setShippingMethodForm({ ...shippingMethodForm, delivery_max_days: e.target.value })} className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs" /></div>
+                    </div>
+                    <button type="button" onClick={saveShippingMethod} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800"><Save className="size-3.5" /> Save Method</button>
+                  </div>
+                )}
 
                 <div className="border-t border-slate-100 pt-5 space-y-4">
                   <div>

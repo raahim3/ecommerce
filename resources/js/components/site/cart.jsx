@@ -113,6 +113,10 @@ export function CartProvider({ children, checkoutSettings = {} }) {
     () => items.reduce((sum, i) => sum + (parseFloat(i.price) || 0) * (i.qty || 1), 0),
     [items],
   );
+  const totalWeight = useMemo(
+    () => items.reduce((sum, item) => sum + (Number(item.weight_kg) || 0) * (item.qty || 1), 0),
+    [items],
+  );
 
   const clearCart = useCallback(() => {
     setItems([]);
@@ -218,12 +222,19 @@ export function CartProvider({ children, checkoutSettings = {} }) {
 
   const freeShippingThreshold = Number(checkoutSettings.freeShippingThreshold ?? 100);
   const shippingRate = Number(checkoutSettings.shippingRate ?? 15);
-  const shippingOptions = {
-    standard: 0,
-    express: shippingRate,
-    overnight: Number(checkoutSettings.overnightShippingRate ?? 25),
-  };
-  const selectedShippingRate = shippingOptions[shippingMethod] ?? shippingOptions.standard;
+  const shippingMethods = Array.isArray(checkoutSettings.shippingMethods) && checkoutSettings.shippingMethods.length
+    ? checkoutSettings.shippingMethods
+    : [
+        { code: "standard", name: "Complimentary Standard Delivery", pricing_type: "free_threshold", price: 0, free_shipping_min: freeShippingThreshold, delivery_min_days: 3, delivery_max_days: 5 },
+        { code: "express", name: "DHL Express Priority", pricing_type: "flat_rate", price: shippingRate, delivery_min_days: 2, delivery_max_days: 2 },
+        { code: "overnight", name: "Overnight Next-Morning Dispatch", pricing_type: "flat_rate", price: Number(checkoutSettings.overnightShippingRate ?? 25), delivery_min_days: 1, delivery_max_days: 1 },
+      ];
+  const selectedShippingMethodData = shippingMethods.find((method) => method.code === shippingMethod) || shippingMethods[0];
+  const selectedShippingRate = selectedShippingMethodData?.pricing_type === "free_threshold" && subtotal >= Number(selectedShippingMethodData.free_shipping_min ?? freeShippingThreshold)
+    ? 0
+    : selectedShippingMethodData?.pricing_type === "weight_based"
+      ? Number(selectedShippingMethodData.price || 0) + totalWeight * Number(selectedShippingMethodData.per_kg_rate || 0)
+      : Number(selectedShippingMethodData?.price || 0);
   const shipping = subtotal === 0 || (shippingMethod === "standard" && subtotal >= freeShippingThreshold)
     ? 0
     : selectedShippingRate;
@@ -246,6 +257,8 @@ export function CartProvider({ children, checkoutSettings = {} }) {
       shipping,
       shippingMethod,
       setShippingMethod,
+      shippingMethods,
+      totalWeight,
       taxAmount,
       taxRate,
       total,
@@ -277,6 +290,8 @@ export function CartProvider({ children, checkoutSettings = {} }) {
       discountAmount,
       shipping,
       shippingMethod,
+      shippingMethods,
+      totalWeight,
       taxAmount,
       taxRate,
       total,

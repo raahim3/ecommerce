@@ -46,6 +46,7 @@ const EMPTY_PRODUCT = {
   barcode: "",
   trackInventory: true,
   stock: "",
+  weightKg: "",
   status: "Active",
   category: "Fashion",
   subcategory: "",
@@ -71,6 +72,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
     price: product?.price ? String(product.price) : "",
     compareAtPrice: product?.compare_at_price || product?.original_price ? String(product.compare_at_price || product.original_price) : "",
     inventoryQty: product?.stock_quantity !== undefined ? String(product.stock_quantity) : "25",
+    weightKg: product?.weight_kg !== undefined ? String(product.weight_kg) : "",
     sku: product?.sku || "",
     status: product ? (product.is_active ? "Active" : "Draft") : "Active",
     category: product?.category?.name || serverCategories[0]?.name || "Fashion",
@@ -313,6 +315,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
           original_price: form.comparePrice ? parseFloat(form.comparePrice) : null,
           compare_at_price: form.comparePrice ? parseFloat(form.comparePrice) : null,
           stock_quantity: parseInt(form.inventoryQty, 10) || 10,
+          weight_kg: form.weightKg ? parseFloat(form.weightKg) : 0,
           category: form.category,
           category_id: categoryId,
           sku: form.sku || null,
@@ -677,15 +680,29 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
             </label>
 
             {form.trackInventory && (
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Available Stock (On Hand)</label>
-                <input
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setField("stock", e.target.value)}
-                  placeholder="0"
-                  className="mt-1 h-11 w-36 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold focus:border-slate-900 focus:bg-white focus:outline-none"
-                />
+              <div className="flex flex-wrap gap-5">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Available Stock (On Hand)</label>
+                  <input
+                    type="number"
+                    value={form.inventoryQty}
+                    onChange={(e) => setField("inventoryQty", e.target.value)}
+                    placeholder="0"
+                    className="mt-1 h-11 w-36 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold focus:border-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Shipping Weight (kg)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={form.weightKg}
+                    onChange={(e) => setField("weightKg", e.target.value)}
+                    placeholder="e.g. 0.750"
+                    className="mt-1 h-11 w-36 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold focus:border-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
               </div>
             )}
           </div>

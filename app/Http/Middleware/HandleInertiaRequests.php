@@ -6,8 +6,10 @@ use App\Models\AdminNotification;
 use App\Models\Setting;
 use App\Models\Category;
 use App\Services\CurrencyService;
+use App\Models\ShippingMethod;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Illuminate\Support\Facades\Schema;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -107,6 +109,9 @@ class HandleInertiaRequests extends Middleware
             'codEnabled' => (bool) ($payments['codEnabled'] ?? true),
             'testMode' => (bool) ($payments['testMode'] ?? true),
         ];
+        $shippingMethods = Schema::hasTable('shipping_methods')
+            ? ShippingMethod::active()->get(['id', 'code', 'name', 'description', 'pricing_type', 'price', 'free_shipping_min', 'per_kg_rate', 'delivery_min_days', 'delivery_max_days'])
+            : collect();
         $shippingSettings = Setting::get('shipping', [
             'zones' => [['condition' => 'Orders > $100', 'rate' => 'Free'], ['rate' => '$15.00']],
             'tax' => ['flatRate' => '8.0', 'taxIncluded' => false],
@@ -247,6 +252,7 @@ class HandleInertiaRequests extends Middleware
                     'freeShippingThreshold' => $freeShippingThreshold,
                     'shippingRate' => $standardShippingRate,
                     'overnightShippingRate' => $overnightShippingRate,
+                    'shippingMethods' => $shippingMethods,
                 ],
             ],
             'admin_notifications' => $adminNotifications,
