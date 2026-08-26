@@ -107,6 +107,23 @@ class HandleInertiaRequests extends Middleware
             'codEnabled' => (bool) ($payments['codEnabled'] ?? true),
             'testMode' => (bool) ($payments['testMode'] ?? true),
         ];
+        $shippingSettings = Setting::get('shipping', [
+            'zones' => [['condition' => 'Orders > $100', 'rate' => 'Free'], ['rate' => '$15.00']],
+            'tax' => ['flatRate' => '8.0', 'taxIncluded' => false],
+        ]);
+        $freeShippingThreshold = 100;
+        $standardShippingRate = 15;
+        $paidShippingRates = [];
+        foreach ($shippingSettings['zones'] ?? [] as $zone) {
+            if (isset($zone['active']) && !$zone['active']) continue;
+            if (strtolower(trim($zone['rate'] ?? '')) === 'free' && preg_match('/\$(\d+(?:\.\d+)?)/', $zone['condition'] ?? '', $match)) {
+                $freeShippingThreshold = (float) $match[1];
+            } elseif (preg_match('/\$(\d+(?:\.\d+)?)/', $zone['rate'] ?? '', $match)) {
+                $paidShippingRates[] = (float) $match[1];
+            }
+        }
+        if ($paidShippingRates) $standardShippingRate = $paidShippingRates[0];
+        $overnightShippingRate = $paidShippingRates[1] ?? 25;
 
         // 4. Admin Notifications (if admin user)
         $adminNotifications = null;
@@ -224,6 +241,13 @@ class HandleInertiaRequests extends Middleware
                 ]),
                 'about' => Setting::get('about', []),
                 'payments' => $publicPayments,
+                'checkout' => [
+                    'taxRate' => (float) ($shippingSettings['tax']['flatRate'] ?? 8),
+                    'taxIncluded' => (bool) ($shippingSettings['tax']['taxIncluded'] ?? false),
+                    'freeShippingThreshold' => $freeShippingThreshold,
+                    'shippingRate' => $standardShippingRate,
+                    'overnightShippingRate' => $overnightShippingRate,
+                ],
             ],
             'admin_notifications' => $adminNotifications,
             'auth' => [

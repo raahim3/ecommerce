@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,16 +18,13 @@ class OrderTrackingController extends Controller
 
         $order = null;
 
-        if (!empty($orderNumber)) {
-            $query = Order::where(function ($q) use ($orderNumber) {
-                $q->where('order_number', $orderNumber)
-                  ->orWhere('id', $orderNumber);
-            })->with('items');
-
-            if (!empty($email)) {
+        if (!empty($orderNumber) && (Auth::check() || !empty($email))) {
+            $query = Order::where('order_number', $orderNumber)->with('items');
+            if (Auth::check() && !Auth::user()->isAdmin()) {
+                $query->where('user_id', Auth::id());
+            } else {
                 $query->where('customer_email', $email);
             }
-
             $order = $query->first();
         }
 
@@ -87,17 +85,15 @@ class OrderTrackingController extends Controller
     {
         $request->validate([
             'order_number' => ['required', 'string'],
-            'email' => ['nullable', 'email'],
+            'email' => ['required', 'email'],
         ]);
 
         $orderNumber = trim($request->input('order_number'));
         $email = trim($request->input('email', ''));
 
-        $query = Order::where('order_number', $orderNumber)->with('items');
-
-        if (!empty($email)) {
-            $query->where('customer_email', $email);
-        }
+        $query = Order::where('order_number', $orderNumber)
+            ->where('customer_email', $email)
+            ->with('items');
 
         $order = $query->first();
 

@@ -15,6 +15,7 @@ class Order extends Model
 
     protected $fillable = [
         'order_number',
+        'tracking_token',
         'user_id',
         'customer_email',
         'customer_name',
@@ -30,6 +31,7 @@ class Order extends Model
         'status',
         'payment_status',
         'payment_method',
+        'payment_transaction_id',
         'notes',
         'tracking_number',
         'carrier',

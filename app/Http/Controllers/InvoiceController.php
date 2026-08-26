@@ -13,13 +13,18 @@ class InvoiceController extends Controller
 {
     public function show(string $orderNumber, Request $request)
     {
-        $order = Order::where('order_number', $orderNumber)
-            ->with('items')
-            ->firstOrFail();
+        $orderQuery = Order::with('items');
+        $order = Auth::check() && Auth::user()->isAdmin() && ctype_digit($orderNumber)
+            ? $orderQuery->whereKey($orderNumber)->firstOrFail()
+            : $orderQuery->where('order_number', $orderNumber)->firstOrFail();
 
         // Ensure user can only view their own invoice or guests with email verification
         if (Auth::check() && !Auth::user()->isAdmin() && $order->user_id !== Auth::id()) {
             abort(403, 'Unauthorized access to invoice.');
+        }
+
+        if (!Auth::check() && !hash_equals(strtolower((string) $order->customer_email), strtolower((string) $request->query('email')))) {
+            abort(403, 'Email verification is required to view this invoice.');
         }
 
         $store = Setting::get('general', []);

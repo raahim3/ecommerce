@@ -177,6 +177,17 @@ class SettingsController extends Controller
             ]),
         ];
 
+        foreach ([
+            ['smtp', 'password'],
+            ['payments', 'stripeSecret'],
+            ['payments', 'paypalSecret'],
+            ['pusher', 'secret'],
+        ] as [$group, $key]) {
+            if (!empty($settings[$group][$key])) {
+                $settings[$group][$key] = '';
+            }
+        }
+
         return Inertia::render('Admin/settings', [
             'settings' => $settings,
             'coupons' => $coupons,
@@ -187,17 +198,33 @@ class SettingsController extends Controller
 
     public function saveSettings(Request $request): JsonResponse
     {
-        $request->validate([
+        $validated = $request->validate([
             'group' => ['required', 'string', 'in:general,homepage,navigation,contact,about,terms,privacy,seo,smtp,payments,shipping,pusher'],
             'data' => ['required', 'array'],
         ]);
 
-        Setting::set($request->group, $request->data);
+        $data = $validated['data'];
+        if (in_array($request->group, ['smtp', 'payments', 'pusher'], true)) {
+            $existing = Setting::get($request->group, []);
+            foreach (['password', 'stripeSecret', 'paypalSecret', 'secret'] as $secretKey) {
+                if (array_key_exists($secretKey, $data) && $data[$secretKey] === '' && !empty($existing[$secretKey])) {
+                    $data[$secretKey] = $existing[$secretKey];
+                }
+            }
+        }
+
+        Setting::set($request->group, $data);
+        $responseSettings = $data;
+        foreach (['password', 'stripeSecret', 'paypalSecret', 'secret'] as $secretKey) {
+            if (array_key_exists($secretKey, $responseSettings)) {
+                $responseSettings[$secretKey] = '';
+            }
+        }
 
         return response()->json([
             'success' => true,
             'message' => ucfirst($request->group) . ' settings saved successfully.',
-            'settings' => Setting::get($request->group),
+            'settings' => $responseSettings,
         ]);
     }
 

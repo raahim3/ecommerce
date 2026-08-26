@@ -25,7 +25,7 @@ class UploadController extends Controller
         if (!file_exists($destinationPath)) {
             mkdir($destinationPath, 0755, true);
         }
-        $filename = time() . '_' . Str::random(8) . '.' . $file->getClientOriginalExtension();
+        $filename = time() . '_' . Str::random(8) . '.' . $file->extension();
         $file->move($destinationPath, $filename);
 
         $url = "/storage/{$subDir}/{$filename}";

@@ -14,7 +14,7 @@ const STORAGE_KEYS = {
   WISHLIST: "atelier_wishlist_items_v1",
 };
 
-export function CartProvider({ children }) {
+export function CartProvider({ children, checkoutSettings = {} }) {
   const [items, setItems] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.CART);
@@ -37,6 +37,7 @@ export function CartProvider({ children }) {
   const [pulse, setPulse] = useState(0);
   const [promoCode, setPromoCode] = useState("");
   const [appliedPromo, setAppliedPromo] = useState(null);
+  const [shippingMethod, setShippingMethod] = useState("standard");
 
   // Sync cart to localStorage
   useEffect(() => {
@@ -215,9 +216,21 @@ export function CartProvider({ children }) {
     return appliedPromo.discount_amount || 0;
   }, [appliedPromo, subtotal]);
 
-  const freeShippingThreshold = 100;
-  const shipping = subtotal >= freeShippingThreshold || subtotal === 0 ? 0 : 15;
-  const total = Math.max(0, subtotal - discountAmount + (subtotal > 0 ? shipping : 0));
+  const freeShippingThreshold = Number(checkoutSettings.freeShippingThreshold ?? 100);
+  const shippingRate = Number(checkoutSettings.shippingRate ?? 15);
+  const shippingOptions = {
+    standard: 0,
+    express: shippingRate,
+    overnight: Number(checkoutSettings.overnightShippingRate ?? 25),
+  };
+  const selectedShippingRate = shippingOptions[shippingMethod] ?? shippingOptions.standard;
+  const shipping = subtotal === 0 || (shippingMethod === "standard" && subtotal >= freeShippingThreshold)
+    ? 0
+    : selectedShippingRate;
+  const taxableAmount = Math.max(0, subtotal - discountAmount);
+  const taxRate = Number(checkoutSettings.taxRate ?? 8);
+  const taxAmount = checkoutSettings.taxIncluded ? 0 : Math.round(taxableAmount * (taxRate / 100) * 100) / 100;
+  const total = Math.max(0, taxableAmount + shipping + taxAmount);
   const freeShippingRemaining = Math.max(0, freeShippingThreshold - subtotal);
   const freeShippingProgress = Math.min(
     100,
@@ -231,6 +244,10 @@ export function CartProvider({ children }) {
       subtotal,
       discountAmount,
       shipping,
+      shippingMethod,
+      setShippingMethod,
+      taxAmount,
+      taxRate,
       total,
       appliedPromo,
       promoCode,
@@ -259,6 +276,9 @@ export function CartProvider({ children }) {
       subtotal,
       discountAmount,
       shipping,
+      shippingMethod,
+      taxAmount,
+      taxRate,
       total,
       appliedPromo,
       promoCode,

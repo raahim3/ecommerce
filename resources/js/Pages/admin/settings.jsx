@@ -1701,6 +1701,39 @@ export function AdminSettingsPage({ settings = {}, coupons: serverCoupons = [], 
                     </div>
                   ))}
                 </div>
+
+                <div className="border-t border-slate-100 pt-5 space-y-4">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Tax Configuration</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">This rate is applied to the discounted subtotal at checkout.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tax Rate (%)</label>
+                      <div className="relative mt-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={shipping.tax?.flatRate ?? ""}
+                          onChange={(e) => setShipping({ ...shipping, tax: { ...(shipping.tax || {}), flatRate: e.target.value } })}
+                          className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 pr-8 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(shipping.tax?.taxIncluded)}
+                        onChange={(e) => setShipping({ ...shipping, tax: { ...(shipping.tax || {}), taxIncluded: e.target.checked } })}
+                        className="size-4 rounded border-slate-300 accent-slate-900"
+                      />
+                      Prices already include tax
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           )}

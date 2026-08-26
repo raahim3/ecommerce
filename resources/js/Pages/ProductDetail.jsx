@@ -233,8 +233,18 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   // Frequently Bought Together Bundle calculation
   const allBundleItems = [product, ...bundleAccessories];
   const selectedBundleItems = allBundleItems.filter((_, idx) => bundleChecked[idx]);
-  const bundleTotalPrice = selectedBundleItems.reduce((acc, item) => acc + item.price, 0);
-  const bundleOriginalPrice = selectedBundleItems.reduce((acc, item) => acc + (item.compareAt || item.price * 1.15), 0);
+  const getBundlePrice = (item) => {
+    const price = Number(item?.price);
+    return Number.isFinite(price) ? price : 0;
+  };
+  const getBundleOriginalPrice = (item) => {
+    const originalPrice = Number(item?.compare_at_price ?? item?.compareAt);
+    return Number.isFinite(originalPrice) && originalPrice > 0
+      ? originalPrice
+      : getBundlePrice(item) * 1.15;
+  };
+  const bundleTotalPrice = selectedBundleItems.reduce((acc, item) => acc + getBundlePrice(item), 0);
+  const bundleOriginalPrice = selectedBundleItems.reduce((acc, item) => acc + getBundleOriginalPrice(item), 0);
   const bundleDiscount = Math.round(bundleOriginalPrice - bundleTotalPrice);
 
   const handleAddBundleToCart = () => {
@@ -877,7 +887,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                         {item.name}
                       </p>
                       <p className="text-xs font-extrabold text-foreground mt-0.5">
-                        {formatPrice(item.price)}
+                        {formatPrice(getBundlePrice(item))}
                       </p>
                     </div>
                   </div>
@@ -1067,14 +1077,15 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
         </section>
 
         {/* ================= 5. COMPACT CUSTOMER REVIEWS DASHBOARD ================= */}
-        <section id="reviews" className="mt-8 rounded-3xl border border-border/80 bg-surface p-5 sm:p-7 shadow-xs">
+        <section id="reviews" className="mt-8 overflow-hidden rounded-3xl border border-border/80 bg-surface shadow-xs">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
+          <div className="flex flex-col gap-4 border-b border-border bg-muted/20 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div>
-              <span className="eyebrow">Social Proof</span>
-              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground">
+              <span className="eyebrow">Social Proof / 01</span>
+              <h2 className="mt-1 text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
                 Verified Buyer Reviews
               </h2>
+              <p className="mt-1 text-xs text-muted-foreground">Real feedback from the Atelier community.</p>
             </div>
             <button
               type="button"
@@ -1087,26 +1098,26 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
           </div>
 
           {/* Rating Summary + Distribution */}
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-12 gap-6 items-center border-b border-border pb-6">
+          <div className="grid grid-cols-1 items-center gap-6 border-b border-border px-5 py-6 md:grid-cols-12 md:px-7">
             {/* Score box */}
-            <div className="md:col-span-4 flex items-center gap-4">
-              <div className="text-5xl font-extrabold tracking-tight text-foreground">
-                {product.rating}
+            <div className="flex items-center gap-5 md:col-span-4 md:border-r md:border-border md:pr-6">
+              <div className="text-6xl font-extrabold leading-none tracking-tight text-foreground">
+                {Number(product.rating || 0).toFixed(2)}
               </div>
               <div>
-                <div className="flex gap-0.5">
+                <div className="flex gap-1" aria-label={`${product.rating} out of 5 stars`}>
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="size-4 fill-accent text-accent" />
+                    <Star key={i} className="size-4 fill-accent text-accent" strokeWidth={1.5} />
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   Based on {reviewsList.length} verified ratings
                 </p>
               </div>
             </div>
 
             {/* Distribution bars */}
-            <div className="md:col-span-8 grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-1 gap-2 md:col-span-8">
               {[5, 4, 3, 2, 1].map((stars) => {
                 const total = reviewsList.length || 1;
                 const count = reviewsList.filter((r) => r.rating === stars).length;
@@ -1119,20 +1130,20 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                       setReviewFilterRating(reviewFilterRating === stars ? 0 : stars)
                     }
                     className={cn(
-                      "flex flex-col items-center rounded-xl p-2 text-xs font-semibold transition-all text-center",
+                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-semibold transition-all",
                       reviewFilterRating === stars
-                        ? "bg-accent/10 border border-accent text-accent"
-                        : "bg-muted/40 hover:bg-muted text-muted-foreground",
+                        ? "border border-accent bg-accent/10 text-accent"
+                        : "border border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
                     )}
                   >
-                    <span>{stars}★</span>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden my-1">
+                    <span className="w-7 shrink-0">{stars}<span className="text-accent">★</span></span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background">
                       <div
-                        className="h-full bg-accent rounded-full"
+                        className="h-full rounded-full bg-accent transition-[width] duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{count}</span>
+                    <span className="w-5 text-right text-[10px] text-muted-foreground">{count}</span>
                   </button>
                 );
               })}
@@ -1140,7 +1151,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
           </div>
 
           {/* Review Filter Bar */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5 sm:px-7">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -1169,7 +1180,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
           </div>
 
           {/* Compact Review Cards Grid */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-1 gap-3.5 px-5 py-5 sm:px-7 md:grid-cols-2">
             {displayedReviews.length > 0 ? (
               displayedReviews.map((review) => (
                 <div

@@ -40,7 +40,7 @@ createInertiaApp({
     setup({ el, App, props }) {
         setStoreCurrency(props.initialPage);
         createRoot(el).render(
-            <CartProvider>
+            <CartProvider checkoutSettings={props.initialPage?.props?.app_settings?.checkout || {}}>
                 <App {...props} />
                 <Toaster richColors position="top-right" />
             </CartProvider>

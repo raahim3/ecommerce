@@ -16,6 +16,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -53,7 +55,12 @@ class CheckoutController extends Controller
             'postal_code' => ['required', 'string', 'max:30'],
             'country' => ['required', 'string', 'max:50'],
             'items' => ['required', 'array', 'min:1'],
-            'payment_method' => ['required', 'string'],
+            'items.*.id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.qty' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'payment_method' => ['required', 'string', 'in:card,stripe,paypal,cod'],
+            'shipping_method' => ['required', 'string', 'in:standard,express,overnight'],
             'coupon_code' => ['nullable', 'string'],
             'save_address' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -95,19 +102,25 @@ class CheckoutController extends Controller
             // 1. Validate items and calculate subtotal
             foreach ($items as $item) {
                 $productId = $item['id'] ?? $item['product_id'] ?? null;
-                $product = Product::findOrFail($productId);
+                $product = Product::whereKey($productId)
+                    ->where('is_active', true)
+                    ->lockForUpdate()
+                    ->firstOrFail();
                 $qty = max(1, (int) ($item['qty'] ?? $item['quantity'] ?? 1));
+                if ($product->stock_quantity < $qty) {
+                    throw ValidationException::withMessages([
+                        'items' => "{$product->name} does not have enough stock.",
+                    ]);
+                }
                 $price = (float) $product->price;
                 $itemTotal = round($price * $qty, 2);
                 $subtotal += $itemTotal;
 
                 // Decrement stock
-                if ($product->stock_quantity >= $qty) {
-                    $product->decrement('stock_quantity', $qty);
-                    $freshStock = $product->fresh()->stock_quantity;
-                    if ($freshStock <= 5) {
-                        $lowStockProducts[] = $product->fresh();
-                    }
+                $product->decrement('stock_quantity', $qty);
+                $freshProduct = $product->fresh();
+                if ($freshProduct->stock_quantity <= 5) {
+                    $lowStockProducts[] = $freshProduct;
                 }
 
                 $orderItemsData[] = [
@@ -130,6 +143,7 @@ class CheckoutController extends Controller
             if ($couponCode = $request->coupon_code) {
                 $coupon = Coupon::where('code', strtoupper(trim($couponCode)))
                     ->where('is_active', true)
+                    ->lockForUpdate()
                     ->first();
 
                 if ($coupon && $coupon->isValid($subtotal)) {
@@ -152,6 +166,7 @@ class CheckoutController extends Controller
             // Derive free-shipping threshold from configured shipping zones
             $freeShippingThreshold = 100.00;
             $standardShippingRate  = 15.00;
+            $paidShippingRates = [];
             foreach (($shippingSettings['zones'] ?? []) as $zone) {
                 if (!empty($zone['active']) === false && isset($zone['active']) && !$zone['active']) {
                     continue;
@@ -163,11 +178,17 @@ class CheckoutController extends Controller
                         $freeShippingThreshold = (float) $m[1];
                     }
                 } elseif (preg_match('/\$(\d+(?:\.\d+)?)/', $rateStr, $m)) {
-                    $standardShippingRate = (float) $m[1];
+                    $paidShippingRates[] = (float) $m[1];
                 }
             }
+            if ($paidShippingRates) $standardShippingRate = $paidShippingRates[0];
+            $overnightShippingRate = $paidShippingRates[1] ?? 25.00;
 
-            $shippingAmount = ($subtotal >= $freeShippingThreshold || $subtotal == 0) ? 0.00 : $standardShippingRate;
+            $shippingAmount = match ($request->shipping_method) {
+                'express' => $standardShippingRate,
+                'overnight' => $overnightShippingRate,
+                default => 0.00,
+            };
             $taxAmount      = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
             $totalAmount    = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
 
@@ -188,6 +209,7 @@ class CheckoutController extends Controller
             // 5. Create Order
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
+                'tracking_token' => Str::random(48),
                 'user_id' => Auth::id(),
                 'customer_email' => $request->email,
                 'customer_name' => trim("{$request->first_name} {$request->last_name}"),
@@ -200,8 +222,8 @@ class CheckoutController extends Controller
                 'tax_amount' => $taxAmount,
                 'shipping_amount' => $shippingAmount,
                 'total_amount' => $totalAmount,
-                'status' => 'processing',
-                'payment_status' => $request->payment_method === 'cod' ? 'unpaid' : 'paid',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
                 'payment_method' => $request->payment_method,
                 'notes' => $request->notes,
                 'carrier' => 'DHL Express Priority',
@@ -257,6 +279,7 @@ class CheckoutController extends Controller
             return response()->json([
                 'success' => true,
                 'order_number' => $order->order_number,
+                'tracking_token' => $order->tracking_token,
                 'order' => $order->load('items'),
                 'redirect_url' => url('/order-tracking?order=' . $order->order_number . '&email=' . urlencode($order->customer_email)),
                 'message' => 'Order placed successfully!',

@@ -18,7 +18,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/api/broadcasting/auth', [AdminNotificationController::class, 'broadcastAuth'])->name('broadcasting.auth');
 
     // File Upload API
-    Route::post('/api/upload', [UploadController::class, 'upload'])->name('upload');
+    Route::post('/api/upload', [UploadController::class, 'upload'])->middleware('throttle:uploads')->name('upload');
 
     // Notifications
     Route::get('/api/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');

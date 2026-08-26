@@ -8,27 +8,16 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
-use Illuminate\Support\Facades\Artisan;
-
-Route::get('dev-storage-link',function(){
-    Artisan::call('storage:link');
-    return "Storage link created";
-});
-
-Route::get('dev-migrate',function(){
-    Artisan::call('migrate');
-    return "Migrate created";
-});
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])->name('login');
-    Route::post('/login', [LoginController::class, 'store'])->name('login.store');
+    Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login')->name('login.store');
 
     Route::get('/register', [RegisterController::class, 'create'])->name('register');
     Route::post('/register', [RegisterController::class, 'store'])->name('register.store');
 
     Route::get('/forgot-password', [ForgotPasswordController::class, 'create'])->name('password.request');
-    Route::post('/forgot-password', [ForgotPasswordController::class, 'store'])->name('password.email');
+    Route::post('/forgot-password', [ForgotPasswordController::class, 'store'])->middleware('throttle:password-reset')->name('password.email');
 
     Route::get('/reset-password/{token}', [ResetPasswordController::class, 'create'])->name('password.reset');
     Route::post('/reset-password', [ResetPasswordController::class, 'store'])->name('password.update');
@@ -68,7 +57,7 @@ use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\AddressController;
 
 Route::get('/checkout', [CheckoutController::class, 'create'])->name('checkout');
-Route::post('/api/checkout', [CheckoutController::class, 'store']);
+Route::post('/api/checkout', [CheckoutController::class, 'store'])->middleware('throttle:checkout');
 
 // Address Endpoints
 Route::get('/api/addresses', [AddressController::class, 'index'])->middleware('auth');
@@ -83,13 +72,13 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ContactController;
 
 // Phase 4: Payment
-Route::post('/api/payment/intent', [PaymentController::class, 'createPaymentIntent']);
-Route::post('/api/payment/confirm', [PaymentController::class, 'confirmPayment']);
+Route::post('/api/payment/intent', [PaymentController::class, 'createPaymentIntent'])->middleware('throttle:payment');
+Route::post('/api/payment/confirm', [PaymentController::class, 'confirmPayment'])->middleware('throttle:payment');
 Route::post('/api/webhooks/stripe', [PaymentController::class, 'handleStripeWebhook']);
 
 // Phase 5: Customer Portal
 Route::get('/order-tracking', [OrderTrackingController::class, 'index'])->name('order-tracking');
-Route::get('/api/orders/track', [OrderTrackingController::class, 'search']);
+Route::get('/api/orders/track', [OrderTrackingController::class, 'search'])->middleware('throttle:tracking');
 Route::get('/invoices/{orderNumber}', [InvoiceController::class, 'show'])->name('invoices.show');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 Route::post('/api/account/profile', [AccountController::class, 'updateProfile'])->middleware('auth');

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
 import {
   ShieldCheck,
@@ -15,6 +15,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
+import { loadStripe } from "@stripe/stripe-js";
 import { useCart } from "@/components/site/cart";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     paypalEnabled: true,
     codEnabled: true,
   };
+  const checkoutSettings = props?.app_settings?.checkout || {};
+  const expressShippingRate = Number(checkoutSettings.shippingRate ?? 15);
+  const overnightShippingRate = Number(checkoutSettings.overnightShippingRate ?? 25);
 
   const availablePaymentMethods = useMemo(() => {
     const methods = [];
@@ -48,7 +52,10 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     subtotal,
     discountAmount,
     shipping,
+    taxAmount,
     total,
+    shippingMethod,
+    setShippingMethod,
     appliedPromo,
     promoCode,
     setPromoCode,
@@ -69,6 +76,13 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [pendingPayment, setPendingPayment] = useState(null);
+  const [paymentElementError, setPaymentElementError] = useState("");
+  const [isPaymentElementLoading, setIsPaymentElementLoading] = useState(false);
+  const paymentMountRef = useRef(null);
+  const stripeRef = useRef(null);
+  const elementsRef = useRef(null);
+  const paymentElementRef = useRef(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
 
   // Only authenticated user data or a saved address should prefill checkout.
@@ -123,6 +137,88 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  useEffect(() => {
+    if (!pendingPayment?.clientSecret || !paymentMountRef.current) return undefined;
+
+    let cancelled = false;
+    const mountPaymentElement = async () => {
+      setIsPaymentElementLoading(true);
+      setPaymentElementError("");
+      if (!paymentSettings.stripePublishable) {
+        setPaymentElementError("Stripe publishable key is missing. Add it in Admin > Payment Gateways.");
+        setIsPaymentElementLoading(false);
+        return;
+      }
+
+      try {
+        const stripe = await loadStripe(paymentSettings.stripePublishable);
+        if (cancelled || !stripe || !paymentMountRef.current) {
+          if (!cancelled && !stripe) {
+            setPaymentElementError("Stripe could not load. Check that the publishable key starts with pk_test_ or pk_live_.");
+            setIsPaymentElementLoading(false);
+          }
+          return;
+        }
+
+        const elements = stripe.elements({ clientSecret: pendingPayment.clientSecret });
+        const paymentElement = elements.create("payment");
+        paymentElement.on("ready", () => {
+          if (!cancelled) setIsPaymentElementLoading(false);
+        });
+        paymentElement.on("loaderror", (event) => {
+          if (!cancelled) {
+            setPaymentElementError(event.error?.message || "Stripe could not load the payment form.");
+            setIsPaymentElementLoading(false);
+          }
+        });
+        paymentElement.mount(paymentMountRef.current);
+        stripeRef.current = stripe;
+        elementsRef.current = elements;
+        paymentElementRef.current = paymentElement;
+      } catch (error) {
+        if (!cancelled) {
+          setPaymentElementError(error.message || "Stripe could not initialize.");
+          setIsPaymentElementLoading(false);
+        }
+      }
+    };
+
+    mountPaymentElement();
+    return () => {
+      cancelled = true;
+      paymentElementRef.current?.destroy();
+      paymentElementRef.current = null;
+      stripeRef.current = null;
+      elementsRef.current = null;
+    };
+  }, [pendingPayment, paymentSettings.stripePublishable]);
+
+  const completeOrder = (data) => {
+    const orderRecord = {
+      id: data.order_number,
+      trackingToken: data.tracking_token,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      items: [...items],
+      total: Number(data.order?.total_amount ?? total),
+      status: "Processing",
+      shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
+      trackingNumber: `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem("atelier_orders") || "[]");
+      localStorage.setItem("atelier_orders", JSON.stringify([orderRecord, ...existing]));
+    } catch (err) {
+      console.error("Failed to save order", err);
+    }
+
+    setCompletedOrder(orderRecord);
+    clearCart();
+    setStep(3);
+    toast.success("Order Placed Successfully!");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
     if (items.length === 0) {
@@ -133,6 +229,38 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     setIsProcessing(true);
 
     try {
+      if (pendingPayment) {
+        if (!stripeRef.current || !elementsRef.current) {
+          throw new Error("Payment form is still loading. Please try again.");
+        }
+
+        const { error, paymentIntent } = await stripeRef.current.confirmPayment({
+          elements: elementsRef.current,
+          redirect: "if_required",
+        });
+        if (error) throw new Error(error.message);
+        if (paymentIntent?.status !== "succeeded") throw new Error("Payment was not completed.");
+
+        const confirmRes = await fetch("/api/payment/confirm", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+          },
+          body: JSON.stringify({
+            order_number: pendingPayment.orderNumber,
+            payment_intent_id: paymentIntent.id,
+          }),
+        });
+        const confirmData = await confirmRes.json();
+        if (!confirmRes.ok || !confirmData.success) throw new Error(confirmData.message || "Payment confirmation failed.");
+
+        completeOrder(pendingPayment.checkoutData);
+        setPendingPayment(null);
+        return;
+      }
+
       const payload = {
         first_name: formData.firstName,
         last_name: formData.lastName,
@@ -146,6 +274,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
         country: formData.country,
         items: items,
         payment_method: selectedPaymentMethod,
+        shipping_method: shippingMethod,
         coupon_code: appliedPromo?.code || null,
         save_address: saveAddressForNextTime,
       };
@@ -163,29 +292,24 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        const orderRecord = {
-          id: data.order_number,
-          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-          items: [...items],
-          total: total,
-          status: "Processing",
-          shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
-          trackingNumber: `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
-        };
-
-        // Save to order history in localStorage
-        try {
-          const existing = JSON.parse(localStorage.getItem("atelier_orders") || "[]");
-          localStorage.setItem("atelier_orders", JSON.stringify([orderRecord, ...existing]));
-        } catch (err) {
-          console.error("Failed to save order", err);
+        if (selectedPaymentMethod === "card") {
+          const intentRes = await fetch("/api/payment/intent", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "",
+            },
+            body: JSON.stringify({ order_number: data.order_number }),
+          });
+          const intentData = await intentRes.json();
+          if (!intentRes.ok || !intentData.clientSecret) throw new Error(intentData.message || "Could not initialize Stripe payment.");
+          setPendingPayment({ checkoutData: data, orderNumber: data.order_number, clientSecret: intentData.clientSecret });
+          toast.info("Enter your card details to complete payment.");
+          return;
         }
 
-        setCompletedOrder(orderRecord);
-        clearCart();
-        setStep(3);
-        toast.success("Order Placed Successfully!");
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        completeOrder(data);
       } else {
         toast.error("Checkout Error", {
           description: data.message || "Failed to process order. Please verify your details.",
@@ -193,21 +317,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       }
     } catch (err) {
       console.error(err);
-      // Fallback
-      const orderId = `ATL-${Math.floor(100000 + Math.random() * 900000)}`;
-      const orderRecord = {
-        id: orderId,
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-        items: [...items],
-        total: total,
-        status: "Processing",
-        shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
-        trackingNumber: `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
-      };
-      setCompletedOrder(orderRecord);
-      clearCart();
-      setStep(3);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast.error("Checkout unavailable", {
+        description: "Your order was not created. Please check your connection and try again.",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -251,7 +363,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
-              href={`/order-tracking?order=${completedOrder.id}`}
+              href={`/order-tracking?order=${completedOrder.id}&email=${encodeURIComponent(formData.email)}`}
               className="flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-primary px-8 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm"
             >
               <Truck className="size-4" />
@@ -537,8 +649,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                   </h2>
                   {[
                     { id: "standard", label: "Complimentary Standard Delivery", time: "3–5 business days", cost: "FREE" },
-                    { id: "express", label: "DHL Express Priority", time: "2 business days", cost: formatPrice(15) },
-                    { id: "overnight", label: "Overnight Next-Morning Dispatch", time: "Next business day", cost: formatPrice(25) },
+                    { id: "express", label: "DHL Express Priority", time: "2 business days", cost: formatPrice(expressShippingRate) },
+                    { id: "overnight", label: "Overnight Next-Morning Dispatch", time: "Next business day", cost: formatPrice(overnightShippingRate) },
                   ].map((m) => (
                     <label
                       key={m.id}
@@ -554,7 +666,10 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                           type="radio"
                           name="shipping_speed"
                           checked={selectedShippingMethod === m.id}
-                          onChange={() => setSelectedShippingMethod(m.id)}
+                          onChange={() => {
+                            setSelectedShippingMethod(m.id);
+                            setShippingMethod(m.id);
+                          }}
                           className="size-4 accent-accent"
                         />
                         <div>
@@ -617,60 +732,24 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
                   {selectedPaymentMethod === "card" && (
                     <div className="space-y-4 pt-2 animate-in fade-in">
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          Card Number
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.cardNumber}
-                          onChange={(e) => handleInputChange("cardNumber", e.target.value)}
-                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 font-mono text-sm focus:border-accent focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            Expiration Date
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.cardExp}
-                            onChange={(e) => handleInputChange("cardExp", e.target.value)}
-                            placeholder="MM / YY"
-                            className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 font-mono text-sm focus:border-accent focus:outline-none"
-                          />
+                      <div className="rounded-xl border border-border bg-background p-3.5">
+                        <div ref={paymentMountRef}>
+                          {!pendingPayment && (
+                            <p className="py-3 text-xs text-muted-foreground">
+                              Click “Continue to Secure Payment” to load Stripe’s secure card form.
+                            </p>
+                          )}
                         </div>
-                        <div>
-                          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            Security Code (CVC)
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.cardCvc}
-                            onChange={(e) => handleInputChange("cardCvc", e.target.value)}
-                            placeholder="CVC"
-                            className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 font-mono text-sm focus:border-accent focus:outline-none"
-                          />
-                        </div>
+                        {pendingPayment && isPaymentElementLoading && (
+                          <p className="py-3 text-xs text-muted-foreground">Loading secure payment form...</p>
+                        )}
+                        {paymentElementError && (
+                          <p className="py-3 text-xs font-semibold text-destructive">{paymentElementError}</p>
+                        )}
                       </div>
-
-                      <div>
-                        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                          Name on Card
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={formData.cardName}
-                          onChange={(e) => handleInputChange("cardName", e.target.value)}
-                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
-                        />
-                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Your card details are securely handled by Stripe and never stored on this site.
+                      </p>
                     </div>
                   )}
 
@@ -707,7 +786,11 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                     className="flex-1 h-13 rounded-full bg-primary text-sm font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2"
                   >
                     <Lock className="size-4" />
-                    {isProcessing ? "Authorizing Payment..." : `Authorize & Pay ${formatPrice(total)}`}
+                    {isProcessing
+                      ? "Processing Payment..."
+                      : pendingPayment
+                        ? `Pay ${formatPrice(total)}`
+                        : `Continue to Secure Payment`}
                   </button>
                 </div>
               </form>
@@ -788,6 +871,10 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                 <span className="font-semibold text-foreground">
                   {shipping === 0 ? "FREE" : formatPrice(shipping)}
                 </span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Tax</span>
+                <span className="font-semibold text-foreground">{formatPrice(taxAmount)}</span>
               </div>
               <div className="flex justify-between border-t border-border pt-3 text-base font-extrabold text-foreground">
                 <span>Total</span>
