@@ -13,6 +13,11 @@ import {
   ArrowRight,
   ShoppingBag,
   DollarSign,
+  Landmark,
+  Upload,
+  Copy,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { loadStripe } from "@stripe/stripe-js";
@@ -43,6 +48,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     if (paymentSettings.codEnabled !== false) {
       methods.push({ id: "cod", label: "Cash on Delivery", icon: Truck, description: "Pay with cash upon order handover at your doorstep" });
     }
+    if (paymentSettings.bankTransferEnabled) {
+      methods.push({ id: "bank_transfer", label: "Bank Transfer", icon: Landmark, description: "Direct bank or wire transfer with receipt upload" });
+    }
     return methods;
   }, [paymentSettings]);
 
@@ -62,6 +70,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     setPromoCode,
     applyPromoCode,
     removePromoCode,
+    freeShippingThresholdEnabled,
+    freeShippingThreshold,
     clearCart,
   } = useCart();
 
@@ -95,6 +105,40 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const paymentElementRef = useRef(null);
   const paypalMountRef = useRef(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
+
+  // Bank Transfer receipt states
+  const [receiptUrl, setReceiptUrl] = useState("");
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [copiedIban, setCopiedIban] = useState(false);
+  const receiptInputRef = useRef(null);
+
+  const handleReceiptUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingReceipt(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+      const res = await fetch("/api/checkout/upload-receipt", {
+        method: "POST",
+        headers: { "X-CSRF-TOKEN": csrfToken, Accept: "application/json" },
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        setReceiptUrl(data.url);
+        toast.success("Receipt uploaded successfully!");
+      } else {
+        toast.error(data.message || "Failed to upload receipt.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error uploading receipt.");
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
 
   // Only authenticated user data or a saved address should prefill checkout.
   const [formData, setFormData] = useState(() => {
@@ -277,7 +321,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       items: [...items],
       total: Number(data.order?.total_amount ?? total),
-      status: "Processing",
+      status: selectedPaymentMethod === "bank_transfer" ? "Payment Verification" : "Processing",
+      paymentMethod: selectedPaymentMethod,
+      paymentReceiptUrl: receiptUrl || null,
       shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
       trackingNumber: `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
     };
@@ -351,6 +397,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
         country: formData.country,
         items: items,
         payment_method: selectedPaymentMethod,
+        payment_receipt_url: selectedPaymentMethod === "bank_transfer" ? receiptUrl || null : null,
         shipping_method: shippingMethod,
         coupon_code: appliedPromo?.code || null,
         save_address: saveAddressForNextTime,
@@ -455,10 +502,39 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
               <span className="font-semibold text-foreground">{completedOrder.shippingAddress}</span>
             </div>
             <div className="flex justify-between border-t border-border pt-2">
-              <span className="text-muted-foreground font-bold">Total Paid:</span>
+              <span className="text-muted-foreground font-bold">Total Amount:</span>
               <span className="font-extrabold text-foreground">{formatPrice(completedOrder.total)}</span>
             </div>
           </div>
+
+          {completedOrder.paymentMethod === "bank_transfer" && (
+            <div className="mt-6 rounded-2xl bg-amber-50/70 border border-amber-200 p-5 text-left text-xs text-amber-900 space-y-2.5">
+              <div className="flex items-center gap-2 font-bold text-amber-950">
+                <Landmark className="size-4 text-amber-700" />
+                <span>Direct Bank Transfer Details</span>
+              </div>
+              <p className="text-amber-800 leading-relaxed">
+                Please transfer <strong>{formatPrice(completedOrder.total)}</strong> to our bank account quoting order reference <strong>#{completedOrder.id}</strong>.
+              </p>
+              {paymentSettings.bankAccountNumber && (
+                <div className="rounded-xl bg-white/80 border border-amber-200/80 p-3 text-[11px] font-mono text-amber-950 space-y-1">
+                  {paymentSettings.bankName && <p><strong>Bank:</strong> {paymentSettings.bankName}</p>}
+                  {paymentSettings.bankAccountTitle && <p><strong>Title:</strong> {paymentSettings.bankAccountTitle}</p>}
+                  <p><strong>Account / IBAN:</strong> {paymentSettings.bankAccountNumber}</p>
+                  {paymentSettings.bankSwift && <p><strong>SWIFT:</strong> {paymentSettings.bankSwift}</p>}
+                </div>
+              )}
+              {completedOrder.paymentReceiptUrl ? (
+                <p className="text-emerald-700 font-semibold text-[11px] flex items-center gap-1.5 pt-1">
+                  <CheckCircle2 className="size-3.5 text-emerald-600" /> Payment receipt attached. Our accounts team will verify and dispatch your items.
+                </p>
+              ) : (
+                <p className="text-amber-800 text-[11px] pt-1">
+                  💡 Once transfer is completed, you can view this order on the tracking page to check verification status.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -772,7 +848,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                           <p className="text-xs text-muted-foreground">{m.delivery_min_days === m.delivery_max_days ? `${m.delivery_min_days} business day` : `${m.delivery_min_days}–${m.delivery_max_days} business days`}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-extrabold text-foreground">{m.pricing_type === "free_threshold" && Number(subtotal) >= Number(m.free_shipping_min || 0) ? "FREE" : formatPrice(Number(m.price || 0))}</span>
+                      <span className="text-xs font-extrabold text-foreground">{m.pricing_type === "free_threshold" && freeShippingThresholdEnabled && Number(subtotal) >= Number(m.free_shipping_min ?? freeShippingThreshold) ? "FREE" : formatPrice(Number(m.price || 0))}</span>
                     </label>
                   ))}
                 </div>
@@ -865,6 +941,128 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                       <p className="text-emerald-700">Pay <strong>{formatPrice(total)}</strong> in cash when the delivery courier delivers your package.</p>
                     </div>
                   )}
+
+                  {selectedPaymentMethod === "bank_transfer" && (
+                    <div className="rounded-2xl bg-surface border border-border p-5 text-xs text-foreground space-y-4 animate-in fade-in">
+                      <div className="flex items-center gap-2.5 border-b border-border/70 pb-3">
+                        <div className="grid size-8 place-items-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                          <Landmark className="size-4" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-foreground">Direct Bank Transfer</p>
+                          <p className="text-[11px] text-muted-foreground">Make payment directly into our bank account</p>
+                        </div>
+                      </div>
+
+                      {/* Bank Details Card */}
+                      <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {paymentSettings.bankName && (
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Bank Name</span>
+                              <p className="font-bold text-foreground text-xs mt-0.5">{paymentSettings.bankName}</p>
+                            </div>
+                          )}
+                          {paymentSettings.bankAccountTitle && (
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Account Title</span>
+                              <p className="font-bold text-foreground text-xs mt-0.5">{paymentSettings.bankAccountTitle}</p>
+                            </div>
+                          )}
+                          {paymentSettings.bankAccountNumber && (
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Account Number / IBAN</span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="font-mono font-bold text-foreground text-xs">{paymentSettings.bankAccountNumber}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(paymentSettings.bankAccountNumber);
+                                    setCopiedIban(true);
+                                    toast.success("Account number copied to clipboard!");
+                                    setTimeout(() => setCopiedIban(false), 2500);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                                >
+                                  {copiedIban ? <Check className="size-2.5 text-emerald-600" /> : <Copy className="size-2.5" />}
+                                  <span>{copiedIban ? "Copied" : "Copy"}</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {paymentSettings.bankSwift && (
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">SWIFT / Branch Code</span>
+                              <p className="font-mono font-bold text-foreground text-xs mt-0.5">{paymentSettings.bankSwift}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {paymentSettings.bankInstructions && (
+                          <div className="mt-2 pt-2 border-t border-border/50 text-[11px] text-muted-foreground leading-relaxed">
+                            <strong className="text-foreground">Instructions: </strong>
+                            {paymentSettings.bankInstructions}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Payment Proof / Receipt Upload */}
+                      <div className="rounded-xl border border-dashed border-border bg-surface p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                            <Upload className="size-3.5 text-primary" />
+                            <span>Upload Payment Receipt / Transfer Slip</span>
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">Optional now, or submit later</span>
+                        </div>
+
+                        <input
+                          ref={receiptInputRef}
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={handleReceiptUpload}
+                          className="hidden"
+                        />
+
+                        {receiptUrl ? (
+                          <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 text-xs text-emerald-800">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="size-4 text-emerald-600 shrink-0" />
+                              <span className="font-semibold">Receipt Attached</span>
+                              <a
+                                href={receiptUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline text-emerald-700 font-bold hover:text-emerald-900 ml-1"
+                              >
+                                Preview
+                              </a>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptUrl("")}
+                              className="text-muted-foreground hover:text-destructive cursor-pointer"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => receiptInputRef.current?.click()}
+                            className="flex flex-col items-center justify-center rounded-lg border border-border/70 bg-muted/20 py-4 px-3 text-center cursor-pointer hover:bg-muted/40 transition-colors"
+                          >
+                            <Upload className="size-5 text-muted-foreground mb-1" />
+                            <p className="text-xs font-semibold text-foreground">
+                              {isUploadingReceipt ? "Uploading receipt..." : "Click to select payment screenshot or PDF"}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              JPG, PNG, WEBP, or PDF (Max 15MB)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -889,6 +1087,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                         ? `Pay ${formatPrice(total)}`
                         : pendingPaypal
                           ? "Pay with PayPal above"
+                        : selectedPaymentMethod === "bank_transfer"
+                          ? "Place Order via Bank Transfer"
                         : `Continue to Secure Payment`}
                   </button>
                 </div>

@@ -12,11 +12,16 @@ class UploadController extends Controller
     public function upload(Request $request): JsonResponse
     {
         $request->validate([
-            'image' => ['required', 'file', 'image', 'max:20480'], // 20MB max
-            'folder' => ['nullable', 'string', 'in:products,branding,general,homepage'],
+            'image' => ['nullable', 'file', 'mimes:jpeg,png,jpg,gif,webp,svg,pdf', 'max:20480'],
+            'file' => ['nullable', 'file', 'mimes:jpeg,png,jpg,gif,webp,svg,pdf', 'max:20480'],
+            'folder' => ['nullable', 'string', 'in:products,branding,general,homepage,expenses'],
         ]);
 
-        $file = $request->file('image');
+        $file = $request->file('image') ?? $request->file('file');
+        if (!$file) {
+            return response()->json(['success' => false, 'message' => 'No file uploaded.'], 422);
+        }
+
         $folder = $request->input('folder', 'products');
         $size = $file->getSize();
         

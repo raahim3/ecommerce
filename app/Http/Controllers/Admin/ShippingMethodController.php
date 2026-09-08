@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShippingMethod;
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -22,6 +23,14 @@ class ShippingMethodController extends Controller
     {
         $method = ShippingMethod::findOrFail($id);
         $method->update($this->validated($request, $method->id));
+
+        if ($method->pricing_type === 'free_threshold') {
+            $shippingSettings = Setting::get('shipping', []);
+            $shippingSettings['freeShippingThreshold'] = (float) ($method->free_shipping_min ?? 100);
+            $shippingSettings['freeShippingThresholdEnabled'] = (bool) $method->active;
+            Setting::set('shipping', $shippingSettings);
+        }
+
         return response()->json(['success' => true, 'method' => $method->fresh()]);
     }
 
@@ -29,6 +38,13 @@ class ShippingMethodController extends Controller
     {
         $method = ShippingMethod::findOrFail($id);
         $method->update(['active' => !$method->active]);
+
+        if ($method->pricing_type === 'free_threshold') {
+            $shippingSettings = Setting::get('shipping', []);
+            $shippingSettings['freeShippingThresholdEnabled'] = (bool) $method->active;
+            Setting::set('shipping', $shippingSettings);
+        }
+
         return response()->json(['success' => true, 'active' => $method->active]);
     }
 

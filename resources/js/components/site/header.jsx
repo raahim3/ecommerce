@@ -39,9 +39,15 @@ export function Header() {
   const user = props?.auth?.user;
   const generalSettings = props?.app_settings?.general || {};
   const navigation = props?.app_settings?.navigation || {};
+  const checkoutSettings = props?.app_settings?.checkout || {};
   const categories = props?.app_settings?.navigationCategories || [];
   const navItems = navigation.headerMenuItems || [];
-  const marqueeText = (navigation.marqueeText || "").replace("{currency}", formatPrice(0).replace("0", ""));
+  const currencySymbol = formatPrice(0).replace("0", "");
+  const freeShippingThreshold = checkoutSettings.freeShippingThreshold ?? 100;
+  const marqueeText = (navigation.marqueeText || "")
+    .replace("{currency}", currencySymbol)
+    .replace("{threshold}", String(freeShippingThreshold))
+    .replace(/\{currency\}\d+/g, `${currencySymbol}${freeShippingThreshold}`);
   const navigate = (href) => router.visit(href);
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);

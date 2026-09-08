@@ -58,6 +58,7 @@ use App\Http\Controllers\AddressController;
 
 Route::get('/checkout', [CheckoutController::class, 'create'])->name('checkout');
 Route::post('/api/checkout', [CheckoutController::class, 'store'])->middleware('throttle:checkout');
+Route::post('/api/checkout/upload-receipt', [CheckoutController::class, 'uploadReceipt'])->middleware('throttle:uploads');
 
 // Address Endpoints
 Route::get('/api/addresses', [AddressController::class, 'index'])->middleware('auth');

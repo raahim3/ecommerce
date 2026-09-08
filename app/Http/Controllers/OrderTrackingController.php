@@ -38,7 +38,9 @@ class OrderTrackingController extends Controller
                     'date' => $placedDate->format('M d, Y • h:i A'),
                     'completed' => true,
                     'current' => $order->status === 'pending',
-                    'description' => 'Payment authorized and receipt dispatched to ' . $order->customer_email,
+                    'description' => $order->payment_method === 'bank_transfer'
+                        ? ($order->payment_status === 'paid' ? 'Bank transfer verified and confirmed.' : ($order->payment_receipt_url ? 'Bank transfer receipt uploaded, awaiting payment verification.' : 'Bank transfer payment pending verification.'))
+                        : 'Payment authorized and receipt dispatched to ' . $order->customer_email,
                 ],
                 [
                     'title' => 'Artisanal Preparation & Quality Inspection',

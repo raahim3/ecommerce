@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { router } from "@inertiajs/react";
 import { toast } from "sonner";
 
 const CartContext = createContext(null);
@@ -15,6 +16,29 @@ const STORAGE_KEYS = {
 };
 
 export function CartProvider({ children, checkoutSettings = {} }) {
+  const [liveCheckoutSettings, setLiveCheckoutSettings] = useState(checkoutSettings);
+
+  useEffect(() => {
+    if (checkoutSettings && Object.keys(checkoutSettings).length > 0) {
+      setLiveCheckoutSettings(checkoutSettings);
+    }
+  }, [checkoutSettings]);
+
+  useEffect(() => {
+    try {
+      const unlisten = router?.on?.("finish", (event) => {
+        const latest = event?.detail?.page?.props?.app_settings?.checkout;
+        if (latest) {
+          setLiveCheckoutSettings(latest);
+        }
+      });
+      return () => {
+        if (typeof unlisten === "function") unlisten();
+      };
+    } catch {
+      // safe fallback
+    }
+  }, []);
   const [items, setItems] = useState(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEYS.CART);
@@ -220,33 +244,33 @@ export function CartProvider({ children, checkoutSettings = {} }) {
     return appliedPromo.discount_amount || 0;
   }, [appliedPromo, subtotal]);
 
-  const freeShippingThreshold = Number(checkoutSettings.freeShippingThreshold ?? 100);
-  const shippingRate = Number(checkoutSettings.shippingRate ?? 15);
-  const shippingMethods = Array.isArray(checkoutSettings.shippingMethods) && checkoutSettings.shippingMethods.length
-    ? checkoutSettings.shippingMethods
+  const freeShippingThresholdEnabled = liveCheckoutSettings.freeShippingThresholdEnabled !== false;
+  const freeShippingThreshold = Number(liveCheckoutSettings.freeShippingThreshold ?? 100);
+  const shippingRate = Number(liveCheckoutSettings.shippingRate ?? 15);
+  const shippingMethods = Array.isArray(liveCheckoutSettings.shippingMethods) && liveCheckoutSettings.shippingMethods.length
+    ? liveCheckoutSettings.shippingMethods
     : [
         { code: "standard", name: "Complimentary Standard Delivery", pricing_type: "free_threshold", price: 0, free_shipping_min: freeShippingThreshold, delivery_min_days: 3, delivery_max_days: 5 },
         { code: "express", name: "DHL Express Priority", pricing_type: "flat_rate", price: shippingRate, delivery_min_days: 2, delivery_max_days: 2 },
-        { code: "overnight", name: "Overnight Next-Morning Dispatch", pricing_type: "flat_rate", price: Number(checkoutSettings.overnightShippingRate ?? 25), delivery_min_days: 1, delivery_max_days: 1 },
+        { code: "overnight", name: "Overnight Next-Morning Dispatch", pricing_type: "flat_rate", price: Number(liveCheckoutSettings.overnightShippingRate ?? 25), delivery_min_days: 1, delivery_max_days: 1 },
       ];
   const selectedShippingMethodData = shippingMethods.find((method) => method.code === shippingMethod) || shippingMethods[0];
-  const selectedShippingRate = selectedShippingMethodData?.pricing_type === "free_threshold" && subtotal >= Number(selectedShippingMethodData.free_shipping_min ?? freeShippingThreshold)
-    ? 0
+  const selectedShippingRate = selectedShippingMethodData?.pricing_type === "free_threshold"
+    ? (freeShippingThresholdEnabled && subtotal >= Number(selectedShippingMethodData.free_shipping_min ?? freeShippingThreshold) ? 0 : Number(selectedShippingMethodData.price || 0))
     : selectedShippingMethodData?.pricing_type === "weight_based"
       ? Number(selectedShippingMethodData.price || 0) + totalWeight * Number(selectedShippingMethodData.per_kg_rate || 0)
       : Number(selectedShippingMethodData?.price || 0);
-  const shipping = subtotal === 0 || (shippingMethod === "standard" && subtotal >= freeShippingThreshold)
+  const shipping = subtotal === 0 || (freeShippingThresholdEnabled && shippingMethod === "standard" && subtotal >= freeShippingThreshold)
     ? 0
     : selectedShippingRate;
   const taxableAmount = Math.max(0, subtotal - discountAmount);
-  const taxRate = Number(checkoutSettings.taxRate ?? 8);
-  const taxAmount = checkoutSettings.taxIncluded ? 0 : Math.round(taxableAmount * (taxRate / 100) * 100) / 100;
+  const taxRate = Number(liveCheckoutSettings.taxRate ?? 8);
+  const taxAmount = liveCheckoutSettings.taxIncluded ? 0 : Math.round(taxableAmount * (taxRate / 100) * 100) / 100;
   const total = Math.max(0, taxableAmount + shipping + taxAmount);
   const freeShippingRemaining = Math.max(0, freeShippingThreshold - subtotal);
-  const freeShippingProgress = Math.min(
-    100,
-    Math.round((subtotal / freeShippingThreshold) * 100),
-  );
+  const freeShippingProgress = freeShippingThreshold > 0
+    ? Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100))
+    : 100;
 
   const value = useMemo(
     () => ({
@@ -267,6 +291,7 @@ export function CartProvider({ children, checkoutSettings = {} }) {
       setPromoCode,
       applyPromoCode,
       removePromoCode,
+      freeShippingThresholdEnabled,
       freeShippingThreshold,
       freeShippingRemaining,
       freeShippingProgress,

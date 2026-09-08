@@ -31,6 +31,7 @@ import {
   Search,
   FileText,
   Bell,
+  Landmark,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ const TABS = [
   { id: "staff", label: "Staff & Permissions", icon: Users },
 ];
 
-const CURRENCIES = ["USD — US Dollar", "EUR — Euro", "GBP — British Pound", "JPY — Japanese Yen", "SEK — Swedish Krona"];
+const CURRENCIES = ["USD — US Dollar", "EUR — Euro", "GBP — British Pound", "JPY — Japanese Yen", "SEK — Swedish Krona", "PKR - Pakistani Rupee"];
 const TIMEZONES = ["UTC-5 (Eastern Standard)", "UTC+0 (London)", "UTC+1 (Central European)", "UTC+5:30 (India)"];
 const MAIL_DRIVERS = ["SMTP", "SendGrid", "Amazon SES", "Mailgun"];
 const SMTP_ENCRYPTIONS = ["TLS (Port 587)", "SSL (Port 465)", "None (Port 25)"];
@@ -211,6 +212,13 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
     paypalClientId: "",
     paypalSecret: "",
     codEnabled: true,
+    bankTransferEnabled: false,
+    bankName: "",
+    bankAccountTitle: "",
+    bankAccountNumber: "",
+    bankIban: "",
+    bankSwift: "",
+    bankInstructions: "Please transfer the exact total amount to our bank account. Include your Order Number in the payment reference. Upload your payment screenshot or transfer receipt below.",
     testMode: true,
     ...(settings.payments || {}),
   });
@@ -227,13 +235,16 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
   });
 
   // 5. Shipping & Taxes
-  const [shipping, setShipping] = useState(settings.shipping || {
+  const [shipping, setShipping] = useState({
+    freeShippingThresholdEnabled: true,
+    freeShippingThreshold: 100,
     zones: [
       { id: 1, name: "Domestic Free Shipping", condition: `Orders > ${formatPrice(100)}`, rate: "Free", active: true },
       { id: 2, name: "Priority Express (US)", condition: "All US orders", rate: formatPrice(15), active: true },
       { id: 3, name: "International Standard", condition: "All International", rate: formatPrice(25), active: true },
     ],
     tax: { automated: true, flatRate: "8.0", taxIncluded: false },
+    ...(settings.shipping || {}),
   });
   const [shippingMethods, setShippingMethods] = useState(serverShippingMethods);
   const [shippingMethodForm, setShippingMethodForm] = useState(null);
@@ -1691,6 +1702,88 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
                       </span>
                     </button>
                   </div>
+
+                  {/* Direct Bank Transfer */}
+                  <div className={cn(
+                    "rounded-2xl border p-5 space-y-4 transition-colors",
+                    payments.bankTransferEnabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/70 opacity-75"
+                  )}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                        <Landmark className="size-4 text-emerald-600" /> Direct Bank Transfer / Wire
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPayments({ ...payments, bankTransferEnabled: !payments.bankTransferEnabled })}
+                        className="flex items-center gap-1.5 cursor-pointer"
+                      >
+                        {payments.bankTransferEnabled
+                          ? <ToggleRight className="size-7 text-emerald-500" />
+                          : <ToggleLeft className="size-7 text-slate-400" />}
+                        <span className={cn("text-[11px] font-bold", payments.bankTransferEnabled ? "text-emerald-600" : "text-slate-400")}>
+                          {payments.bankTransferEnabled ? "Enabled" : "Disabled"}
+                        </span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500">
+                      Customers will see these bank details and payment instructions at checkout, with an option to upload their payment receipt or transfer slip.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Bank Name</label>
+                        <input
+                          type="text"
+                          value={payments.bankName || ""}
+                          onChange={(e) => setPayments({ ...payments, bankName: e.target.value })}
+                          placeholder="e.g. Standard Chartered / Meezan Bank / Chase"
+                          className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Account Title / Beneficiary</label>
+                        <input
+                          type="text"
+                          value={payments.bankAccountTitle || ""}
+                          onChange={(e) => setPayments({ ...payments, bankAccountTitle: e.target.value })}
+                          placeholder="e.g. Atelier Studios Inc."
+                          className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Account Number / IBAN</label>
+                        <input
+                          type="text"
+                          value={payments.bankAccountNumber || ""}
+                          onChange={(e) => setPayments({ ...payments, bankAccountNumber: e.target.value })}
+                          placeholder="e.g. PK36SCBL0000001123456701"
+                          className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">SWIFT / Branch Code (Optional)</label>
+                        <input
+                          type="text"
+                          value={payments.bankSwift || ""}
+                          onChange={(e) => setPayments({ ...payments, bankSwift: e.target.value })}
+                          placeholder="e.g. SCBLPKKX or Branch 0142"
+                          className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 uppercase">Customer Instructions (Shown at Checkout)</label>
+                      <textarea
+                        rows={3}
+                        value={payments.bankInstructions || ""}
+                        onChange={(e) => setPayments({ ...payments, bankInstructions: e.target.value })}
+                        placeholder="Instructions for the customer on where and how to send funds, reference numbers to include, etc."
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1746,6 +1839,71 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
                     <Save className="size-3.5" />
                     <span>{savingGroup === "shipping" ? "Saving..." : "Save Shipping"}</span>
                   </button>
+                </div>
+
+                {/* Free Shipping Progress Bar & Threshold Configuration */}
+                <div className={cn(
+                  "rounded-2xl border p-5 space-y-4 transition-colors",
+                  shipping.freeShippingThresholdEnabled ? "border-slate-200 bg-slate-50/60" : "border-slate-100 bg-slate-50/30 opacity-80"
+                )}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
+                        <Sparkles className="size-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-900">Free Shipping Progress Bar & Unlock</h3>
+                        <p className="text-[11px] text-slate-500">Display dynamic progress bar in shopping bag drawer and automatically grant free delivery when reached.</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShipping({ ...shipping, freeShippingThresholdEnabled: !shipping.freeShippingThresholdEnabled })}
+                      className="flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {shipping.freeShippingThresholdEnabled
+                        ? <ToggleRight className="size-7 text-emerald-500" />
+                        : <ToggleLeft className="size-7 text-slate-400" />}
+                      <span className={cn("text-[11px] font-bold", shipping.freeShippingThresholdEnabled ? "text-emerald-600" : "text-slate-400")}>
+                        {shipping.freeShippingThresholdEnabled ? "Enabled" : "Disabled"}
+                      </span>
+                    </button>
+                  </div>
+
+                  {shipping.freeShippingThresholdEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200/60">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 uppercase">
+                          Free Shipping Minimum Order Amount
+                        </label>
+                        <div className="relative mt-1">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={shipping.freeShippingThreshold ?? 100}
+                            onChange={(e) => setShipping({ ...shipping, freeShippingThreshold: e.target.value })}
+                            placeholder="e.g. 5000"
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold focus:border-slate-900 focus:outline-none"
+                          />
+                        </div>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Customers will see: "Add {formatPrice(Number(shipping.freeShippingThreshold || 0))} more to unlock Free Shipping".
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs text-emerald-800 space-y-1">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <Sparkles className="size-3.5 text-emerald-600" />
+                          <span>Live Shopping Bag Preview</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-700 leading-relaxed">
+                          When customer cart is empty, it displays: <br />
+                          <strong>Add {formatPrice(Number(shipping.freeShippingThreshold || 0))} more to unlock Free Shipping (0%)</strong>
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">

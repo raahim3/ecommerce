@@ -159,6 +159,13 @@ class SettingsController extends Controller
                 'paypalClientId' => '',
                 'paypalSecret' => '',
                 'codEnabled' => true,
+                'bankTransferEnabled' => false,
+                'bankName' => '',
+                'bankAccountTitle' => '',
+                'bankAccountNumber' => '',
+                'bankIban' => '',
+                'bankSwift' => '',
+                'bankInstructions' => 'Please transfer the exact total amount to our bank account. Include your Order Number in the payment reference. Upload your payment screenshot or transfer receipt below.',
                 'testMode' => true,
             ]),
             'pusher' => Setting::get('pusher', [
@@ -168,14 +175,27 @@ class SettingsController extends Controller
                 'app_id' => '',
                 'cluster' => 'mt1',
             ]),
-            'shipping' => Setting::get('shipping', [
-                'zones' => [
-                    ['id' => 1, 'name' => 'Domestic Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free', 'active' => true],
-                    ['id' => 2, 'name' => 'Priority Express (US)', 'condition' => 'All US orders', 'rate' => '$15.00', 'active' => true],
-                    ['id' => 3, 'name' => 'International Standard', 'condition' => 'All International', 'rate' => '$25.00', 'active' => true],
-                ],
-                'tax' => ['automated' => true, 'flatRate' => '8.0', 'taxIncluded' => false],
-            ]),
+            'shipping' => (function () {
+                $shippingDefaults = [
+                    'freeShippingThresholdEnabled' => true,
+                    'freeShippingThreshold' => 100,
+                    'zones' => [
+                        ['id' => 1, 'name' => 'Domestic Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free', 'active' => true],
+                        ['id' => 2, 'name' => 'Priority Express (US)', 'condition' => 'All US orders', 'rate' => '$15.00', 'active' => true],
+                        ['id' => 3, 'name' => 'International Standard', 'condition' => 'All International', 'rate' => '$25.00', 'active' => true],
+                    ],
+                    'tax' => ['automated' => true, 'flatRate' => '8.0', 'taxIncluded' => false],
+                ];
+                $current = Setting::get('shipping', $shippingDefaults);
+                if (!isset($current['freeShippingThresholdEnabled'])) {
+                    $freeMethod = ShippingMethod::where('pricing_type', 'free_threshold')->first();
+                    $current['freeShippingThresholdEnabled'] = $freeMethod ? (bool) $freeMethod->active : true;
+                    $current['freeShippingThreshold'] = $freeMethod && $freeMethod->free_shipping_min !== null
+                        ? (float) $freeMethod->free_shipping_min
+                        : 100;
+                }
+                return $current;
+            })(),
         ];
 
         foreach ([
@@ -216,6 +236,21 @@ class SettingsController extends Controller
         }
 
         Setting::set($request->group, $data);
+
+        // Sync with shipping_methods table if saving shipping settings
+        if ($request->group === 'shipping') {
+            $standardMethod = ShippingMethod::where('pricing_type', 'free_threshold')->first();
+            if ($standardMethod) {
+                if (isset($data['freeShippingThreshold'])) {
+                    $standardMethod->free_shipping_min = (float) $data['freeShippingThreshold'];
+                }
+                if (isset($data['freeShippingThresholdEnabled'])) {
+                    $standardMethod->active = (bool) $data['freeShippingThresholdEnabled'];
+                }
+                $standardMethod->save();
+            }
+        }
+
         $responseSettings = $data;
         foreach (['password', 'stripeSecret', 'paypalSecret', 'secret'] as $secretKey) {
             if (array_key_exists($secretKey, $responseSettings)) {

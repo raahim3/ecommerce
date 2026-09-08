@@ -198,6 +198,17 @@
                 Phone: {{ $order->shipping_address['phone'] ?? $order->customer_phone ?? 'N/A' }}
             </div>
 
+            @if($order->payment_method === 'bank_transfer')
+                <div style="background-color: #fefce8; border: 1px solid #fef08a; border-radius: 12px; padding: 14px 18px; font-size: 12px; line-height: 1.5; color: #854d0e; margin-top: 20px;">
+                    <strong style="color: #713f12; display: block; margin-bottom: 3px;">Payment Method: Direct Bank Transfer</strong>
+                    @if($order->payment_receipt_url)
+                        <span>Your payment slip has been attached and is currently being verified by our accounts department.</span>
+                    @else
+                        <span>Please remember to send your payment referencing Order #<strong>{{ $order->order_number }}</strong>.</span>
+                    @endif
+                </div>
+            @endif
+
             <a href="{{ url('/order-tracking?order=' . $order->order_number . '&email=' . urlencode($order->customer_email)) }}" class="btn-track">
                 Track Order Live &rarr;
             </a>

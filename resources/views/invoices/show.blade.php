@@ -211,8 +211,12 @@
                     <span>{{ \App\Services\CurrencyService::format($order->tax_amount) }}</span>
                 </div>
                 <div class="totals-total">
-                    <span>Total Paid:</span>
+                    <span>{{ $order->payment_status === 'paid' ? 'Total Paid:' : 'Total Amount:' }}</span>
                     <span>{{ \App\Services\CurrencyService::format($order->total_amount) }}</span>
+                </div>
+                <div class="totals-row" style="margin-top: 6px; font-size: 11px;">
+                    <span>Payment Method:</span>
+                    <span style="font-weight: 600; text-transform: capitalize; color: #0f172a;">{{ str_replace('_', ' ', $order->payment_method ?? 'Card') }}</span>
                 </div>
             </div>
         </div>

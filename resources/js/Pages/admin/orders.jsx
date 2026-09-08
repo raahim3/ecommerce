@@ -17,6 +17,8 @@ import {
   MessageSquare,
   Printer,
   CreditCard,
+  Receipt,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
@@ -117,6 +119,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     promoCode: o.coupon_code ?? "",
     paymentStatus: o.payment_status === "paid" ? "Paid" : o.payment_status === "refunded" ? "Refunded" : "Pending",
     paymentMethod: o.payment_method ?? "Card",
+    paymentReceiptUrl: o.payment_receipt_url ?? "",
     fulfillmentStatus: o.status === "delivered" ? "Fulfilled" : o.status === "shipped" ? "In Transit" : o.status === "cancelled" ? "Cancelled" : "Unfulfilled",
     trackingNumber: o.tracking_number ?? "",
     carrier: o.carrier ?? "",
@@ -139,6 +142,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const [fulfillData, setFulfillData] = useState({ carrier: CARRIERS[0], trackingNumber: "" });
   const [refundData, setRefundData] = useState({ amount: "", reason: REFUND_REASONS[0] });
   const [newNote, setNewNote] = useState("");
+  const [viewingReceipt, setViewingReceipt] = useState(null);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
@@ -417,6 +421,19 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                     )}>
                       {order.paymentStatus}
                     </span>
+                    {order.paymentReceiptUrl && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setViewingReceipt(order.paymentReceiptUrl);
+                        }}
+                        className="ml-1.5 inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+                        title="Click to view uploaded receipt"
+                      >
+                        <Receipt className="size-2.5" /> Slip
+                      </button>
+                    )}
                   </td>
                   <td className="p-4">
                     <span className={cn(
@@ -513,12 +530,74 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                   <p className="font-semibold text-slate-800">{selectedOrder.customer.name}</p>
                   <p className="text-slate-500">{selectedOrder.customer.email}</p>
                   <p className="text-slate-500">{selectedOrder.customer.phone}</p>
-                  <p className="text-slate-400">{selectedOrder.paymentMethod}</p>
+                  <p className="text-slate-400 capitalize">{selectedOrder.paymentMethod?.replace('_', ' ')}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-1.5 text-xs">
                   <h4 className="font-bold text-slate-900 text-sm mb-2">Ship To</h4>
                   <p className="text-slate-600 leading-relaxed">{selectedOrder.shippingAddress}</p>
                 </div>
+              </div>
+
+              {/* Payment Proof / Bank Transfer Receipt */}
+              <div className="rounded-2xl border border-slate-200 p-5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                    <Receipt className="size-4 text-slate-700" /> Payment & Proof of Transfer
+                  </h4>
+                  <span className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] font-bold",
+                    selectedOrder.paymentStatus === "Paid" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                  )}>
+                    {selectedOrder.paymentStatus}
+                  </span>
+                </div>
+                <p className="text-slate-500">
+                  Method: <strong className="text-slate-800 capitalize">{selectedOrder.paymentMethod?.replace('_', ' ')}</strong>
+                </p>
+
+                {selectedOrder.paymentReceiptUrl ? (
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5">
+                    <div className="flex items-center gap-3">
+                      {selectedOrder.paymentReceiptUrl.endsWith(".pdf") ? (
+                        <div className="grid size-12 place-items-center rounded-xl bg-red-100 text-red-600 font-bold text-xs border border-red-200">
+                          PDF
+                        </div>
+                      ) : (
+                        <img
+                          src={selectedOrder.paymentReceiptUrl}
+                          alt="Transfer Slip"
+                          className="size-12 rounded-xl object-cover border border-slate-200 shadow-2xs cursor-pointer hover:opacity-90"
+                          onClick={() => setViewingReceipt(selectedOrder.paymentReceiptUrl)}
+                        />
+                      )}
+                      <div>
+                        <p className="font-bold text-slate-900 text-xs">Bank Transfer Receipt Attached</p>
+                        <p className="text-[11px] text-slate-500">Uploaded by customer for verification</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setViewingReceipt(selectedOrder.paymentReceiptUrl)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs cursor-pointer"
+                      >
+                        <Eye className="size-3.5" /> View
+                      </button>
+                      <a
+                        href={selectedOrder.paymentReceiptUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs"
+                      >
+                        <ExternalLink className="size-3.5" /> Open
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-xl border border-dashed border-slate-200 p-3 text-center text-slate-400 text-xs">
+                    No payment receipt uploaded by customer.
+                  </div>
+                )}
               </div>
 
               {/* Notes */}
@@ -705,6 +784,50 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
             <div className="flex gap-3">
               <button type="button" onClick={() => setNoteModalOpen(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Cancel</button>
               <button type="button" onClick={handleAddNote} className="flex-1 h-10 rounded-xl bg-slate-900 text-xs font-bold text-white hover:bg-slate-800">Add Note</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Lightbox Modal */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-3xl rounded-2xl bg-white p-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-sm">Customer Payment Receipt</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={viewingReceipt}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Open in New Window
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingReceipt(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 flex max-h-[70vh] items-center justify-center overflow-auto rounded-xl bg-slate-50 p-2">
+              {viewingReceipt.endsWith(".pdf") ? (
+                <iframe
+                  src={viewingReceipt}
+                  title="Receipt PDF"
+                  className="h-[60vh] w-full rounded-lg border border-slate-200"
+                />
+              ) : (
+                <img
+                  src={viewingReceipt}
+                  alt="Payment Receipt"
+                  className="max-h-[65vh] w-auto rounded-lg object-contain"
+                />
+              )}
             </div>
           </div>
         </div>

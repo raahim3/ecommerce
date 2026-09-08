@@ -60,7 +60,8 @@ class CheckoutController extends Controller
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'items.*.qty' => ['nullable', 'integer', 'min:1', 'max:100'],
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'payment_method' => ['required', 'string', 'in:card,stripe,paypal,cod'],
+            'payment_method' => ['required', 'string', 'in:card,stripe,paypal,cod,bank_transfer'],
+            'payment_receipt_url' => ['nullable', 'string', 'max:1000'],
             'shipping_method' => ['required', 'string', 'in:standard,express,overnight'],
             'coupon_code' => ['nullable', 'string'],
             'save_address' => ['nullable', 'boolean'],
@@ -72,6 +73,7 @@ class CheckoutController extends Controller
             'stripeEnabled' => true,
             'paypalEnabled' => true,
             'codEnabled' => true,
+            'bankTransferEnabled' => false,
         ]);
 
         $selectedMethod = strtolower($request->payment_method);
@@ -79,6 +81,12 @@ class CheckoutController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Cash on Delivery is currently disabled by the store.',
+            ], 422);
+        }
+        if ($selectedMethod === 'bank_transfer' && empty($paymentSettings['bankTransferEnabled'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bank Transfer is currently disabled by the store.',
             ], 422);
         }
         if (($selectedMethod === 'stripe' || $selectedMethod === 'card') && isset($paymentSettings['stripeEnabled']) && !$paymentSettings['stripeEnabled']) {
@@ -209,6 +217,7 @@ class CheckoutController extends Controller
                 'status' => 'pending',
                 'payment_status' => 'unpaid',
                 'payment_method' => $request->payment_method,
+                'payment_receipt_url' => $request->payment_receipt_url,
                 'notes' => $request->notes,
                 'carrier' => 'DHL Express Priority',
                 'estimated_delivery' => now()->addDays(3),
@@ -245,8 +254,7 @@ class CheckoutController extends Controller
                     ])
                 );
             }
-
-            // 9. Clear database cart for user or session
+            // 9. Clear user's active cart
             if (Auth::check()) {
                 CartItem::where('user_id', Auth::id())->delete();
             } else {
@@ -269,5 +277,32 @@ class CheckoutController extends Controller
                 'message' => 'Order placed successfully!',
             ]);
         });
+    }
+
+    public function uploadReceipt(Request $request): JsonResponse
+    {
+        $request->validate([
+            'receipt' => ['nullable', 'file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:15360'],
+            'file' => ['nullable', 'file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:15360'],
+        ]);
+
+        $file = $request->file('receipt') ?? $request->file('file');
+        if (!$file) {
+            return response()->json(['success' => false, 'message' => 'No receipt file uploaded.'], 422);
+        }
+
+        $destinationPath = storage_path("app/public/receipts");
+        if (!file_exists($destinationPath)) {
+            mkdir($destinationPath, 0755, true);
+        }
+
+        $filename = 'receipt_' . time() . '_' . Str::random(8) . '.' . $file->extension();
+        $file->move($destinationPath, $filename);
+
+        return response()->json([
+            'success' => true,
+            'url' => "/storage/receipts/{$filename}",
+            'filename' => $filename,
+        ]);
     }
 }

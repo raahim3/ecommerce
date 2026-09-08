@@ -31,6 +31,7 @@ export function CartSidebar() {
     setPromoCode,
     applyPromoCode,
     removePromoCode,
+    freeShippingThresholdEnabled,
     freeShippingThreshold,
     freeShippingRemaining,
     freeShippingProgress,
@@ -131,33 +132,35 @@ export function CartSidebar() {
         </div>
 
         {/* Free Shipping Progress Bar */}
-        <div className="border-b border-border bg-muted/40 px-6 py-3">
-          <div className="flex items-center justify-between text-xs font-medium">
-            {freeShippingRemaining > 0 ? (
-              <span>
-                Add{" "}
-                <strong className="text-foreground">
-                  {formatPrice(freeShippingRemaining)}
-                </strong>{" "}
-                more to unlock <strong className="text-accent">Free Shipping</strong>
+        {freeShippingThresholdEnabled && (
+          <div className="border-b border-border bg-muted/40 px-6 py-3">
+            <div className="flex items-center justify-between text-xs font-medium">
+              {freeShippingRemaining > 0 ? (
+                <span>
+                  Add{" "}
+                  <strong className="text-foreground">
+                    {formatPrice(freeShippingRemaining)}
+                  </strong>{" "}
+                  more to unlock <strong className="text-accent">Free Shipping</strong>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <Sparkles className="size-3.5 text-accent" />
+                  You unlocked Free Standard Shipping!
+                </span>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {freeShippingProgress}%
               </span>
-            ) : (
-              <span className="flex items-center gap-1.5 font-semibold text-foreground">
-                <Sparkles className="size-3.5 text-accent" />
-                You unlocked Free Standard Shipping!
-              </span>
-            )}
-            <span className="text-[11px] text-muted-foreground">
-              {freeShippingProgress}%
-            </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+                style={{ width: `${freeShippingProgress}%` }}
+              />
+            </div>
           </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
-            <div
-              className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
-              style={{ width: `${freeShippingProgress}%` }}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Cart Item List / Empty State */}
         {items.length === 0 ? (
@@ -262,21 +265,6 @@ export function CartSidebar() {
                 </li>
               ))}
             </ul>
-
-            {/* Quick Promo Suggestion */}
-            {!appliedPromo && (
-              <div className="mt-2 rounded-xl border border-dashed border-border bg-surface p-3 text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground">Tip:</span> Use promo code{" "}
-                <button
-                  type="button"
-                  onClick={() => applyPromoCode("ATELIER10")}
-                  className="rounded bg-accent/10 px-1.5 py-0.5 font-mono font-bold text-accent hover:underline"
-                >
-                  ATELIER10
-                </button>{" "}
-                for 10% off your order!
-              </div>
-            )}
           </div>
         )}
 

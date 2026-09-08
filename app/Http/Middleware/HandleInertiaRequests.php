@@ -115,23 +115,37 @@ class HandleInertiaRequests extends Middleware
                 ? $payments['paypalClientId']
                 : config('services.paypal.client_id'),
             'codEnabled' => (bool) ($payments['codEnabled'] ?? true),
+            'bankTransferEnabled' => (bool) ($payments['bankTransferEnabled'] ?? false),
+            'bankName' => $payments['bankName'] ?? '',
+            'bankAccountTitle' => $payments['bankAccountTitle'] ?? '',
+            'bankAccountNumber' => $payments['bankAccountNumber'] ?? '',
+            'bankIban' => $payments['bankIban'] ?? '',
+            'bankSwift' => $payments['bankSwift'] ?? '',
+            'bankInstructions' => $payments['bankInstructions'] ?? '',
             'testMode' => (bool) ($payments['testMode'] ?? true),
         ];
         $shippingMethods = Schema::hasTable('shipping_methods')
             ? ShippingMethod::active()->get(['id', 'code', 'name', 'description', 'pricing_type', 'price', 'free_shipping_min', 'per_kg_rate', 'delivery_min_days', 'delivery_max_days'])
             : collect();
         $shippingSettings = Setting::get('shipping', [
+            'freeShippingThresholdEnabled' => true,
+            'freeShippingThreshold' => 100,
             'zones' => [['condition' => 'Orders > $100', 'rate' => 'Free'], ['rate' => '$15.00']],
             'tax' => ['flatRate' => '8.0', 'taxIncluded' => false],
         ]);
-        $freeShippingThreshold = 100;
+        $freeMethod = $shippingMethods->firstWhere('pricing_type', 'free_threshold');
+        $freeShippingThresholdEnabled = isset($shippingSettings['freeShippingThresholdEnabled'])
+            ? (bool) $shippingSettings['freeShippingThresholdEnabled']
+            : ($freeMethod ? (bool) $freeMethod->active : true);
+        $freeShippingThreshold = isset($shippingSettings['freeShippingThreshold'])
+            ? (float) $shippingSettings['freeShippingThreshold']
+            : ($freeMethod && $freeMethod->free_shipping_min !== null ? (float) $freeMethod->free_shipping_min : 100);
+
         $standardShippingRate = 15;
         $paidShippingRates = [];
         foreach ($shippingSettings['zones'] ?? [] as $zone) {
             if (isset($zone['active']) && !$zone['active']) continue;
-            if (strtolower(trim($zone['rate'] ?? '')) === 'free' && preg_match('/\$(\d+(?:\.\d+)?)/', $zone['condition'] ?? '', $match)) {
-                $freeShippingThreshold = (float) $match[1];
-            } elseif (preg_match('/\$(\d+(?:\.\d+)?)/', $zone['rate'] ?? '', $match)) {
+            if (preg_match('/\$(\d+(?:\.\d+)?)/', $zone['rate'] ?? '', $match)) {
                 $paidShippingRates[] = (float) $match[1];
             }
         }
@@ -257,6 +271,7 @@ class HandleInertiaRequests extends Middleware
                 'checkout' => [
                     'taxRate' => (float) ($shippingSettings['tax']['flatRate'] ?? 8),
                     'taxIncluded' => (bool) ($shippingSettings['tax']['taxIncluded'] ?? false),
+                    'freeShippingThresholdEnabled' => $freeShippingThresholdEnabled,
                     'freeShippingThreshold' => $freeShippingThreshold,
                     'shippingRate' => $standardShippingRate,
                     'overnightShippingRate' => $overnightShippingRate,

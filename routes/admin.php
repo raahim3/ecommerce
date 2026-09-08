@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\UploadController;
 use App\Http\Controllers\Admin\ContactSubmissionController;
 use App\Http\Controllers\Admin\ShippingMethodController;
+use App\Http\Controllers\Admin\ExpenseController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -82,4 +83,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/contact-submissions', [ContactSubmissionController::class, 'index'])->name('contact-submissions');
     Route::patch('/contact-submissions/{id}', [ContactSubmissionController::class, 'update'])->name('contact-submissions.update');
     Route::delete('/contact-submissions/{id}', [ContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
+
+    // Expense Management
+    Route::get('/expenses', [ExpenseController::class, 'index'])->name('expenses');
+    Route::post('/expenses', [ExpenseController::class, 'store'])->name('expenses.store');
+    Route::patch('/expenses/{id}', [ExpenseController::class, 'update'])->name('expenses.update');
+    Route::delete('/expenses/{id}', [ExpenseController::class, 'destroy'])->name('expenses.destroy');
+    Route::post('/expenses/categories', [ExpenseController::class, 'storeCategory'])->name('expenses.categories.store');
+    Route::patch('/expenses/categories/{id}', [ExpenseController::class, 'updateCategory'])->name('expenses.categories.update');
+    Route::delete('/expenses/categories/{id}', [ExpenseController::class, 'destroyCategory'])->name('expenses.categories.destroy');
+    Route::get('/expenses/export', [ExpenseController::class, 'export'])->name('expenses.export');
 });

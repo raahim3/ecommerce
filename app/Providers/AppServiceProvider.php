@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('tracking', fn (Request $request) => Limit::perMinute(10)
             ->by($request->ip()));
         RateLimiter::for('uploads', fn (Request $request) => Limit::perMinute(30)
-            ->by((string) $request->user()?->id));
+            ->by((string) ($request->user()?->id ?: $request->ip())));
         RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)
             ->by($request->user()?->id . '|' . $request->ip()));
         RateLimiter::for('payment', fn (Request $request) => Limit::perMinute(10)
