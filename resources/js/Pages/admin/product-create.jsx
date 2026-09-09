@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo } from "react";
-import { Link, router } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import {
   ArrowLeft,
   Upload,
@@ -26,14 +26,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AdminLayout } from "@/layouts/admin-layout";
-
-const CATEGORIES = ["Fashion", "Electronics", "Accessories", "Lifestyle"];
-const SUB_CATEGORIES = {
-  Fashion: ["Cashmere Knitwear", "Linen Shirts", "Outerwear"],
-  Electronics: ["Headphones & Audio", "Cables & Accessories"],
-  Accessories: ["Timepieces & Watches", "Leather Bags", "Eyewear"],
-  Lifestyle: ["Ceramics & Vessels", "Fragrance & Diffusers"],
-};
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 const EMPTY_PRODUCT = {
   title: "",
@@ -48,13 +41,14 @@ const EMPTY_PRODUCT = {
   stock: "",
   weightKg: "",
   status: "Active",
-  category: "Fashion",
+  category: "",
   subcategory: "",
-  vendor: "Atelier Studios",
+  vendor: "",
   productType: "",
   tags: [],
   seoTitle: "",
   seoDescription: "",
+  seoKeywords: "",
   seoHandle: "",
   weight: "",
   freeShipping: true,
@@ -64,19 +58,62 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
   const navigate = (href) => router.visit(href);
   const isEditing = !!product;
 
+  const { app_settings } = usePage().props;
+  const storeName = app_settings?.general?.storeName || "Store";
+
+  // Determine initial category and subcategory from product (if editing)
+  const initialCategory = useMemo(() => {
+    if (product?.category) {
+      if (product.category.parent) {
+        return product.category.parent.name;
+      }
+      return product.category.name;
+    }
+    return serverCategories[0]?.name || "";
+  }, [product, serverCategories]);
+
+  const initialSubcategory = useMemo(() => {
+    if (product?.subcategory) {
+      return typeof product.subcategory === "object" ? product.subcategory.name : product.subcategory;
+    }
+    if (product?.category && product.category.parent) {
+      return product.category.name;
+    }
+    return "";
+  }, [product]);
+
   const [form, setForm] = useState({
     ...EMPTY_PRODUCT,
     title: product?.name || "",
     handle: product?.slug || "",
     description: product?.description || "",
-    price: product?.price ? String(product.price) : "",
-    compareAtPrice: product?.compare_at_price || product?.original_price ? String(product.compare_at_price || product.original_price) : "",
+    price: product?.price !== undefined && product?.price !== null ? String(product.price) : "",
+    comparePrice: product?.compare_at_price ? String(product.compare_at_price) : (product?.original_price ? String(product.original_price) : ""),
+    costPerItem: product?.cost_per_item !== undefined && product?.cost_per_item !== null ? String(product.cost_per_item) : "",
     inventoryQty: product?.stock_quantity !== undefined ? String(product.stock_quantity) : "25",
     weightKg: product?.weight_kg !== undefined ? String(product.weight_kg) : "",
     sku: product?.sku || "",
     status: product ? (product.is_active ? "Active" : "Draft") : "Active",
-    category: product?.category?.name || serverCategories[0]?.name || "Fashion",
+    category: initialCategory,
+    subcategory: initialSubcategory,
+    vendor: product?.brand || product?.vendor || storeName,
+    seoTitle: product?.seo_title || product?.name || "",
+    seoDescription: product?.seo_description || "",
+    seoKeywords: product?.seo_keywords || "",
+    seoHandle: product?.slug || "",
+    tags: Array.isArray(product?.tags) ? product.tags : [],
   });
+
+  const selectedCategoryObj = useMemo(() => {
+    return serverCategories.find((c) => c.name === form.category || c.id === Number(form.category)) || serverCategories[0] || null;
+  }, [serverCategories, form.category]);
+
+  const availableSubcategories = useMemo(() => {
+    if (selectedCategoryObj?.children && Array.isArray(selectedCategoryObj.children) && selectedCategoryObj.children.length > 0) {
+      return selectedCategoryObj.children;
+    }
+    return [];
+  }, [selectedCategoryObj]);
 
   const [tagInput, setTagInput] = useState("");
   const [newVariantName, setNewVariantName] = useState("");
@@ -91,15 +128,30 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
   const [images, setImages] = useState(
     product?.images?.map((i) => i.image_url) || (product?.image ? [product.image] : [])
   );
-  const [variants, setVariants] = useState([
-    { id: 1, name: "Color", values: ["Obsidian Black", "Chalk White"] },
-    { id: 2, name: "Size", values: ["XS", "S", "M", "L", "XL"] },
-  ]);
+  const [variants, setVariants] = useState(() => {
+    if (product) {
+      const v = [];
+      if (Array.isArray(product.available_colors) && product.available_colors.length > 0) {
+        v.push({ id: 1, name: "Color", values: [...product.available_colors] });
+      }
+      if (Array.isArray(product.available_sizes) && product.available_sizes.length > 0) {
+        v.push({ id: 2, name: "Size", values: [...product.available_sizes] });
+      }
+      return v;
+    }
+    return [
+      { id: 1, name: "Color", values: ["Obsidian Black", "Chalk White"] },
+      { id: 2, name: "Size", values: ["XS", "S", "M", "L", "XL"] },
+    ];
+  });
   // Full Specifications State
   const initialSpecs = useMemo(() => {
-    if (product?.specs && typeof product.specs === "object") {
+    if (product) {
       if (Array.isArray(product.specs)) return product.specs;
-      return Object.entries(product.specs).map(([key, value]) => ({ key, value }));
+      if (product.specs && typeof product.specs === "object") {
+        return Object.entries(product.specs).map(([key, value]) => ({ key, value }));
+      }
+      return [];
     }
     return [
       { key: "Material Composition", value: "100% Grade-A Mongolian Cashmere" },
@@ -113,8 +165,8 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
 
   // Common Questions (FAQs) State
   const initialFaqs = useMemo(() => {
-    if (product?.faqs && Array.isArray(product.faqs) && product.faqs.length > 0) {
-      return product.faqs;
+    if (product) {
+      return Array.isArray(product.faqs) ? product.faqs : [];
     }
     return [
       {
@@ -294,8 +346,16 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
     }
     setIsSaving(true);
     try {
-      const selectedCategoryObj = serverCategories.find((c) => c.name === form.category || c.id === Number(form.category)) || serverCategories[0];
-      const categoryId = selectedCategoryObj?.id || (serverCategories[0]?.id ?? 1);
+      const selectedCat = serverCategories.find((c) => c.name === form.category || c.id === Number(form.category)) || serverCategories[0];
+      const categoryId = selectedCat?.id || (serverCategories[0]?.id ?? 1);
+
+      let subcategoryId = null;
+      if (form.subcategory && selectedCat?.children) {
+        const matchedSub = selectedCat.children.find((s) => s.name === form.subcategory || s.id === Number(form.subcategory));
+        if (matchedSub) {
+          subcategoryId = matchedSub.id;
+        }
+      }
 
       const endpoint = isEditing ? `/admin/products/${product.id}` : "/admin/products";
       const method = isEditing ? "PATCH" : "POST";
@@ -314,10 +374,15 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
           price: parseFloat(form.price),
           original_price: form.comparePrice ? parseFloat(form.comparePrice) : null,
           compare_at_price: form.comparePrice ? parseFloat(form.comparePrice) : null,
+          cost_per_item: form.costPerItem ? parseFloat(form.costPerItem) : null,
           stock_quantity: parseInt(form.inventoryQty, 10) || 10,
           weight_kg: form.weightKg ? parseFloat(form.weightKg) : 0,
           category: form.category,
           category_id: categoryId,
+          subcategory: form.subcategory || null,
+          subcategory_id: subcategoryId,
+          brand: form.vendor || storeName,
+          vendor: form.vendor || storeName,
           sku: form.sku || null,
           is_active: form.status === "Active",
           material: form.material || null,
@@ -327,6 +392,10 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
           faqs: faqs.filter((f) => f.question && f.question.trim() && f.answer && f.answer.trim()),
           image: images[0] || null,
           gallery: images,
+          seo_title: form.seoTitle || null,
+          seo_description: form.seoDescription || null,
+          seo_keywords: form.seoKeywords || null,
+          tags: form.tags || [],
         }),
       });
 
@@ -423,13 +492,14 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Product Description & Craftsmanship Notes</label>
-              <textarea
-                rows={5}
-                value={form.description}
-                onChange={(e) => setField("description", e.target.value)}
-                placeholder="Describe the product, its materials, craftsmanship, and unique attributes. Markdown supported."
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 focus:border-slate-900 focus:bg-white focus:outline-none resize-none transition-colors"
-              />
+              <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 transition-colors focus-within:border-slate-900">
+                <RichTextEditor
+                  value={form.description}
+                  onChange={(val) => setField("description", val)}
+                  placeholder="Describe the product, its materials, craftsmanship, and unique attributes."
+                  height={300}
+                />
+              </div>
             </div>
           </div>
 
@@ -777,14 +847,14 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               ))}
             </div>
 
-            <div className="flex gap-2 border-t border-slate-100 pt-4">
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
               <input
                 type="text"
                 value={newVariantName}
                 onChange={(e) => setNewVariantName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddVariant()}
-                placeholder="New variant name (e.g. Material)"
-                className="h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:outline-none"
+                placeholder="New variant name (e.g. Color, Size, Material)"
+                className="h-9 flex-1 min-w-[180px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:outline-none"
               />
               <button
                 type="button"
@@ -794,6 +864,29 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
                 <Plus className="size-3.5" /> Add Variant
               </button>
             </div>
+            {(!variants.some((v) => v.name.toLowerCase() === "color") || !variants.some((v) => v.name.toLowerCase() === "size")) && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[11px] font-bold text-slate-400">Quick add:</span>
+                {!variants.some((v) => v.name.toLowerCase() === "color") && (
+                  <button
+                    type="button"
+                    onClick={() => setVariants((prev) => [...prev, { id: Date.now(), name: "Color", values: [] }])}
+                    className="text-xs text-slate-600 hover:text-slate-900 font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 transition-colors"
+                  >
+                    + Color
+                  </button>
+                )}
+                {!variants.some((v) => v.name.toLowerCase() === "size") && (
+                  <button
+                    type="button"
+                    onClick={() => setVariants((prev) => [...prev, { id: Date.now() + 1, name: "Size", values: [] }])}
+                    className="text-xs text-slate-600 hover:text-slate-900 font-semibold px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 transition-colors"
+                  >
+                    + Size
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Full Specifications Builder */}
@@ -983,6 +1076,17 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               />
               <p className="text-[11px] text-slate-400 mt-1">{form.seoDescription.length}/155 characters</p>
             </div>
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Meta Keywords</label>
+              <input
+                type="text"
+                value={form.seoKeywords}
+                onChange={(e) => setField("seoKeywords", e.target.value)}
+                placeholder="e.g. curtains, window drapes, blackout curtains, home decor"
+                className="mt-1 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm focus:border-slate-900 focus:bg-white focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">Separate keywords with commas</p>
+            </div>
           </div>
         </div>
 
@@ -1020,13 +1124,12 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, subcategory: "" }))}
                 className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold focus:border-slate-900 focus:outline-none"
               >
-                {serverCategories.length > 0
-                  ? serverCategories.map((cat) => (
-                      <option key={cat.id || cat.name} value={cat.name}>
-                        {cat.name}
-                      </option>
-                    ))
-                  : CATEGORIES.map((cat) => <option key={cat}>{cat}</option>)}
+                <option value="">Select category...</option>
+                {serverCategories.map((cat) => (
+                  <option key={cat.id || cat.name} value={cat.name}>
+                    {cat.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -1035,10 +1138,15 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               <select
                 value={form.subcategory}
                 onChange={(e) => setField("subcategory", e.target.value)}
-                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold focus:border-slate-900 focus:outline-none"
+                disabled={availableSubcategories.length === 0}
+                className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold focus:border-slate-900 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="">Select subcategory...</option>
-                {(SUB_CATEGORIES[form.category] || []).map((s) => <option key={s}>{s}</option>)}
+                <option value="">{availableSubcategories.length > 0 ? "Select subcategory..." : "No subcategories available"}</option>
+                {availableSubcategories.map((s) => (
+                  <option key={s.id || s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
             </div>
 

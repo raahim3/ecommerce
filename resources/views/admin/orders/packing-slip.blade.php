@@ -43,7 +43,19 @@
             <thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Check</th></tr></thead>
             <tbody>
             @foreach($order->items as $item)
-                <tr><td>{{ $item->product_name }}</td><td>{{ $item->sku ?? '' }}</td><td>{{ $item->quantity }}</td><td>&#9633;</td></tr>
+                <tr>
+                    <td>
+                        <strong>{{ $item->product_name }}</strong>
+                        @if($item->selected_color || $item->selected_size)
+                            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                                {{ $item->selected_color }}{{ ($item->selected_color && $item->selected_size) ? ' • ' : '' }}{{ $item->selected_size ? 'Size: ' . $item->selected_size : '' }}
+                            </div>
+                        @endif
+                    </td>
+                    <td>{{ $item->product_sku ?? $item->sku ?? '—' }}</td>
+                    <td>{{ $item->quantity }}</td>
+                    <td>&#9633;</td>
+                </tr>
             @endforeach
             </tbody>
         </table>

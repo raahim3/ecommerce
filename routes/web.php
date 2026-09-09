@@ -66,6 +66,11 @@ Route::post('/api/addresses', [AddressController::class, 'store'])->middleware('
 Route::post('/api/addresses/{id}/default', [AddressController::class, 'setDefault'])->middleware('auth');
 Route::delete('/api/addresses/{id}', [AddressController::class, 'destroy'])->middleware('auth');
 
+// Location Endpoints
+Route::get('/api/countries', [\App\Http\Controllers\LocationController::class, 'getCountries']);
+Route::get('/api/countries/{country}/states', [\App\Http\Controllers\LocationController::class, 'getStates']);
+Route::get('/api/states/{state}/cities', [\App\Http\Controllers\LocationController::class, 'getCities']);
+
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\OrderTrackingController;
 use App\Http\Controllers\InvoiceController;

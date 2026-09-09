@@ -1,9 +1,6 @@
 import { Head, Link, usePage } from "@inertiajs/react";
 import { Sparkles, ShieldCheck, Leaf, Globe, ArrowRight, Award, Compass, Heart } from "lucide-react";
 import editorialImg from "@/assets/editorial.jpg";
-import heroImg from "@/assets/hero.jpg";
-import catFashion from "@/assets/cat-fashion.jpg";
-import catHome from "@/assets/cat-home.jpg";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function AboutPage() {

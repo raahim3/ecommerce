@@ -30,9 +30,12 @@ class SettingsController extends Controller
                 'phone' => '+1 (800) 555-ATELIER',
                 'currency' => 'USD — US Dollar',
                 'timezone' => 'UTC-5 (Eastern Standard)',
+                'orderPrefix' => 'ATL',
+                'storeCountries' => ['Pakistan'],
                 'logoLight' => '',
                 'logoDark' => '',
                 'favicon' => '',
+                'tinymceApiKey' => '',
                 'heroEyebrow' => 'New Season / 2026 Collection',
                 'heroTitle' => "Discover\nWhat's\nNext.",
                 'heroDescription' => 'Curated essentials designed for modern living — made in small runs, built to outlast the season.',
@@ -209,8 +212,15 @@ class SettingsController extends Controller
             }
         }
 
+        if (empty($settings['general']['storeCountries']) || !is_array($settings['general']['storeCountries'])) {
+            $settings['general']['storeCountries'] = ['Pakistan'];
+        }
+
+        $allCountries = \App\Models\Country::orderBy('name')->get(['id', 'name', 'iso2', 'emoji']);
+
         return Inertia::render('Admin/settings', [
             'settings' => $settings,
+            'allCountries' => $allCountries,
             'shippingMethods' => ShippingMethod::orderBy('sort_order')->orderBy('name')->get(),
             'coupons' => $coupons,
             'products' => $products,
@@ -239,15 +249,21 @@ class SettingsController extends Controller
 
         // Sync with shipping_methods table if saving shipping settings
         if ($request->group === 'shipping') {
-            $standardMethod = ShippingMethod::where('pricing_type', 'free_threshold')->first();
-            if ($standardMethod) {
-                if (isset($data['freeShippingThreshold'])) {
-                    $standardMethod->free_shipping_min = (float) $data['freeShippingThreshold'];
+            $threshold = isset($data['freeShippingThreshold']) ? (float) $data['freeShippingThreshold'] : null;
+            $enabled = isset($data['freeShippingThresholdEnabled']) ? (bool) $data['freeShippingThresholdEnabled'] : null;
+
+            $methods = ShippingMethod::where('pricing_type', 'free_threshold')
+                ->orWhere('code', 'standard')
+                ->get();
+
+            foreach ($methods as $m) {
+                if ($threshold !== null) {
+                    $m->free_shipping_min = $threshold;
                 }
-                if (isset($data['freeShippingThresholdEnabled'])) {
-                    $standardMethod->active = (bool) $data['freeShippingThresholdEnabled'];
+                if ($enabled !== null && $m->pricing_type === 'free_threshold') {
+                    $m->active = $enabled;
                 }
-                $standardMethod->save();
+                $m->save();
             }
         }
 

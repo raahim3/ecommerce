@@ -23,7 +23,7 @@ import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
 import { AdminPagination } from "@/components/admin/pagination";
 
-const CATEGORIES = ["All", "Fashion", "Electronics", "Accessories", "Lifestyle"];
+
 const STATUS_OPTS = ["All Status", "Active", "Draft", "Archived"];
 
 export function AdminProductsPage({ products: serverProducts = { data: [] }, categories: serverCategories = [], filters = {} }) {
@@ -179,21 +179,20 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
           />
         </div>
 
-        <div className="flex items-center rounded-xl border border-slate-200 bg-white p-1">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => { setSelectedCategory(cat); applyFilters({ category: cat === "All" ? undefined : serverCategories.find((c) => c.name === cat)?.id }); }}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-bold transition-all whitespace-nowrap",
-                selectedCategory === cat ? "bg-slate-900 text-white shadow-xs" : "text-slate-500 hover:text-slate-900"
-              )}
-            >
-              {cat}
-            </button>
+        <select
+          value={selectedCategory}
+          onChange={(e) => {
+            const cat = e.target.value;
+            setSelectedCategory(cat);
+            applyFilters({ category: cat === "All" ? undefined : serverCategories.find((c) => c.name === cat)?.id });
+          }}
+          className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 focus:border-slate-900 focus:outline-none"
+        >
+          <option value="All">All Categories</option>
+          {serverCategories.map((cat) => (
+            <option key={cat.id} value={cat.name}>{cat.name}</option>
           ))}
-        </div>
+        </select>
 
         <select
           value={selectedStatus}

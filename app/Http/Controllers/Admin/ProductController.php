@@ -45,7 +45,13 @@ class ProductController extends Controller
 
     public function create(): Response
     {
-        $categories = Category::active()->orderBy('name')->get(['id', 'name', 'slug']);
+        $categories = Category::whereNull('parent_id')
+            ->active()
+            ->with(['children' => fn($q) => $q->active()->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Admin/product-create', [
             'categories' => $categories,
         ]);
@@ -53,8 +59,14 @@ class ProductController extends Controller
 
     public function edit(int $id): Response
     {
-        $product = Product::with(['category', 'images', 'variants'])->findOrFail($id);
-        $categories = Category::active()->orderBy('name')->get(['id', 'name', 'slug']);
+        $product = Product::with(['category.parent', 'subcategory', 'images', 'variants'])->findOrFail($id);
+        $categories = Category::whereNull('parent_id')
+            ->active()
+            ->with(['children' => fn($q) => $q->active()->orderBy('sort_order')->orderBy('name')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Admin/product-create', [
             'product' => $product,
             'categories' => $categories,
@@ -68,6 +80,7 @@ class ProductController extends Controller
             'description' => ['nullable', 'string'],
             'price' => ['required', 'numeric', 'min:0'],
             'original_price' => ['nullable', 'numeric', 'min:0'],
+            'cost_per_item' => ['nullable', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
             'weight_kg' => ['nullable', 'numeric', 'min:0', 'max:10000'],
             'is_active' => ['nullable', 'boolean'],
@@ -81,9 +94,21 @@ class ProductController extends Controller
                 $categoryId = $matched ? $matched->id : null;
             }
             if (!$categoryId) {
-                $first = Category::first();
+                $first = Category::whereNull('parent_id')->first() ?: Category::first();
                 $categoryId = $first ? $first->id : Category::create(['name' => 'Fashion', 'slug' => 'fashion', 'is_active' => true])->id;
             }
+        }
+
+        // Subcategory resolution
+        $subcategoryId = $request->subcategory_id;
+        if (!$subcategoryId && $request->filled('subcategory')) {
+            $subMatched = Category::where('name', $request->subcategory)
+                ->where('parent_id', $categoryId)
+                ->first();
+            if (!$subMatched) {
+                $subMatched = Category::where('name', $request->subcategory)->first();
+            }
+            $subcategoryId = $subMatched ? $subMatched->id : null;
         }
 
         $product = Product::create([
@@ -92,10 +117,13 @@ class ProductController extends Controller
             'description' => $request->description ?? $request->name,
             'price' => $request->price,
             'original_price' => $request->original_price ?? $request->compare_at_price,
-            'compare_at_price' => $request->original_price ?? $request->compare_at_price,
+            'compare_at_price' => $request->compare_at_price ?? $request->original_price,
+            'cost_per_item' => $request->cost_per_item,
             'stock_quantity' => $request->stock_quantity,
             'weight_kg' => $request->input('weight_kg', 0),
             'category_id' => $categoryId,
+            'subcategory_id' => $subcategoryId,
+            'brand' => $request->brand ?? $request->vendor,
             'sku' => $request->sku ?? 'ATL-' . strtoupper(Str::random(6)),
             'is_active' => $request->boolean('is_active', true),
             'is_featured' => $request->boolean('is_featured', false),
@@ -112,6 +140,10 @@ class ProductController extends Controller
             'highlights' => $request->highlights ?? [],
             'specs' => $request->specs ?? [],
             'faqs' => $request->faqs ?? [],
+            'seo_title' => $request->seo_title ?? $request->seoTitle,
+            'seo_description' => $request->seo_description ?? $request->seoDescription,
+            'seo_keywords' => $request->seo_keywords ?? $request->seoKeywords,
+            'tags' => $request->tags ?? [],
         ]);
 
         // Process images into storage/app/public/products/{id}/ and sync product_images table
@@ -143,7 +175,7 @@ class ProductController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Product published successfully',
-            'product' => $product->fresh(['category', 'images']),
+            'product' => $product->fresh(['category', 'subcategory', 'images']),
         ]);
     }
 
@@ -156,6 +188,7 @@ class ProductController extends Controller
             'price' => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
             'weight_kg' => ['nullable', 'numeric', 'min:0', 'max:10000'],
+            'cost_per_item' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $categoryId = $request->category_id ?? $product->category_id;
@@ -163,15 +196,34 @@ class ProductController extends Controller
             $categoryId = $product->category_id;
         }
 
+        // Subcategory resolution
+        $subcategoryId = $request->has('subcategory_id') ? $request->subcategory_id : $product->subcategory_id;
+        if ($request->has('subcategory')) {
+            if (empty($request->subcategory)) {
+                $subcategoryId = null;
+            } else {
+                $subMatched = Category::where('name', $request->subcategory)
+                    ->where('parent_id', $categoryId)
+                    ->first();
+                if (!$subMatched) {
+                    $subMatched = Category::where('name', $request->subcategory)->first();
+                }
+                $subcategoryId = $subMatched ? $subMatched->id : null;
+            }
+        }
+
         $product->update([
             'name' => $request->name,
             'description' => $request->description ?? $product->description,
             'price' => $request->price,
-            'original_price' => $request->original_price ?? $product->original_price,
-            'compare_at_price' => $request->original_price ?? $product->compare_at_price,
+            'original_price' => $request->has('compare_at_price') || $request->has('original_price') ? ($request->compare_at_price ?? $request->original_price) : $product->original_price,
+            'compare_at_price' => $request->has('compare_at_price') || $request->has('original_price') ? ($request->compare_at_price ?? $request->original_price) : $product->compare_at_price,
+            'cost_per_item' => $request->has('cost_per_item') ? $request->cost_per_item : $product->cost_per_item,
             'stock_quantity' => $request->stock_quantity,
             'weight_kg' => $request->input('weight_kg', $product->weight_kg),
             'category_id' => $categoryId,
+            'subcategory_id' => $subcategoryId,
+            'brand' => $request->has('brand') || $request->has('vendor') ? ($request->brand ?? $request->vendor) : $product->brand,
             'sku' => $request->sku ?? $product->sku,
             'is_active' => $request->has('is_active') ? $request->boolean('is_active') : $product->is_active,
             'is_featured' => $request->has('is_featured') ? $request->boolean('is_featured') : $product->is_featured,
@@ -180,12 +232,16 @@ class ProductController extends Controller
             'material' => $request->material ?? $product->material,
             'origin' => $request->origin ?? $product->origin,
             'care_instructions' => $request->care_instructions ?? $product->care_instructions,
-            'available_colors' => $request->available_colors ?? $product->available_colors,
-            'available_sizes' => $request->available_sizes ?? $product->available_sizes,
+            'available_colors' => $request->has('available_colors') ? ($request->available_colors ?? []) : $product->available_colors,
+            'available_sizes' => $request->has('available_sizes') ? ($request->available_sizes ?? []) : $product->available_sizes,
             'tagline' => $request->tagline ?? $product->tagline,
-            'highlights' => $request->highlights ?? $product->highlights,
-            'specs' => $request->specs ?? $product->specs,
-            'faqs' => $request->faqs ?? $product->faqs,
+            'highlights' => $request->has('highlights') ? ($request->highlights ?? []) : $product->highlights,
+            'specs' => $request->has('specs') ? ($request->specs ?? []) : $product->specs,
+            'faqs' => $request->has('faqs') ? ($request->faqs ?? []) : $product->faqs,
+            'seo_title' => $request->has('seo_title') || $request->has('seoTitle') ? ($request->seo_title ?? $request->seoTitle) : $product->seo_title,
+            'seo_description' => $request->has('seo_description') || $request->has('seoDescription') ? ($request->seo_description ?? $request->seoDescription) : $product->seo_description,
+            'seo_keywords' => $request->has('seo_keywords') || $request->has('seoKeywords') ? ($request->seo_keywords ?? $request->seoKeywords) : $product->seo_keywords,
+            'tags' => $request->has('tags') ? ($request->tags ?? []) : $product->tags,
         ]);
 
         // Process images into storage/app/public/products/{id}/ and sync product_images table

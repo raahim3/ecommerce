@@ -509,7 +509,13 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                   <div key={i} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0 text-xs">
                     <div>
                       <p className="font-bold text-slate-900">{item.name} × {item.qty}</p>
-                      <p className="text-slate-400">{[item.color, item.size].filter(Boolean).join(" • ")} • {item.sku}</p>
+                      <p className="text-slate-400">
+                        {[
+                          item.color ? `Color: ${item.color}` : null,
+                          item.size ? `Size: ${item.size}` : null,
+                          item.sku ? `SKU: ${item.sku}` : null,
+                        ].filter(Boolean).join(" • ")}
+                      </p>
                     </div>
                     <span className="font-extrabold text-slate-900">{formatPrice(item.price * item.qty)}</span>
                   </div>

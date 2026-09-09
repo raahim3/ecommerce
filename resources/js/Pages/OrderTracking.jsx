@@ -150,8 +150,8 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
             <div className="lg:col-span-7 rounded-3xl border border-border/80 bg-surface p-6 sm:p-8 shadow-xs space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
                 <div>
-                  <span className="font-mono text-xs font-bold text-foreground">#{activeOrder.id}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">Carrier: {activeOrder.carrier}</p>
+                  <span className="font-mono text-xs font-bold text-foreground">{activeOrder.order_number ? (activeOrder.order_number.startsWith('#') ? activeOrder.order_number : `#${activeOrder.order_number}`) : `#${activeOrder.id}`}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Carrier: {activeOrder.carrier || "Standard Courier"}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700">
@@ -165,11 +165,15 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-muted/40 p-4 border border-border/70">
                 <div>
                   <span className="text-[11px] uppercase font-bold text-muted-foreground">Estimated Delivery</span>
-                  <h3 className="text-base font-extrabold text-foreground">{activeOrder.estDelivery}</h3>
+                  <h3 className="text-base font-extrabold text-foreground">
+                    {activeOrder.estimated_delivery
+                      ? new Date(activeOrder.estimated_delivery).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                      : (activeOrder.estDelivery || "In 3–5 business days")}
+                  </h3>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] uppercase font-bold text-muted-foreground">Current Hub</span>
-                  <p className="text-xs font-semibold text-foreground">{activeOrder.currentLocation}</p>
+                  <p className="text-xs font-semibold text-foreground">{activeOrder.currentLocation || "Central Logistics Center"}</p>
                 </div>
               </div>
 
@@ -209,13 +213,15 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
               <div className="rounded-3xl border border-border/80 bg-surface p-6 shadow-xs space-y-4">
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <h3 className="text-base font-bold text-foreground">Package Contents</h3>
-                  <Link
-                    href={`/invoices/${activeOrder.order_number}`}
+                  <a
+                    href={`/invoices/${activeOrder.order_number}${activeOrder.customer_email ? `?email=${encodeURIComponent(activeOrder.customer_email)}` : ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
                   >
                     <ExternalLink className="size-3" />
                     View Invoice
-                  </Link>
+                  </a>
                 </div>
 
                 <div className="space-y-3">
@@ -224,9 +230,11 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
                       <div>
                         <p className="font-bold text-foreground">{item.product_name || item.name}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {item.selected_color || item.color}
-                          {(item.selected_size || item.size) ? ` • Size ${item.selected_size || item.size}` : ""}
-                          {" • Qty: "}{item.quantity || item.qty}
+                          {[
+                            item.selected_color || item.color,
+                            (item.selected_size || item.size) ? `Size: ${item.selected_size || item.size}` : null,
+                            `Qty: ${item.quantity || item.qty || 1}`,
+                          ].filter(Boolean).join(" • ")}
                         </p>
                       </div>
                       <span className="font-extrabold text-foreground">{formatPrice(parseFloat(item.total || item.price || 0))}</span>
@@ -238,7 +246,15 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
                   <p className="font-bold text-foreground">Delivery Destination:</p>
                   <p>{activeOrder.customer_name}</p>
                   <p>
-                    {activeOrder.shipping_address?.address_line1}, {activeOrder.shipping_address?.city}, {activeOrder.shipping_address?.state} {activeOrder.shipping_address?.postal_code}
+                    {typeof activeOrder.shipping_address === "object" && activeOrder.shipping_address !== null
+                      ? [
+                          activeOrder.shipping_address.address_line1,
+                          activeOrder.shipping_address.address_line2,
+                          activeOrder.shipping_address.city,
+                          activeOrder.shipping_address.state,
+                          activeOrder.shipping_address.postal_code,
+                        ].filter(Boolean).join(", ")
+                      : (activeOrder.shipping_address || "Shipping address on file")}
                   </p>
                   {(activeOrder.carrier || activeOrder.tracking_number) && (
                     <p className="mt-1.5 font-semibold text-foreground">

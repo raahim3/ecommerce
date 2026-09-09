@@ -19,8 +19,11 @@ class OrderConfirmationEmail extends Mailable
 
     public function envelope(): Envelope
     {
+        $store = \App\Models\Setting::get('general', []);
+        $storeName = !empty($store['storeName']) ? $store['storeName'] : 'Atelier';
+
         return new Envelope(
-            subject: 'Order Confirmed — Atelier ' . $this->order->order_number,
+            subject: 'Order Confirmed — ' . $storeName . ' #' . $this->order->order_number,
         );
     }
 
@@ -28,6 +31,9 @@ class OrderConfirmationEmail extends Mailable
     {
         return new Content(
             view: 'emails.order_confirmation',
+            with: [
+                'store' => \App\Models\Setting::get('general', []),
+            ],
         );
     }
 

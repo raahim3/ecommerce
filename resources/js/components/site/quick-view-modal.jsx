@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { useCart } from "./cart";
 
+const stripHtml = (html) => {
+  if (!html) return "";
+  return html.replace(/<[^>]*>?/gm, "").trim();
+};
+
 export function QuickViewModal({ product, isOpen, onClose }) {
   const { addItem, wishlist, toggleWish } = useCart();
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
@@ -195,7 +200,7 @@ export function QuickViewModal({ product, isOpen, onClose }) {
 
               {/* Description */}
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground line-clamp-3">
-                {product.description || product.tagline}
+                {product.tagline || stripHtml(product.description)}
               </p>
 
               {/* Color Selector */}

@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import {
   Settings,
   Upload,
@@ -72,9 +72,21 @@ const EMPTY_COUPON = {
   is_active: true,
 };
 
-export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
+export function AdminSettingsPage({ settings = {}, allCountries: initialCountries = [], shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
   const [activeTab, setActiveTab] = useState("general");
   const [savingGroup, setSavingGroup] = useState(null);
+  const [countriesList, setCountriesList] = useState(initialCountries);
+
+  useEffect(() => {
+    if (countriesList.length === 0) {
+      fetch("/api/countries")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) setCountriesList(data);
+        })
+        .catch(console.error);
+    }
+  }, [countriesList.length]);
 
   const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
 
@@ -86,9 +98,12 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
     phone: "+1 (800) 555-ATELIER",
     currency: "USD — US Dollar",
     timezone: "UTC-5 (Eastern Standard)",
+    orderPrefix: "ATL",
+    storeCountries: ["Pakistan"],
     logoLight: "",
     logoDark: "",
     favicon: "",
+    tinymceApiKey: "",
     ...(settings.general || {}),
   });
 
@@ -555,6 +570,140 @@ export function AdminSettingsPage({ settings = {}, shippingMethods: serverShippi
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Order Number Prefix</label>
+                    <input
+                      type="text"
+                      value={general.orderPrefix || ""}
+                      onChange={(e) => setGeneral({ ...general, orderPrefix: e.target.value.toUpperCase() })}
+                      placeholder="e.g. ATL or ELY"
+                      maxLength={8}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs uppercase focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400 font-mono">
+                      Orders format: #{general.orderPrefix || "ATL"}-000001
+                    </p>
+                  </div>
+                </div>
+
+                {/* Store Countries (Checkout Multi-Select) */}
+                <div className="pt-6 border-t border-slate-100 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                        <Globe className="size-3.5 text-slate-600" />
+                        <span>Enabled Store Countries (Checkout)</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Select the countries your store operates in. If only 1 country is selected, the country select box at checkout is hidden automatically. If multiple countries are selected, customers will choose their country at checkout.
+                      </p>
+                    </div>
+                    <span className="self-start sm:self-auto inline-flex items-center text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                      {(general.storeCountries || []).length} Selected
+                    </span>
+                  </div>
+
+                  {/* Selected badges */}
+                  <div className="flex flex-wrap gap-2 min-h-[46px] p-2.5 rounded-xl border border-slate-200 bg-slate-50/60">
+                    {(Array.isArray(general.storeCountries) && general.storeCountries.length > 0) ? (
+                      general.storeCountries.map((cName) => {
+                        const countryObj = countriesList.find((c) => c.name === cName);
+                        return (
+                          <span
+                            key={cName}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-800 shadow-xs transition-all hover:border-slate-300"
+                          >
+                            <span className="text-sm leading-none">{countryObj?.emoji || "🌐"}</span>
+                            <span>{cName}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if ((general.storeCountries || []).length <= 1) {
+                                  toast.error("At least one store country must remain selected.");
+                                  return;
+                                }
+                                setGeneral({
+                                  ...general,
+                                  storeCountries: general.storeCountries.filter((c) => c !== cName),
+                                });
+                              }}
+                              className="ml-0.5 text-slate-400 hover:text-rose-600 rounded-full hover:bg-slate-100 p-0.5 transition-colors"
+                              title={`Remove ${cName}`}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="text-xs text-slate-400 self-center">No countries selected. Please add at least one country below.</span>
+                    )}
+                  </div>
+
+                  {/* Add country select box & quick actions */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <div className="relative w-full sm:w-80">
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (!val) return;
+                          const current = Array.isArray(general.storeCountries) ? general.storeCountries : [];
+                          if (!current.includes(val)) {
+                            setGeneral({
+                              ...general,
+                              storeCountries: [...current, val],
+                            });
+                          }
+                        }}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      >
+                        <option value="">+ Add country to store...</option>
+                        {countriesList
+                          .filter((c) => !(general.storeCountries || []).includes(c.name))
+                          .map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.emoji ? `${c.emoji} ` : ""}{c.name} ({c.iso2})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGeneral({
+                          ...general,
+                          storeCountries: ["Pakistan"],
+                        });
+                        toast.info("Reset store country to Pakistan.");
+                      }}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline underline-offset-2 px-1"
+                    >
+                      Reset to Pakistan only
+                    </button>
+                  </div>
+                </div>
+
+                {/* TinyMCE API Key */}
+                <div className="pt-6 border-t border-slate-100 space-y-3">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Rich Text Editor (TinyMCE)</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Paste your TinyMCE API key here to enable the rich text editor on product pages.{" "}
+                      <a href="https://www.tiny.cloud/my-account/integrate/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Get a free key →</a>
+                    </p>
+                  </div>
+                  <div className="max-w-lg">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">TinyMCE API Key</label>
+                    <input
+                      type="text"
+                      value={general.tinymceApiKey || ""}
+                      onChange={(e) => setGeneral({ ...general, tinymceApiKey: e.target.value })}
+                      placeholder="e.g. no-api-key or your real key from tiny.cloud"
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
                   </div>
                 </div>
 

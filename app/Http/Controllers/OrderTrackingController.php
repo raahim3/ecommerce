@@ -19,10 +19,18 @@ class OrderTrackingController extends Controller
         $order = null;
 
         if (!empty($orderNumber) && (Auth::check() || !empty($email))) {
-            $query = Order::where('order_number', $orderNumber)->with('items');
+            $cleanedOrderNumber = ltrim($orderNumber, '#');
+            $query = Order::where(function ($q) use ($cleanedOrderNumber, $orderNumber) {
+                $q->where('order_number', $cleanedOrderNumber)
+                  ->orWhere('order_number', $orderNumber);
+                if (is_numeric($cleanedOrderNumber)) {
+                    $q->orWhere('id', (int) $cleanedOrderNumber);
+                }
+            })->with('items');
+
             if (Auth::check() && !Auth::user()->isAdmin()) {
                 $query->where('user_id', Auth::id());
-            } else {
+            } elseif (!empty($email)) {
                 $query->where('customer_email', $email);
             }
             $order = $query->first();
@@ -90,19 +98,26 @@ class OrderTrackingController extends Controller
             'email' => ['required', 'email'],
         ]);
 
-        $orderNumber = trim($request->input('order_number'));
+        $rawOrderNumber = trim($request->input('order_number'));
+        $orderNumber = ltrim($rawOrderNumber, '#');
         $email = trim($request->input('email', ''));
 
-        $query = Order::where('order_number', $orderNumber)
-            ->where('customer_email', $email)
-            ->with('items');
+        $query = Order::where(function ($q) use ($orderNumber, $rawOrderNumber) {
+            $q->where('order_number', $orderNumber)
+              ->orWhere('order_number', $rawOrderNumber);
+            if (is_numeric($orderNumber)) {
+                $q->orWhere('id', (int) $orderNumber);
+            }
+        })
+        ->where('customer_email', $email)
+        ->with('items');
 
         $order = $query->first();
 
         if (!$order) {
             return response()->json([
                 'success' => false,
-                'message' => 'No order found with reference #' . $orderNumber,
+                'message' => 'No order found with reference #' . $rawOrderNumber,
             ], 404);
         }
 

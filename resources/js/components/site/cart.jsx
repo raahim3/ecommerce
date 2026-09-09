@@ -86,18 +86,21 @@ export function CartProvider({ children, checkoutSettings = {} }) {
   const toggleCart = useCallback(() => setIsCartOpen((prev) => !prev), []);
 
   const addItem = useCallback((product, quantity = 1, openSidebar = false) => {
+    // Build a composite key: product id + selected color + selected size
+    const cartKey = `${product.id}__${product.selectedColor || ''}__${product.selectedSize || ''}`;
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === product.id);
+      const existing = prev.find((i) => i._cartKey === cartKey);
       if (existing) {
         return prev.map((i) =>
-          i.id === product.id ? { ...i, qty: i.qty + quantity } : i,
+          i._cartKey === cartKey ? { ...i, qty: i.qty + quantity } : i,
         );
       }
-      return [...prev, { ...product, qty: quantity }];
+      return [...prev, { ...product, qty: quantity, _cartKey: cartKey }];
     });
     setPulse((n) => n + 1);
+    const variantLabel = [product.selectedColor, product.selectedSize].filter(Boolean).join(' / ');
     toast.success("Added to bag", {
-      description: `${product.name} (x${quantity})`,
+      description: `${product.name}${variantLabel ? ` • ${variantLabel}` : ''} (x${quantity})`,
       action: {
         label: "View Bag",
         onClick: () => setIsCartOpen(true),
@@ -108,23 +111,23 @@ export function CartProvider({ children, checkoutSettings = {} }) {
     }
   }, []);
 
-  const removeItem = useCallback((productId) => {
+  const removeItem = useCallback((cartKey) => {
     setItems((prev) => {
-      const item = prev.find((i) => i.id === productId);
+      const item = prev.find((i) => i._cartKey === cartKey || i.id === cartKey);
       if (item) {
         toast.info("Removed from bag", { description: item.name });
       }
-      return prev.filter((i) => i.id !== productId);
+      return prev.filter((i) => i._cartKey !== cartKey && i.id !== cartKey);
     });
   }, []);
 
-  const updateQuantity = useCallback((productId, qty) => {
+  const updateQuantity = useCallback((cartKey, qty) => {
     if (qty <= 0) {
-      setItems((prev) => prev.filter((i) => i.id !== productId));
+      setItems((prev) => prev.filter((i) => i._cartKey !== cartKey && i.id !== cartKey));
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.id === productId ? { ...i, qty } : i)),
+      prev.map((i) => (i._cartKey === cartKey || i.id === cartKey) ? { ...i, qty } : i),
     );
   }, []);
 

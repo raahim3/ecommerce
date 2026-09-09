@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { useCart } from "./cart";
 
+const stripHtml = (html) => {
+  if (!html) return "";
+  return html.replace(/<[^>]*>?/gm, "").trim();
+};
+
 export function ProductCard({ product, layout = "grid", onQuickView, className }) {
   const { addItem, wishlist, toggleWish } = useCart();
   const [isHovered, setIsHovered] = useState(false);
@@ -15,7 +20,9 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
   const hoverImage = product.hover || product.images?.[1]?.image_url || mainImage;
   const productUrl = `/product/${product.slug || product.id}`;
   const categoryName = typeof product.category === "object" ? product.category?.name : (product.category || "Atelier");
-  const comparePrice = product.compare_at_price || product.compareAt;
+  const comparePrice = (product.compare_at_price || product.compareAt) && Number(product.compare_at_price || product.compareAt) > Number(product.price)
+    ? (product.compare_at_price || product.compareAt)
+    : null;
   const reviewsCount = product.reviews_count ?? product.reviews ?? 0;
   const badgeText = product.badge || (product.is_on_sale ? "Sale" : (product.is_featured ? "Featured" : null));
   const colorsList = product.colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex })) || [];
@@ -84,7 +91,7 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
             </Link>
 
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground line-clamp-2">
-              {product.tagline || product.description}
+              {product.tagline || stripHtml(product.description)}
             </p>
 
             {colorsList.length > 0 && (

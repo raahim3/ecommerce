@@ -46,10 +46,24 @@ class ShippingMethod extends Model
         if ($this->max_order !== null && $subtotal > (float) $this->max_order) return -1;
 
         $shippingSettings = Setting::get('shipping', []);
-        $thresholdEnabled = $shippingSettings['freeShippingThresholdEnabled'] ?? true;
+        $thresholdEnabled = (bool) ($shippingSettings['freeShippingThresholdEnabled'] ?? true);
+        $globalThreshold = isset($shippingSettings['freeShippingThreshold'])
+            ? (float) $shippingSettings['freeShippingThreshold']
+            : 100.0;
+
+        $effectiveThreshold = $this->free_shipping_min !== null
+            ? (float) $this->free_shipping_min
+            : $globalThreshold;
+
+        // If store free shipping threshold is met, standard and free_threshold methods are free
+        if ($thresholdEnabled && $subtotal >= $effectiveThreshold) {
+            if ($this->pricing_type === 'free_threshold' || $this->code === 'standard') {
+                return 0.0;
+            }
+        }
 
         return match ($this->pricing_type) {
-            'free_threshold' => ($thresholdEnabled && $this->free_shipping_min !== null && $subtotal >= (float) $this->free_shipping_min)
+            'free_threshold' => ($thresholdEnabled && $subtotal >= $effectiveThreshold)
                 ? 0.0 : (float) $this->price,
             'weight_based' => (float) $this->price + (max(0, $weight) * (float) ($this->per_kg_rate ?? 0)),
             default => (float) $this->price,

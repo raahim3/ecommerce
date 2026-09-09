@@ -52,6 +52,8 @@ class HandleInertiaRequests extends Middleware
             'phone' => '+1 (800) 555-ATELIER',
             'currency' => 'USD — US Dollar',
             'timezone' => 'UTC-5 (Eastern Standard)',
+            'orderPrefix' => 'ATL',
+            'storeCountries' => ['Pakistan'],
             'logoLight' => '',
             'logoDark' => '',
             'favicon' => '',
@@ -70,6 +72,10 @@ class HandleInertiaRequests extends Middleware
             'heroEditorStatus' => 'In stock',
             'heroBadge' => 'Just dropped',
         ]);
+
+        if (empty($general['storeCountries']) || !is_array($general['storeCountries'])) {
+            $general['storeCountries'] = ['Pakistan'];
+        }
 
         // 2. SEO Settings
         $seo = Setting::get('seo', [

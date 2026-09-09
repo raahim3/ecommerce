@@ -14,12 +14,15 @@ class Product extends Model
 
     protected $fillable = [
         'category_id',
+        'subcategory_id',
         'name',
         'slug',
         'sku',
+        'brand',
         'price',
         'original_price',
         'compare_at_price',
+        'cost_per_item',
         'stock_quantity',
         'weight_kg',
         'is_featured',
@@ -40,6 +43,10 @@ class Product extends Model
         'available_sizes',
         'rating',
         'reviews_count',
+        'seo_title',
+        'seo_description',
+        'seo_keywords',
+        'tags',
     ];
 
     protected function casts(): array
@@ -48,6 +55,7 @@ class Product extends Model
             'price' => 'decimal:2',
             'original_price' => 'decimal:2',
             'compare_at_price' => 'decimal:2',
+            'cost_per_item' => 'decimal:2',
             'stock_quantity' => 'integer',
             'weight_kg' => 'decimal:3',
             'is_featured' => 'boolean',
@@ -62,12 +70,18 @@ class Product extends Model
             'available_sizes' => 'array',
             'rating' => 'decimal:2',
             'reviews_count' => 'integer',
+            'tags' => 'array',
         ];
     }
 
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function subcategory(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'subcategory_id');
     }
 
     public function images(): HasMany

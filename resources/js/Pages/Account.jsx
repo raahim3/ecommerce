@@ -400,7 +400,14 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
                       <div className="space-y-2 text-xs">
                         {(order.items || []).slice(0, 3).map((it, idx) => (
                           <div key={idx} className="flex justify-between items-center text-foreground font-medium">
-                            <span>{it.product_name || it.name} (x{it.quantity || it.qty || 1})</span>
+                            <div>
+                              <span>{it.product_name || it.name} (x{it.quantity || it.qty || 1})</span>
+                              {(it.selected_color || it.selected_size) && (
+                                <span className="text-[11px] text-muted-foreground ml-2">
+                                  {[it.selected_color, it.selected_size ? `Size: ${it.selected_size}` : null].filter(Boolean).join(" • ")}
+                                </span>
+                              )}
+                            </div>
                             <span className="font-bold">{formatPrice(parseFloat(it.total || (it.price * (it.quantity || it.qty || 1))) || 0)}</span>
                           </div>
                         ))}

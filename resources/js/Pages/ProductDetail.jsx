@@ -71,9 +71,59 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
+  // Description expand/collapse
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  // Formatted specifications & FAQs
+  const formattedSpecs = useMemo(() => {
+    if (!product?.specs) return [];
+    if (Array.isArray(product.specs)) {
+      return product.specs
+        .map((s) => ({
+          key: s.key || s.label || "",
+          value: s.value || "",
+        }))
+        .filter((s) => s.key && s.value);
+    }
+    if (typeof product.specs === "object") {
+      return Object.entries(product.specs)
+        .map(([key, value]) => ({ key, value: String(value) }))
+        .filter((s) => s.key && s.value);
+    }
+    return [];
+  }, [product?.specs]);
+
+  const formattedFaqs = useMemo(() => {
+    if (!product?.faqs || !Array.isArray(product.faqs)) return [];
+    return product.faqs
+      .map((f) => ({
+        question: f.question || f.q || "",
+        answer: f.answer || f.a || "",
+      }))
+      .filter((f) => f.question && f.answer);
+  }, [product?.faqs]);
+
+  const availableTabs = useMemo(() => {
+    const tabs = [];
+    if (formattedSpecs.length > 0) {
+      tabs.push({ id: "specs", label: "Full Specifications" });
+    }
+    tabs.push({ id: "story", label: "Craft Narrative" });
+    tabs.push({ id: "shipping", label: "Shipping & Free Returns" });
+    if (formattedFaqs.length > 0) {
+      tabs.push({ id: "faqs", label: "Common Questions" });
+    }
+    return tabs;
+  }, [formattedSpecs, formattedFaqs]);
 
   // Active Deep Dive Tab
-  const [activeTab, setActiveTab] = useState("specs"); // 'specs' | 'story' | 'shipping' | 'care'
+  const [activeTab, setActiveTab] = useState(() => (formattedSpecs.length > 0 ? "specs" : "story"));
+
+  useEffect(() => {
+    if (availableTabs.length > 0 && !availableTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(availableTabs[0].id);
+    }
+  }, [availableTabs, activeTab]);
 
   // Frequently Bought Together bundle items state
   const bundleAccessories = useMemo(() => {
@@ -107,7 +157,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
       setSelectedSizeIdx(0);
       setQuantity(1);
       setIsAdding(false);
-      setActiveTab("specs");
+      setActiveTab(formattedSpecs.length > 0 ? "specs" : "story");
       setBundleChecked([true, true, true]);
       setReviewFilterRating(0);
       setReviewSearchQuery("");
@@ -195,9 +245,20 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   const wished = wishlist.includes(product.id);
   const activeImage = images[selectedImgIdx] || images[0] || "/resources/js/assets/p-headphones.jpg";
-  const productColors = useMemo(() => product.colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex, image: v.image_url })) || [], [product]);
+
+  // Resolve colors: supports object array (with hex) or string array (from available_colors DB field)
+  const productColors = useMemo(() => {
+    const src = product.colors || product.available_colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex, image: v.image_url })) || [];
+    return src.map(c => typeof c === 'string' ? { name: c, hex: null } : c);
+  }, [product]);
+
+  // Resolve sizes: supports string array (from available_sizes DB field)
+  const productSizes = useMemo(() => {
+    return product.sizes || product.available_sizes || [];
+  }, [product]);
+
   const chosenColor = productColors[selectedColorIdx] || productColors[0] || null;
-  const chosenSize = product.sizes && product.sizes[selectedSizeIdx] ? product.sizes[selectedSizeIdx] : null;
+  const chosenSize = productSizes[selectedSizeIdx] || null;
 
   // Add to cart handler
   const handleAddToCart = () => {
@@ -319,6 +380,28 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     return true;
   });
 
+  // Rating summary & distribution breakdown stats
+  const reviewStats = useMemo(() => {
+    const totalCount = reviewsList.length;
+    const avg = totalCount > 0
+      ? reviewsList.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) / totalCount
+      : Number(product?.rating || 5);
+
+    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviewsList.forEach((r) => {
+      const star = Math.round(Number(r.rating) || 5);
+      if (counts[star] !== undefined) counts[star]++;
+      else if (star >= 5) counts[5]++;
+      else if (star <= 1) counts[1]++;
+    });
+
+    return {
+      avg: Math.min(5, Math.max(0, avg)),
+      totalCount,
+      counts,
+    };
+  }, [reviewsList, product?.rating]);
+
   // Related products
   const relatedProducts = serverRelatedProducts || [];
   const productPrice = Number(product?.price || 0);
@@ -390,72 +473,6 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
         </div>
       )}
 
-      {/* Size Guide Modal */}
-      {sizeGuideOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-ink/60 backdrop-blur-xs transition-opacity animate-in fade-in"
-            onClick={() => setSizeGuideOpen(false)}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-3xl bg-surface p-6 sm:p-8 shadow-2xl border border-border">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <div className="flex items-center gap-2">
-                <Ruler className="size-5 text-accent" />
-                <h3 className="text-lg font-bold">Size & Fit Guide</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSizeGuideOpen(false)}
-                className="grid size-8 place-items-center rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3 text-xs text-muted-foreground">
-              <p>All measurements are listed in inches with standard European tailoring proportions.</p>
-              <div className="overflow-hidden rounded-xl border border-border">
-                <table className="w-full text-left">
-                  <thead className="bg-muted text-[11px] font-bold text-foreground">
-                    <tr>
-                      <th className="p-2.5">Size</th>
-                      <th className="p-2.5">Chest</th>
-                      <th className="p-2.5">Waist</th>
-                      <th className="p-2.5">Length</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border font-medium">
-                    <tr>
-                      <td className="p-2.5 font-bold text-foreground">S</td>
-                      <td className="p-2.5">36–38"</td>
-                      <td className="p-2.5">29–31"</td>
-                      <td className="p-2.5">27.5"</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-bold text-foreground">M</td>
-                      <td className="p-2.5">39–41"</td>
-                      <td className="p-2.5">32–34"</td>
-                      <td className="p-2.5">28.5"</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-bold text-foreground">L</td>
-                      <td className="p-2.5">42–44"</td>
-                      <td className="p-2.5">35–37"</td>
-                      <td className="p-2.5">29.5"</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-bold text-foreground">XL</td>
-                      <td className="p-2.5">45–47"</td>
-                      <td className="p-2.5">38–40"</td>
-                      <td className="p-2.5">30.5"</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Write a Review Modal */}
       {isWriteReviewOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -491,9 +508,10 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                         className={cn(
                           "size-5",
                           val <= newReviewForm.rating
-                            ? "fill-accent text-accent"
-                            : "text-muted-foreground/40",
+                            ? "fill-[#f5a623] text-[#f5a623]"
+                            : "fill-[#e5e7eb] text-[#e5e7eb] dark:fill-slate-700 dark:text-slate-700",
                         )}
+                        strokeWidth={0}
                       />
                     </button>
                   ))}
@@ -578,18 +596,18 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
         </nav>
 
         {/* ================= 1. FIRST HERO SECTION (Gallery + Purchase details) ================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 xl:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 xl:gap-12 items-start">
           {/* LEFT: Interactive Gallery */}
-          <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
+          <div className="lg:col-span-6 flex flex-col-reverse sm:flex-row gap-4 items-start">
             {images.length > 1 && (
-              <div className="no-scrollbar flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto sm:max-h-[580px] shrink-0">
+              <div className="no-scrollbar flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto sm:max-h-[500px] shrink-0">
                 {images.map((img, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setSelectedImgIdx(idx)}
                     className={cn(
-                      "relative size-20 sm:size-22 shrink-0 overflow-hidden rounded-2xl border-2 transition-all",
+                      "relative size-18 sm:size-20 shrink-0 overflow-hidden rounded-2xl border-2 transition-all bg-muted/20",
                       selectedImgIdx === idx
                         ? "border-accent ring-2 ring-accent/20"
                         : "border-transparent opacity-65 hover:opacity-100",
@@ -603,7 +621,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
             {/* Main Stage Image with Zoom */}
             <div
-              className="relative aspect-4/5 w-full flex-1 overflow-hidden rounded-3xl bg-muted group cursor-crosshair"
+              className="relative aspect-square sm:aspect-[4/3] lg:aspect-square max-h-[460px] sm:max-h-[500px] lg:max-h-[520px] w-full flex-1 overflow-hidden rounded-3xl bg-muted/25 border border-border/60 group cursor-crosshair flex items-center justify-center shadow-xs"
               onMouseEnter={() => setIsZoomed(true)}
               onMouseLeave={() => setIsZoomed(false)}
               onMouseMove={handleMouseMove}
@@ -612,7 +630,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                 src={activeImage}
                 alt={product.name}
                 className={cn(
-                  "h-full w-full object-cover transition-transform duration-300",
+                  "h-full w-full object-contain p-2 sm:p-4 transition-transform duration-300",
                   isZoomed && "scale-150",
                 )}
                 style={
@@ -676,7 +694,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
           </div>
 
           {/* RIGHT: Product Buy & Configuration */}
-          <div className="lg:col-span-5 flex flex-col justify-start">
+          <div className="lg:col-span-6 flex flex-col justify-start">
             <div className="border-b border-border pb-5">
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span className="eyebrow">{categoryName}</span>
@@ -717,37 +735,56 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                 <span className="text-2xl sm:text-3xl font-extrabold text-foreground">
                   {formatPrice(product.price)}
                 </span>
-                {product.compareAt && (
+                {(product.compare_at_price || product.compareAt) && Number(product.compare_at_price || product.compareAt) > Number(product.price) && (
                   <>
                     <span className="text-lg font-medium text-subtle line-through">
-                      {formatPrice(product.compareAt)}
+                      {formatPrice(product.compare_at_price || product.compareAt)}
                     </span>
                     <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
-                      Save {formatPrice(product.compareAt - product.price)}
+                      Save {formatPrice((product.compare_at_price || product.compareAt) - product.price)}
                     </span>
                   </>
                 )}
               </div>
 
-              <p className="mt-2 text-xs text-muted-foreground">
-                4 interest-free payments of <strong>{formatPrice(product.price / 4)}</strong> with Klarna.
-              </p>
-
-              <p className="mt-3 text-xs sm:text-sm leading-relaxed text-muted-foreground">
-                {product.tagline || product.description}
-              </p>
+              {product.tagline && (
+                <p className="mt-3 text-xs sm:text-sm leading-relaxed text-muted-foreground">
+                  {product.tagline}
+                </p>
+              )}
+              {product.description && (
+                <div className="mt-3 relative">
+                  <div
+                    className={cn(
+                      "text-xs sm:text-sm leading-relaxed text-muted-foreground space-y-2 prose prose-sm dark:prose-invert max-w-none [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>strong]:text-foreground [&>strong]:font-semibold overflow-hidden transition-all duration-300",
+                      descExpanded ? "max-h-none" : "max-h-[5.5rem]"
+                    )}
+                    dangerouslySetInnerHTML={{ __html: product.description }}
+                  />
+                  {!descExpanded && (
+                    <div className="absolute bottom-4 left-0 right-0 h-10 bg-gradient-to-t from-[#f8f7f4] to-transparent pointer-events-none" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDescExpanded((e) => !e)}
+                    className="mt-1.5 text-xs font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {descExpanded ? "See less ▲" : "See more ▼"}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Options selection form */}
             <div className="py-5 space-y-5 border-b border-border">
-              {productColors && productColors.length > 0 && (
+              {productColors.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between text-xs">
                     <label className="font-bold uppercase tracking-wider text-muted-foreground">
                       Color: <span className="text-foreground font-semibold">{chosenColor?.name}</span>
                     </label>
                   </div>
-                  <div className="mt-2 flex gap-2.5">
+                  <div className="mt-2 flex flex-wrap gap-2">
                     {productColors.map((c, idx) => (
                       <button
                         key={c.name || idx}
@@ -760,46 +797,35 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                         }}
                         title={c.name}
                         className={cn(
-                          "relative grid size-8 place-items-center rounded-full transition-all",
+                          "relative flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all",
                           selectedColorIdx === idx
-                            ? "ring-2 ring-foreground ring-offset-2 ring-offset-surface scale-110 shadow-sm"
-                            : "hover:scale-105 opacity-80 hover:opacity-100",
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-surface text-foreground hover:border-foreground/40",
                         )}
-                        style={{ backgroundColor: c.hex }}
                       >
-                        {selectedColorIdx === idx && (
-                          <Check
-                            className={cn(
-                              "size-3.5",
-                              c.hex === "#fafafa" || c.hex === "#eae4d9" || c.hex === "#ede8df"
-                                ? "text-ink"
-                                : "text-white",
-                            )}
+                        {c.hex && (
+                          <span
+                            className="size-3 rounded-full border border-white/40 shrink-0"
+                            style={{ backgroundColor: c.hex }}
                           />
                         )}
+                        {c.name}
+                        {selectedColorIdx === idx && <Check className="size-3 ml-0.5" />}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {product.sizes && product.sizes.length > 1 && (
+              {productSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between text-xs">
                     <label className="font-bold uppercase tracking-wider text-muted-foreground">
-                      Size: <span className="text-foreground font-semibold">{chosenSize}</span>
+                      Size: <span className="text-foreground font-semibold">{chosenSize || "Select a size"}</span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => setSizeGuideOpen(true)}
-                      className="flex items-center gap-1 text-accent font-semibold hover:underline cursor-pointer"
-                    >
-                      <Ruler className="size-3.5" />
-                      <span>Size Guide</span>
-                    </button>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {product.sizes.map((s, idx) => (
+                    {productSizes.map((s, idx) => (
                       <button
                         key={s}
                         type="button"
@@ -824,12 +850,12 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                   <span>
                     {product.stockCount && product.stockCount < 10
                       ? `Only ${product.stockCount} left in stock`
-                      : "In Stock • Ships in 24 hours"}
+                      : "In Stock"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground text-[11px]">
                   <Clock className="size-3" />
-                  <span>Delivery in 2–4 business days</span>
+                  <span>Delivery in 3–5 business days</span>
                 </div>
               </div>
 
@@ -875,25 +901,20 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               </div>
             </div>
 
-            {/* 4 Trust Guarantee micro-items */}
-            <div className="grid grid-cols-2 gap-2 pt-4 text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-2 rounded-xl bg-surface border border-border/70 p-2.5">
-                <Truck className="size-3.5 shrink-0 text-accent" />
-                <span>Free shipping over $100</span>
+            {/* Tags - only shown when product has tags */}
+            {Array.isArray(product.tags) && product.tags.length > 0 && (
+              <div className="pt-3 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mr-1">Tags:</span>
+                {product.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
-              <div className="flex items-center gap-2 rounded-xl bg-surface border border-border/70 p-2.5">
-                <RotateCcw className="size-3.5 shrink-0 text-accent" />
-                <span>30-day free returns</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-surface border border-border/70 p-2.5">
-                <ShieldCheck className="size-3.5 shrink-0 text-accent" />
-                <span>2-year warranty</span>
-              </div>
-              <div className="flex items-center gap-2 rounded-xl bg-surface border border-border/70 p-2.5">
-                <Leaf className="size-3.5 shrink-0 text-accent" />
-                <span>Eco-friendly packaging</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -977,84 +998,11 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
           </div>
         </section>
 
-        {/* ================= 3. BENTO HIGHLIGHTS & SPECS MATRIX (High-density, No Whitespace) ================= */}
-        <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: Key Highlights */}
-          <div className="rounded-3xl border border-border/80 bg-surface p-5 sm:p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-wider">
-                <Layers className="size-4" />
-                <span>Design Highlights</span>
-              </div>
-              <h3 className="mt-2 text-lg font-bold text-foreground">Engineered for Daily Rituals</h3>
-              <ul className="mt-4 space-y-2 text-xs text-muted-foreground">
-                {product.highlights?.slice(0, 4).map((h, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <Check className="size-3.5 text-accent shrink-0 mt-0.5" />
-                    <span className="text-foreground/90 font-medium leading-relaxed">{h}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Card 2: Materials & Origin */}
-          <div className="rounded-3xl border border-border/80 bg-surface p-5 sm:p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-wider">
-                <Award className="size-4" />
-                <span>Material Craftsmanship</span>
-              </div>
-              <h3 className="mt-2 text-lg font-bold text-foreground">Sustainably Sourced</h3>
-              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Handcrafted using certified sustainable inputs and non-toxic dyes in compliant ateliers. Each batch undergoes 18 rigorous quality checks.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-bold text-foreground">
-                  Grade-A Materials
-                </span>
-                <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-bold text-foreground">
-                  Traceable Origin
-                </span>
-                <span className="rounded-lg bg-muted px-2.5 py-1 text-[11px] font-bold text-foreground">
-                  Zero Waste Finishing
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Assistance & Delivery */}
-          <div className="rounded-3xl border border-border/80 bg-surface p-5 sm:p-6 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-accent uppercase tracking-wider">
-                <PackageCheck className="size-4" />
-                <span>Atelier Concierge</span>
-              </div>
-              <h3 className="mt-2 text-lg font-bold text-foreground">Questions or Customization?</h3>
-              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Our in-house product specialists and stylists are on standby to guide your selection and sizing.
-              </p>
-              <Link
-                to="/contact"
-                className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-accent hover:underline"
-              >
-                <MessageCircle className="size-3.5" />
-                <span>Chat with an Atelier Stylist</span>
-              </Link>
-            </div>
-          </div>
-        </section>
-
         {/* ================= 4. COMPACT TABBED SPECIFICATIONS & DEEP DIVE ================= */}
         <section className="mt-8 rounded-3xl border border-border/80 bg-surface p-5 sm:p-7 shadow-xs">
           {/* Pill Tabs */}
           <div className="flex flex-wrap gap-2 border-b border-border pb-4">
-            {[
-              { id: "specs", label: "Full Specifications" },
-              { id: "story", label: "Craft Narrative" },
-              { id: "shipping", label: "Shipping & Free Returns" },
-              { id: "faqs", label: "Common Questions" },
-            ].map((tab) => (
+            {availableTabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -1073,14 +1021,14 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
           {/* Tab Content Panels */}
           <div className="mt-5 text-xs sm:text-sm">
-            {activeTab === "specs" && (
+            {activeTab === "specs" && formattedSpecs.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {product.specs?.map((spec, i) => (
+                {formattedSpecs.map((spec, i) => (
                   <div
                     key={i}
                     className="flex items-center justify-between rounded-xl bg-muted/40 p-3 border border-border/60"
                   >
-                    <span className="font-bold text-foreground">{spec.label}</span>
+                    <span className="font-bold text-foreground">{spec.key}</span>
                     <span className="text-muted-foreground text-right">{spec.value}</span>
                   </div>
                 ))}
@@ -1089,10 +1037,16 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
             {activeTab === "story" && (
               <div className="space-y-3 leading-relaxed text-muted-foreground">
-                <p>{product.description}</p>
-                <p>
-                  Every piece in the Atelier line is engineered to eliminate unnecessary bulk while maintaining architectural purity and tactile luxury.
-                </p>
+                {product.description ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground space-y-2 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 [&>strong]:text-foreground [&>strong]:font-semibold"
+                    dangerouslySetInnerHTML={{ __html: product.description }}
+                  />
+                ) : (
+                  <p>
+                    Every piece in the collection is engineered to eliminate unnecessary bulk while maintaining architectural purity and tactile luxury.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1113,12 +1067,12 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               </div>
             )}
 
-            {activeTab === "faqs" && (
+            {activeTab === "faqs" && formattedFaqs.length > 0 && (
               <div className="space-y-3">
-                {product.faqs?.map((faq, i) => (
+                {formattedFaqs.map((faq, i) => (
                   <div key={i} className="rounded-xl border border-border/60 bg-muted/30 p-3.5">
-                    <p className="font-bold text-foreground text-xs">{faq.q}</p>
-                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{faq.a}</p>
+                    <p className="font-bold text-foreground text-xs">{faq.question}</p>
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{faq.answer}</p>
                   </div>
                 ))}
               </div>
@@ -1147,31 +1101,59 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
             </button>
           </div>
 
-          {/* Rating Summary + Distribution */}
-          <div className="grid grid-cols-1 items-center gap-6 border-b border-border px-5 py-6 md:grid-cols-12 md:px-7">
-            {/* Score box */}
-            <div className="flex items-center gap-5 md:col-span-4 md:border-r md:border-border md:pr-6">
-              <div className="text-6xl font-extrabold leading-none tracking-tight text-foreground">
-                {Number(product.rating || 0).toFixed(2)}
+          {/* Rating Summary + Distribution (Redesigned per Image 2) */}
+          <div className="grid grid-cols-1 items-center gap-8 border-b border-border px-5 py-7 md:grid-cols-12 md:px-8">
+            {/* Left Column: Big score /5, 5 Large Stars, and Ratings count */}
+            <div className="flex flex-col items-start justify-center md:col-span-4 md:border-r md:border-border md:pr-8">
+              <div className="flex items-baseline">
+                <span className="text-5xl sm:text-6xl font-bold tracking-tight text-foreground">
+                  {reviewStats.avg.toFixed(1)}
+                </span>
+                <span className="text-2xl sm:text-3xl font-medium text-muted-foreground/60 ml-1">
+                  /5
+                </span>
               </div>
-              <div>
-                <div className="flex gap-1" aria-label={`${product.rating} out of 5 stars`}>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="size-4 fill-accent text-accent" strokeWidth={1.5} />
-                  ))}
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Based on {reviewsList.length} verified ratings
-                </p>
+
+              {/* Large Stars with partial fill */}
+              <div className="mt-3 flex items-center gap-1.5" aria-label={`${reviewStats.avg.toFixed(1)} out of 5 stars`}>
+                {Array.from({ length: 5 }).map((_, i) => {
+                  const fillPct = Math.min(100, Math.max(0, (reviewStats.avg - i) * 100));
+                  return (
+                    <div key={i} className="relative inline-block size-6 sm:size-7">
+                      <Star
+                        className="size-full fill-[#e5e7eb] text-[#e5e7eb] dark:fill-slate-700 dark:text-slate-700"
+                        strokeWidth={0}
+                      />
+                      {fillPct > 0 && (
+                        <div
+                          className="absolute inset-0 overflow-hidden"
+                          style={{ width: `${fillPct}%` }}
+                        >
+                          <Star
+                            className="size-6 sm:size-7 fill-[#f5a623] text-[#f5a623]"
+                            strokeWidth={0}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Ratings count */}
+              <p className="mt-2 text-xs sm:text-sm text-muted-foreground">
+                {reviewStats.totalCount} {reviewStats.totalCount === 1 ? "Rating" : "Ratings"}
+              </p>
             </div>
 
-            {/* Distribution bars */}
-            <div className="grid grid-cols-1 gap-2 md:col-span-8">
+            {/* Right Column: 5 Breakdown Rows (5 stars to 1 star) */}
+            <div className="flex flex-col gap-2.5 md:col-span-8">
               {[5, 4, 3, 2, 1].map((stars) => {
-                const total = reviewsList.length || 1;
-                const count = reviewsList.filter((r) => r.rating === stars).length;
-                const pct = Math.round((count / total) * 100);
+                const count = reviewStats.counts[stars] || 0;
+                const total = reviewStats.totalCount || 1;
+                const pct = reviewStats.totalCount > 0 ? Math.round((count / total) * 100) : 0;
+                const isFiltered = reviewFilterRating === stars;
+
                 return (
                   <button
                     key={stars}
@@ -1180,20 +1162,40 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                       setReviewFilterRating(reviewFilterRating === stars ? 0 : stars)
                     }
                     className={cn(
-                      "group flex items-center gap-3 rounded-xl px-3 py-2 text-left text-xs font-semibold transition-all",
-                      reviewFilterRating === stars
-                        ? "border border-accent bg-accent/10 text-accent"
-                        : "border border-transparent bg-muted/40 text-muted-foreground hover:border-border hover:bg-muted",
+                      "group flex items-center w-full py-1 px-2.5 rounded-xl text-left transition-all cursor-pointer",
+                      isFiltered
+                        ? "bg-amber-500/10 ring-1 ring-amber-400"
+                        : "hover:bg-muted/50"
                     )}
                   >
-                    <span className="w-7 shrink-0">{stars}<span className="text-accent">★</span></span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background">
+                    {/* 5 Small Stars */}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={cn(
+                            "size-3.5 sm:size-4",
+                            i < stars
+                              ? "fill-[#f5a623] text-[#f5a623]"
+                              : "fill-[#e5e7eb] text-[#e5e7eb] dark:fill-slate-700 dark:text-slate-700"
+                          )}
+                          strokeWidth={0}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Clean Flat Progress Bar */}
+                    <div className="flex-1 h-3 sm:h-3.5 mx-3 sm:mx-4 overflow-hidden rounded-xs bg-[#eef2f6] dark:bg-muted/70">
                       <div
-                        className="h-full rounded-full bg-accent transition-[width] duration-300"
+                        className="h-full bg-[#f5a623] rounded-xs transition-[width] duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="w-5 text-right text-[10px] text-muted-foreground">{count}</span>
+
+                    {/* Count */}
+                    <span className="w-6 text-right text-xs sm:text-sm font-medium text-foreground/80 group-hover:text-foreground shrink-0">
+                      {count}
+                    </span>
                   </button>
                 );
               })}
@@ -1254,8 +1256,11 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                             key={i}
                             className={cn(
                               "size-3",
-                              i < review.rating ? "fill-accent text-accent" : "text-muted-foreground/30",
+                              i < review.rating
+                                ? "fill-[#f5a623] text-[#f5a623]"
+                                : "fill-[#e5e7eb] text-[#e5e7eb] dark:fill-slate-700 dark:text-slate-700",
                             )}
+                            strokeWidth={0}
                           />
                         ))}
                       </div>

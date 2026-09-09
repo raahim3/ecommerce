@@ -28,6 +28,13 @@ import { SiteLayout } from "@/layouts/site-layout";
 
 export function CheckoutPage({ user, savedAddresses = [] }) {
   const { props } = usePage();
+  const generalSettings = props?.app_settings?.general || {};
+  const storeCountries = useMemo(() => {
+    const raw = generalSettings?.storeCountries;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    return ["Pakistan"];
+  }, [generalSettings?.storeCountries]);
+
   const paymentSettings = props?.app_settings?.payments || {
     stripeEnabled: true,
     paypalEnabled: true,
@@ -144,6 +151,10 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const [formData, setFormData] = useState(() => {
     const defaultAddr = savedAddresses.find((a) => a.is_default) || savedAddresses[0];
     const nameParts = user?.name ? user.name.trim().split(/\s+/) : [];
+    const initialCountry = storeCountries.length === 1
+      ? storeCountries[0]
+      : (defaultAddr?.country && storeCountries.includes(defaultAddr.country) ? defaultAddr.country : storeCountries[0] || "Pakistan");
+
     return {
       email: user?.email || "",
       firstName: defaultAddr?.first_name || nameParts[0] || "",
@@ -153,7 +164,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       city: defaultAddr?.city || "",
       state: defaultAddr?.state || "",
       zipCode: defaultAddr?.postal_code || "",
-      country: defaultAddr?.country || "",
+      country: initialCountry,
       phone: defaultAddr?.phone || "",
       cardNumber: "",
       cardExp: "",
@@ -162,11 +173,118 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     };
   });
 
+  const [availableStates, setAvailableStates] = useState([]);
+  const [isLoadingStates, setIsLoadingStates] = useState(false);
+
+  // Synchronize country if storeCountries has only 1 country or changes
+  useEffect(() => {
+    if (storeCountries.length === 1) {
+      if (formData.country !== storeCountries[0]) {
+        setFormData((prev) => ({ ...prev, country: storeCountries[0] }));
+      }
+    } else if (storeCountries.length > 1) {
+      if (!formData.country || !storeCountries.includes(formData.country)) {
+        setFormData((prev) => ({ ...prev, country: storeCountries[0] }));
+      }
+    }
+  }, [storeCountries]);
+
+  // Load states whenever selected country changes
+  useEffect(() => {
+    const activeCountry = formData.country || (storeCountries.length === 1 ? storeCountries[0] : "");
+    if (!activeCountry) {
+      setAvailableStates([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingStates(true);
+
+    fetch(`/api/countries/${encodeURIComponent(activeCountry)}/states`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        if (Array.isArray(data) && data.length > 0) {
+          setAvailableStates(data);
+          setFormData((prev) => {
+            const current = (prev.state || "").trim().toLowerCase();
+            const match = data.find((s) => s.name.trim().toLowerCase() === current);
+            return {
+              ...prev,
+              state: match ? match.name : (prev.state || data[0].name),
+            };
+          });
+        } else {
+          setAvailableStates([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch states for", activeCountry, err);
+        if (isMounted) setAvailableStates([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingStates(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [formData.country, storeCountries]);
+
+  const [availableCities, setAvailableCities] = useState([]);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+
+  // Load cities whenever selected state changes
+  useEffect(() => {
+    if (!formData.state) {
+      setAvailableCities([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingCities(true);
+
+    const countryParam = formData.country ? `?country=${encodeURIComponent(formData.country)}` : "";
+    fetch(`/api/states/${encodeURIComponent(formData.state)}/cities${countryParam}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!isMounted) return;
+        if (Array.isArray(data) && data.length > 0) {
+          setAvailableCities(data);
+          setFormData((prev) => {
+            const currentCity = (prev.city || "").trim().toLowerCase();
+            const match = data.find((c) => c.name.trim().toLowerCase() === currentCity);
+            return {
+              ...prev,
+              city: match ? match.name : (prev.city || data[0].name),
+            };
+          });
+        } else {
+          setAvailableCities([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch cities for", formData.state, err);
+        if (isMounted) setAvailableCities([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingCities(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [formData.state, formData.country]);
+
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSelectSavedAddress = (addr) => {
+    const resolvedCountry = storeCountries.length === 1
+      ? storeCountries[0]
+      : (addr.country && storeCountries.includes(addr.country) ? addr.country : (formData.country || storeCountries[0]));
+
     setFormData((prev) => ({
       ...prev,
       firstName: addr.first_name,
@@ -177,7 +295,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       city: addr.city,
       state: addr.state,
       zipCode: addr.postal_code,
-      country: addr.country,
+      country: resolvedCountry,
     }));
     toast.info("Saved address selected");
   };
@@ -315,8 +433,18 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   }, [pendingPaypal, paymentSettings.paypalClientId]);
 
   const completeOrder = (data) => {
+    const activeShipping = shippingMethods.find((m) => m.code === (shippingMethod || selectedShippingMethod));
+    const deliveryDaysText = activeShipping
+      ? (activeShipping.delivery_min_days === activeShipping.delivery_max_days
+          ? `${activeShipping.delivery_min_days} business day`
+          : `${activeShipping.delivery_min_days}–${activeShipping.delivery_max_days} business days`)
+      : "3–5 business days";
+
+    const resolvedOrderNumber = data.order_number || data.order?.order_number;
+
     const orderRecord = {
-      id: data.order_number,
+      id: resolvedOrderNumber,
+      order_number: resolvedOrderNumber,
       trackingToken: data.tracking_token,
       date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
       items: [...items],
@@ -325,7 +453,8 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       paymentMethod: selectedPaymentMethod,
       paymentReceiptUrl: receiptUrl || null,
       shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
-      trackingNumber: `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      trackingNumber: data.order?.tracking_number || `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      estimatedDelivery: `In ${deliveryDaysText}`,
     };
 
     try {
@@ -491,11 +620,11 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
           <div className="mt-8 rounded-2xl bg-muted/40 p-5 text-left text-xs sm:text-sm border border-border/70 space-y-2.5">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Order Reference:</span>
-              <span className="font-mono font-bold text-foreground">#{completedOrder.id}</span>
+              <span className="font-mono font-bold text-foreground">#{completedOrder.order_number || completedOrder.id}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Estimated Delivery:</span>
-              <span className="font-semibold text-foreground">In 2–4 business days</span>
+              <span className="font-semibold text-foreground">{completedOrder.estimatedDelivery || "In 3–5 business days"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Shipping To:</span>
@@ -514,7 +643,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                 <span>Direct Bank Transfer Details</span>
               </div>
               <p className="text-amber-800 leading-relaxed">
-                Please transfer <strong>{formatPrice(completedOrder.total)}</strong> to our bank account quoting order reference <strong>#{completedOrder.id}</strong>.
+                Please transfer <strong>{formatPrice(completedOrder.total)}</strong> to our bank account quoting order reference <strong>#{completedOrder.order_number || completedOrder.id}</strong>.
               </p>
               {paymentSettings.bankAccountNumber && (
                 <div className="rounded-xl bg-white/80 border border-amber-200/80 p-3 text-[11px] font-mono text-amber-950 space-y-1">
@@ -743,31 +872,124 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                     />
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  {storeCountries.length > 1 && (
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        City
+                        Country / Region
                       </label>
-                      <input
-                        type="text"
+                      <select
                         required
-                        value={formData.city}
-                        onChange={(e) => handleInputChange("city", e.target.value)}
+                        value={formData.country}
+                        onChange={(e) => {
+                          const newCountry = e.target.value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            country: newCountry,
+                            state: "",
+                          }));
+                        }}
                         className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
-                      />
+                      >
+                        <option value="">Select country</option>
+                        {storeCountries.map((cName) => (
+                          <option key={cName} value={cName}>
+                            {cName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        State / Province
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <span>State / Province</span>
+                        {isLoadingStates && (
+                          <span className="text-[10px] text-muted-foreground animate-pulse font-normal">Loading...</span>
+                        )}
                       </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.state}
-                        onChange={(e) => handleInputChange("state", e.target.value)}
-                        className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
-                      />
+                      {availableStates.length > 0 ? (
+                        <select
+                          required
+                          value={formData.state}
+                          onChange={(e) => {
+                            const newState = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              state: newState,
+                              city: "",
+                            }));
+                          }}
+                          disabled={isLoadingStates}
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
+                        >
+                          <option value="">Select State</option>
+                          {availableStates.map((s) => (
+                            <option key={s.id} value={s.name}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : isLoadingStates ? (
+                        <select
+                          disabled
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-muted/40 px-3.5 text-sm text-muted-foreground focus:outline-none"
+                        >
+                          <option>Loading states...</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          value={formData.state}
+                          onChange={(e) => handleInputChange("state", e.target.value)}
+                          placeholder="State / Province"
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
+                        />
+                      )}
                     </div>
+
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                        <span>City</span>
+                        {isLoadingCities && (
+                          <span className="text-[10px] text-muted-foreground animate-pulse font-normal">Loading...</span>
+                        )}
+                      </label>
+                      {availableCities.length > 0 ? (
+                        <select
+                          required
+                          value={formData.city}
+                          onChange={(e) => handleInputChange("city", e.target.value)}
+                          disabled={isLoadingCities}
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none disabled:opacity-60"
+                        >
+                          <option value="">Select City</option>
+                          {availableCities.map((c) => (
+                            <option key={c.id} value={c.name}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : isLoadingCities ? (
+                        <select
+                          disabled
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-muted/40 px-3.5 text-sm text-muted-foreground focus:outline-none"
+                        >
+                          <option>Loading cities...</option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          required
+                          value={formData.city}
+                          onChange={(e) => handleInputChange("city", e.target.value)}
+                          placeholder="City"
+                          className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
+                        />
+                      )}
+                    </div>
+
                     <div>
                       <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                         ZIP / Postal Code
@@ -777,32 +999,10 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                         required
                         value={formData.zipCode}
                         onChange={(e) => handleInputChange("zipCode", e.target.value)}
+                        placeholder="ZIP code"
                         className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
                       />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Country
-                    </label>
-                    <select
-                      required
-                      value={formData.country}
-                      onChange={(e) => handleInputChange("country", e.target.value)}
-                      className="mt-1.5 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
-                    >
-                      <option value="">Select country</option>
-                      <option value="United States">United States</option>
-                      <option value="Canada">Canada</option>
-                      <option value="United Kingdom">United Kingdom</option>
-                      <option value="Australia">Australia</option>
-                      <option value="Germany">Germany</option>
-                      <option value="France">France</option>
-                      <option value="Pakistan">Pakistan</option>
-                      <option value="India">India</option>
-                      <option value="United Arab Emirates">United Arab Emirates</option>
-                    </select>
                   </div>
                   <div className="pt-2">
                     <label className="flex items-center gap-2.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground">
@@ -1114,7 +1314,11 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs font-bold text-foreground truncate">{item.name}</h4>
                     <p className="text-[11px] text-muted-foreground">
-                      Qty: {item.qty} {item.selectedColor ? `• ${item.selectedColor}` : ""}
+                      {[
+                        `Qty: ${item.qty}`,
+                        item.selectedColor,
+                        item.selectedSize ? `Size: ${item.selectedSize}` : null,
+                      ].filter(Boolean).join(" • ")}
                     </p>
                   </div>
                   <span className="text-xs font-extrabold text-foreground">

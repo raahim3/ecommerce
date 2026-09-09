@@ -67,8 +67,32 @@ class Order extends Model
 
     public static function generateOrderNumber(): string
     {
+        $general = Setting::get('general', []);
+        $prefix = strtoupper(trim($general['orderPrefix'] ?? ''));
+
+        if (empty($prefix)) {
+            $storeName = trim($general['storeName'] ?? '');
+            $cleaned = preg_replace('/[^A-Za-z0-9]/', '', $storeName);
+            $prefix = !empty($cleaned) ? strtoupper(substr($cleaned, 0, 3)) : 'ATL';
+        }
+
+        // Find the latest order with this prefix to continue sequence
+        $latestOrder = self::where('order_number', 'LIKE', "{$prefix}-%")
+            ->orderByDesc('id')
+            ->first();
+
+        $nextSerial = 1;
+        if ($latestOrder && preg_match('/^' . preg_quote($prefix, '/') . '-(\d+)$/', $latestOrder->order_number, $matches)) {
+            $nextSerial = (int) $matches[1] + 1;
+        } else {
+            $maxId = self::max('id') ?? 0;
+            $nextSerial = max(1, $maxId + 1);
+        }
+
         do {
-            $number = 'ATL-' . strtoupper(Str::random(6));
+            $serialFormatted = str_pad((string) $nextSerial, 6, '0', STR_PAD_LEFT);
+            $number = "{$prefix}-{$serialFormatted}";
+            $nextSerial++;
         } while (self::where('order_number', $number)->exists());
 
         return $number;

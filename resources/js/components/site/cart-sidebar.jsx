@@ -201,26 +201,28 @@ export function CartSidebar() {
                   </div>
 
                   <div className="flex min-w-0 flex-1 flex-col justify-between">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
                         {item.category ? (
                           <span className="eyebrow text-[10px] text-muted-foreground block mb-0.5">
                             {typeof item.category === "object" ? item.category?.name : item.category}
                           </span>
                         ) : null}
-                        <h4 className="truncate text-sm font-semibold text-foreground">
+                        <h4 className="text-xs sm:text-sm font-semibold text-foreground leading-snug break-words">
                           {item.name}
                         </h4>
-                        {item.selectedColor && (
-                          <p className="text-[11px] text-muted-foreground">{item.selectedColor}</p>
+                        {(item.selectedColor || item.selectedSize) && (
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {[item.selectedColor, item.selectedSize ? `Size: ${item.selectedSize}` : null].filter(Boolean).join(' • ')}
+                          </p>
                         )}
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(item._cartKey || item.id)}
                         aria-label={`Remove ${item.name}`}
-                        className="grid size-7 place-items-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Trash2 className="size-4" />
                       </button>
@@ -231,7 +233,7 @@ export function CartSidebar() {
                       <div className="flex items-center rounded-lg border border-border bg-surface px-1 py-0.5">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, item.qty - 1)}
+                          onClick={() => updateQuantity(item._cartKey || item.id, item.qty - 1)}
                           aria-label="Decrease quantity"
                           className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
@@ -242,7 +244,7 @@ export function CartSidebar() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, item.qty + 1)}
+                          onClick={() => updateQuantity(item._cartKey || item.id, item.qty + 1)}
                           aria-label="Increase quantity"
                           className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >

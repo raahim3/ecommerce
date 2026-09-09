@@ -65,4 +65,11 @@ export const getCurrencySymbol = (currency = globalThis.__STORE_CURRENCY__) => {
   return CURRENCY_SYMBOLS[code] || code;
 };
 
-export const formatPrice = (value, decimals = 0) => `${getCurrencySymbol()}${Number(value).toFixed(decimals)}`;
+export const formatPrice = (value, decimals = 0) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return `${getCurrencySymbol()}0`;
+  return `${getCurrencySymbol()}${num.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })}`;
+};

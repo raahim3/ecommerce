@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, usePage, router } from "@inertiajs/react";
+import { Link, usePage, router, Head } from "@inertiajs/react";
 import {
   LayoutDashboard,
   Package,
@@ -176,7 +176,16 @@ export function AdminLayout({ children }) {
   };
 
   return (
+    
     <div className="flex min-h-screen bg-[#f8fafc] text-slate-900 selection:bg-slate-900 selection:text-white antialiased">
+      <Head>
+        <title head-key="title">Admin Dashboard</title>
+        {generalSettings.favicon ? (
+          <link rel="icon" type="image/x-icon" href={generalSettings.favicon} />
+        ) : (
+          <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        )}
+      </Head>
       {/* ================= ADMIN SIDEBAR ================= */}
       {/* Mobile Backdrop */}
       {sidebarOpen && (

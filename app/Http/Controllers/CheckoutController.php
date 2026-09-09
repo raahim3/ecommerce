@@ -174,13 +174,24 @@ class CheckoutController extends Controller
             $taxRate = isset($taxConfig['flatRate']) ? (float) $taxConfig['flatRate'] : 8.0;
             $taxIncluded = (bool) ($taxConfig['taxIncluded'] ?? false);
 
+            $shippingMethodCode = $request->shipping_method ?: 'standard';
             $shippingRate = app(ShippingRateService::class)->rate(
-                $request->shipping_method,
+                $shippingMethodCode,
                 $request->country,
                 $subtotal,
                 $totalWeight,
             );
-            $shippingAmount = $shippingRate['amount'];
+            $shippingAmount = (float) $shippingRate['amount'];
+
+            // Guarantee free shipping on standard delivery if subtotal exceeds free shipping threshold
+            $thresholdEnabled = (bool) ($shippingSettings['freeShippingThresholdEnabled'] ?? true);
+            $globalThreshold = isset($shippingSettings['freeShippingThreshold']) ? (float) $shippingSettings['freeShippingThreshold'] : 100.0;
+            if ($thresholdEnabled && $subtotal >= $globalThreshold) {
+                if ($shippingMethodCode === 'standard' || empty($request->shipping_method) || ($shippingRate['method']?->pricing_type === 'free_threshold')) {
+                    $shippingAmount = 0.00;
+                }
+            }
+
             $taxAmount      = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
             $totalAmount    = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
 

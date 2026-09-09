@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation - Atelier</title>
+    <title>Order Confirmation - {{ $store['storeName'] ?? 'Atelier' }}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -130,7 +130,19 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">ATELIER.</div>
+            @php
+                $logo = !empty($store['logoLight']) ? $store['logoLight'] : (!empty($store['logoDark']) ? $store['logoDark'] : null);
+                if ($logo && !str_starts_with($logo, 'http://') && !str_starts_with($logo, 'https://')) {
+                    $logo = url($logo);
+                }
+            @endphp
+            @if($logo)
+                <img src="{{ $logo }}" alt="{{ $store['storeName'] ?? 'Logo' }}" style="max-height: 52px; max-width: 220px; object-fit: contain; display: inline-block; vertical-align: middle;">
+            @elseif(!empty($store['storeName']))
+                <div class="logo">{{ $store['storeName'] }}</div>
+            @else
+                <div class="logo">{{ $store['storeName'] ?? 'Store' }}</div>
+            @endif
         </div>
         <div class="content">
             <span class="badge">Order Confirmed</span>
@@ -214,7 +226,7 @@
             </a>
         </div>
         <div class="footer">
-            &copy; {{ date('Y') }} Atelier Luxury Goods. Need assistance? Reply directly to this email or contact support@atelier.luxury.
+            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Atelier' }}. Need assistance? Reply directly to this email{{ !empty($store['supportEmail']) ? ' or contact ' . $store['supportEmail'] : '' }}.
         </div>
     </div>
 </body>
