@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getCurrencySymbol } from "@/lib/shop-data";
 import { AdminLayout } from "@/layouts/admin-layout";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
@@ -60,6 +61,8 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
 
   const { app_settings } = usePage().props;
   const storeName = app_settings?.general?.storeName || "Store";
+  const storeCurrency = app_settings?.general?.currency || "USD — US Dollar";
+  const currencySymbol = getCurrencySymbol(storeCurrency);
 
   // Determine initial category and subcategory from product (if editing)
   const initialCategory = useMemo(() => {
@@ -658,39 +661,39 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Retail Price *</label>
                 <div className="mt-1 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">{currencySymbol}</span>
                   <input
                     type="number"
                     value={form.price}
                     onChange={(e) => setField("price", e.target.value)}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-7 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Compare-at Price</label>
                 <div className="mt-1 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">{currencySymbol}</span>
                   <input
                     type="number"
                     value={form.comparePrice}
                     onChange={(e) => setField("comparePrice", e.target.value)}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-7 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Cost Per Item</label>
                 <div className="mt-1 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">{currencySymbol}</span>
                   <input
                     type="number"
                     value={form.costPerItem}
                     onChange={(e) => setField("costPerItem", e.target.value)}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-7 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-3 text-sm font-semibold focus:border-slate-900 focus:bg-white focus:outline-none"
                   />
                 </div>
               </div>
@@ -700,7 +703,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3 text-center">
                   <p className="text-[10px] font-bold uppercase text-emerald-600">Profit / Unit</p>
-                  <p className="text-lg font-extrabold text-emerald-700 mt-0.5">${profitData.profit}</p>
+                  <p className="text-lg font-extrabold text-emerald-700 mt-0.5">{currencySymbol}{profitData.profit}</p>
                 </div>
                 <div className="rounded-2xl bg-sky-50 border border-sky-200 p-3 text-center">
                   <p className="text-[10px] font-bold uppercase text-sky-600">Gross Margin</p>

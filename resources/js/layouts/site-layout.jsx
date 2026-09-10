@@ -3,6 +3,7 @@ import { Header } from "@/components/site/header";
 import { Footer } from "@/components/site/footer";
 import { CartSidebar } from "@/components/site/cart-sidebar";
 import { ScrollToTop } from "@/components/common/scroll-to-top";
+import { WhatsAppButton } from "@/components/common/whatsapp-button";
 
 export function SiteLayout({ children }) {
   const { props } = usePage();
@@ -63,6 +64,7 @@ export function SiteLayout({ children }) {
       <CartSidebar />
       {children}
       <Footer />
+      <WhatsAppButton />
     </>
   );
 }

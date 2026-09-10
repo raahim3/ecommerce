@@ -17,7 +17,7 @@ export function Categories({ items }) {
   const scroll = (direction) => scroller.current?.scrollBy({ left: direction * scroller.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
-    <section id="shop" className="py-14 lg:py-20">
+    <section id="shop" className="pb-14 lg:pb-20">
       <div className="shell">
         <SectionHeading
           eyebrow={settings.categoriesEyebrow || "Shop by category"}

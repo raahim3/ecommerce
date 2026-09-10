@@ -10,16 +10,16 @@ export function Editorial() {
   const image = settings.editorialImage || editorialImageFallback;
   const [ref, visible] = useReveal({ threshold: 0.25 });
   const stats = [
-    [settings.editorialStat1Value || "120+", settings.editorialStat1Label || "Makers"],
-    [settings.editorialStat2Value || "18", settings.editorialStat2Label || "Countries"],
-    [settings.editorialStat3Value || "94%", settings.editorialStat3Label || "Repeat buyers"],
+    [settings.editorialStat1Value || "", settings.editorialStat1Label || "Makers"],
+    [settings.editorialStat2Value || "", settings.editorialStat2Label || "Countries"],
+    [settings.editorialStat3Value || "", settings.editorialStat3Label || "Repeat buyers"],
   ];
 
   return (
     <section className="bg-surface py-14 lg:py-20">
       <div className="shell grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
-        <div ref={ref} className="media-reveal overflow-hidden rounded-3xl bg-muted" data-visible={visible}>
-          <img src={image} alt={settings.editorialImageAlt || "A calm minimal living room with a linen sofa and warm daylight"} width={1104} height={1312} loading="lazy" className="aspect-4/5 w-full object-cover" />
+        <div ref={ref} className="overflow-hidden rounded-3xl bg-muted" data-visible={visible}>
+          <img src={image} alt={settings.editorialImageAlt || "A calm minimal living room with a linen sofa and warm daylight"} width={1104} height={1312} loading="lazy" className="aspect_4_4 w-full object-cover" />
         </div>
         <div className="min-w-0">
           <Reveal>

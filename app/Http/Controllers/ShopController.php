@@ -24,12 +24,20 @@ class ShopController extends Controller
             });
         }
 
-        // Category filter
+        // Category filter — match direct category OR subcategory
         if ($categorySlug = $request->input('category')) {
             if (strtolower($categorySlug) !== 'all') {
-                $query->whereHas('category', function ($q) use ($categorySlug) {
-                    $q->where('slug', strtolower($categorySlug))
-                      ->orWhere('name', 'like', "%{$categorySlug}%");
+                $query->where(function ($q) use ($categorySlug) {
+                    // Direct category match
+                    $q->whereHas('category', function ($cq) use ($categorySlug) {
+                        $cq->where('slug', strtolower($categorySlug))
+                           ->orWhere('name', 'like', "%{$categorySlug}%");
+                    })
+                    // OR subcategory match
+                    ->orWhereHas('subcategory', function ($cq) use ($categorySlug) {
+                        $cq->where('slug', strtolower($categorySlug))
+                           ->orWhere('name', 'like', "%{$categorySlug}%");
+                    });
                 });
             }
         }
@@ -75,9 +83,22 @@ class ShopController extends Controller
         $products = $query->paginate(12)->withQueryString();
 
         $categories = Category::where('is_active', true)
-            ->withCount('products')
+            ->withCount(['products as products_count' => function ($q) {
+                $q->where('is_active', true);
+            }])
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->map(function ($cat) {
+                // For parent categories, also count products assigned to child categories
+                if ($cat->parent_id === null) {
+                    $childIds = Category::where('parent_id', $cat->id)->pluck('id');
+                    $childCount = \App\Models\Product::where('is_active', true)
+                        ->whereIn('category_id', $childIds)
+                        ->count();
+                    $cat->products_count += $childCount;
+                }
+                return $cat;
+            });
 
         $general = Setting::get('general', []);
         $storeName = $general['storeName'] ?? 'Atelier';

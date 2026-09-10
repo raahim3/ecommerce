@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\UploadController;
 use App\Http\Controllers\Admin\ContactSubmissionController;
 use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\ExpenseController;
+use App\Http\Controllers\Admin\ReviewController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -93,4 +94,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::patch('/expenses/categories/{id}', [ExpenseController::class, 'updateCategory'])->name('expenses.categories.update');
     Route::delete('/expenses/categories/{id}', [ExpenseController::class, 'destroyCategory'])->name('expenses.categories.destroy');
     Route::get('/expenses/export', [ExpenseController::class, 'export'])->name('expenses.export');
+
+    // Reviews Management
+    Route::get('/reviews', [ReviewController::class, 'index'])->name('reviews');
+    Route::post('/reviews', [ReviewController::class, 'store'])->name('reviews.store');
+    Route::patch('/reviews/{id}', [ReviewController::class, 'update'])->name('reviews.update');
+    Route::patch('/reviews/{id}/status', [ReviewController::class, 'updateStatus'])->name('reviews.status');
+    Route::delete('/reviews/{id}', [ReviewController::class, 'destroy'])->name('reviews.destroy');
 });

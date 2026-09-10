@@ -104,6 +104,7 @@ class HomeController extends Controller
                 'quote' => $review->comment,
                 'name' => $review->author_name,
                 'role' => $review->product?->name ?: 'Verified Customer',
+                'attachments' => is_array($review->attachments) ? $review->attachments : [],
             ]);
         $reviews = ($homepage['reviewsMode'] ?? 'original') === 'manual'
             ? collect($homepage['manualReviews'] ?? [])->take(6)->values()

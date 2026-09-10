@@ -143,6 +143,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     rating: 5,
     title: "",
     content: "",
+    attachments: [],
   });
 
   // Sticky add to cart bar visibility
@@ -169,6 +170,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
         rating: Number(r.rating) || 5,
         title: r.title || "Exceptional Quality",
         content: r.comment || r.content || "",
+        attachments: Array.isArray(r.attachments) ? r.attachments : [],
         date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : (r.date || "Recently"),
         verified: r.is_verified_buyer ?? true,
         helpful: r.helpful || 0,
@@ -291,6 +293,31 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     navigate("/checkout");
   };
 
+  // Order via WhatsApp handler
+  const handleOrderViaWhatsApp = () => {
+    const contact = appSettings?.contact || {};
+    const general = appSettings?.general || {};
+    const rawPhone = contact.phone || general.phone || "";
+    const phoneDigits = rawPhone.replace(/[^\d+]/g, "").replace(/^\+/, "");
+    if (!phoneDigits) {
+      toast.error("WhatsApp number not configured.");
+      return;
+    }
+    const lines = [
+      `🛍️ *New Order via WhatsApp*`,
+      ``,
+      `*Product:* ${product.name}`,
+      chosenColor?.name ? `*Color:* ${chosenColor.name}` : null,
+      chosenSize ? `*Size:* ${chosenSize}` : null,
+      `*Qty:* ${quantity}`,
+      `*Price:* ${formatPrice(product.price * quantity)}`,
+      ``,
+      `🔗 ${window.location.href}`,
+    ].filter((l) => l !== null).join("\n");
+    const url = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(lines)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   // Frequently Bought Together Bundle calculation
   const allBundleItems = [product, ...bundleAccessories];
   const selectedBundleItems = allBundleItems.filter((_, idx) => bundleChecked[idx]);
@@ -317,6 +344,27 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     });
   };
 
+  const handleReviewAttachmentUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const uploadedImages = await Promise.all(
+      files.map((file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+        reader.readAsDataURL(file);
+      }))
+    );
+
+    setNewReviewForm((prev) => ({
+      ...prev,
+      attachments: [...(prev.attachments || []), ...uploadedImages],
+    }));
+
+    event.target.value = "";
+  };
+
   // Submit new review
   const handleReviewSubmit = (e) => {
     e.preventDefault();
@@ -333,6 +381,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
       verified: true,
       title: newReviewForm.title || "Exceptional Quality",
       content: newReviewForm.content,
+      attachments: newReviewForm.attachments || [],
       helpful: 1,
     };
 
@@ -349,7 +398,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     });
 
     setIsWriteReviewOpen(false);
-    setNewReviewForm({ author: "", rating: 5, title: "", content: "" });
+    setNewReviewForm({ author: "", rating: 5, title: "", content: "", attachments: [] });
   };
 
   // Upvote review
@@ -557,6 +606,46 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                   onChange={(e) => setNewReviewForm((f) => ({ ...f, content: e.target.value }))}
                   className="mt-1 w-full rounded-xl border border-border bg-background p-3.5 text-sm focus:border-accent focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Attachments
+                </label>
+                <div className="mt-1 flex items-center gap-3">
+                  <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border bg-background px-3 text-xs font-bold text-muted-foreground hover:border-accent hover:text-accent">
+                    <Plus className="mr-2 size-4" />
+                    Add Photos
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handleReviewAttachmentUpload}
+                    />
+                  </label>
+                </div>
+
+                {newReviewForm.attachments?.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {newReviewForm.attachments.map((attachment, index) => (
+                      <div key={`${attachment}-${index}`} className="group relative overflow-hidden rounded-xl border border-border bg-muted">
+                        <img src={attachment} alt={`Review attachment ${index + 1}`} className="aspect-square w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setNewReviewForm((prev) => ({
+                            ...prev,
+                            attachments: (prev.attachments || []).filter((item) => item !== attachment),
+                          }))}
+                          className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-slate-900/80 text-white"
+                          aria-label="Remove attachment"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-2">
@@ -898,6 +987,32 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                 >
                   Buy with Express Checkout
                 </button>
+
+                {/* Order via WhatsApp */}
+                {(() => {
+                  const contact = appSettings?.contact || {};
+                  const general = appSettings?.general || {};
+                  const rawPhone = contact.phone || general.phone || "";
+                  if (!rawPhone) return null;
+                  return (
+                    <button
+                      type="button"
+                      id="order-via-whatsapp-btn"
+                      onClick={handleOrderViaWhatsApp}
+                      className="wa-order-btn h-11 w-full rounded-full text-xs font-bold text-white active:scale-[0.99] flex items-center justify-center gap-2 transition-all duration-300"
+                      style={{
+                        background: "linear-gradient(135deg, #25d366 0%, #128c50 100%)",
+                        boxShadow: "0 4px 14px rgba(37,211,102,0.35)",
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 18, height: 18, flexShrink: 0 }} aria-hidden="true">
+                        <path d="M6.014 8.00613C6.12827 7.1024 7.30277 5.87414 8.23488 6.01043L8.23339 6.00894C9.14051 6.18132 9.85859 7.74261 10.2635 8.44465C10.5504 8.95402 10.3641 9.4701 10.0965 9.68787C9.7355 9.97883 9.17099 10.3803 9.28943 10.7834C9.5 11.5 12 14 13.2296 14.7107C13.695 14.9797 14.0325 14.2702 14.3207 13.9067C14.5301 13.6271 15.0466 13.46 15.5548 13.736C16.3138 14.178 17.0288 14.6917 17.69 15.27C18.0202 15.546 18.0977 15.9539 17.8689 16.385C17.4659 17.1443 16.3003 18.1456 15.4542 17.9421C13.9764 17.5868 8 15.27 6.08033 8.55801C5.97237 8.24048 5.99955 8.12044 6.014 8.00613Z" fill="#ffffff"/>
+                        <path fillRule="evenodd" clipRule="evenodd" d="M12 23C10.7764 23 10.0994 22.8687 9 22.5L6.89443 23.5528C5.56462 24.2177 4 23.2507 4 21.7639V19.5C1.84655 17.492 1 15.1767 1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12C23 18.0751 18.0751 23 12 23ZM6 18.6303L5.36395 18.0372C3.69087 16.4772 3 14.7331 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C11.0143 21 10.552 20.911 9.63595 20.6038L8.84847 20.3397L6 21.7639V18.6303Z" fill="#ffffff"/>
+                      </svg>
+                      Order via WhatsApp
+                    </button>
+                  );
+                })()}
               </div>
             </div>
 
@@ -1269,6 +1384,22 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                     <p className="mt-1 text-xs text-muted-foreground leading-relaxed line-clamp-3">
                       {review.content}
                     </p>
+
+                    {Array.isArray(review.attachments) && review.attachments.length > 0 && (
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        {review.attachments.map((attachment, index) => (
+                          <a
+                            key={`${attachment}-${index}`}
+                            href={attachment}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="overflow-hidden rounded-xl border border-border bg-muted"
+                          >
+                            <img src={attachment} alt={`Review attachment ${index + 1}`} className="aspect-square w-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2 text-[11px]">

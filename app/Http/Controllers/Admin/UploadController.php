@@ -14,7 +14,7 @@ class UploadController extends Controller
         $request->validate([
             'image' => ['nullable', 'file', 'mimes:jpeg,png,jpg,gif,webp,svg,pdf', 'max:20480'],
             'file' => ['nullable', 'file', 'mimes:jpeg,png,jpg,gif,webp,svg,pdf', 'max:20480'],
-            'folder' => ['nullable', 'string', 'in:products,branding,general,homepage,expenses'],
+            'folder' => ['nullable', 'string', 'in:products,branding,general,homepage,expenses,about,reviews'],
         ]);
 
         $file = $request->file('image') ?? $request->file('file');

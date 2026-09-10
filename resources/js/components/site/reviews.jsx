@@ -36,6 +36,27 @@ export function Reviews({ items = [] }) {
                 <blockquote className="mt-5 grow text-[17px] leading-relaxed font-medium">
                   “{item.quote}”
                 </blockquote>
+
+                {Array.isArray(item.attachments) && item.attachments.length > 0 && (
+                  <div className="mt-5 grid grid-cols-3 gap-2">
+                    {item.attachments.slice(0, 3).map((attachment, attachmentIndex) => (
+                      <a
+                        key={`${attachment}-${attachmentIndex}`}
+                        href={attachment}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="overflow-hidden rounded-xl border border-border bg-muted"
+                      >
+                        <img
+                          src={attachment}
+                          alt={`${item.name || "Review"} attachment ${attachmentIndex + 1}`}
+                          className="aspect-square w-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
                 <figcaption className="mt-5 flex items-center gap-2 text-sm">
                   <span className="font-semibold">{item.name}</span>
                   <span className="flex items-center gap-1 text-muted-foreground">

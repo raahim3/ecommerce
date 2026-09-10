@@ -19,6 +19,7 @@ class Review extends Model
         'comment',
         'is_verified_buyer',
         'status',
+        'attachments',
     ];
 
     protected function casts(): array
@@ -26,6 +27,7 @@ class Review extends Model
         return [
             'rating' => 'integer',
             'is_verified_buyer' => 'boolean',
+            'attachments' => 'array',
         ];
     }
 

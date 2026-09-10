@@ -25,35 +25,24 @@ import { ProductCard } from "@/components/site/product-card";
 import { QuickViewModal } from "@/components/site/quick-view-modal";
 import { SiteLayout } from "@/layouts/site-layout";
 
-const COLOR_FILTERS = [
-  { name: "Black / Obsidian", hex: "#18181b" },
-  { name: "White / Cream", hex: "#ede8df" },
-  { name: "Silver / Slate", hex: "#94a3b8" },
-  { name: "Tan / Brown", hex: "#b45309" },
-  { name: "Brass / Gold", hex: "#d97706" },
-  { name: "Olive / Green", hex: "#3f4f38" },
-];
 
 export function ShopPage({ products: serverProducts, categories: serverCategories, filters: serverFilters }) {
   const searchParams = new URLSearchParams(window.location.search);
   const setSearchParams = (params) => { router.visit(window.location.pathname + '?' + params.toString()); };
-
-  const pageTitle = "Shop Curated Essentials | Atelier";
-  const pageDesc = "Explore Atelier's collection of modern essentials. Discover luxury audio, timepieces, cashmere fashion, leather goods, and home décor.";
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": typeof window !== "undefined" ? `${window.location.origin}/` : undefined },
-      { "@type": "ListItem", "position": 2, "name": "Shop", "item": typeof window !== "undefined" ? window.location.href.split("?")[0] : undefined },
-    ],
-  };
 
   const sourceProducts = useMemo(() => {
     if (serverProducts?.data) return serverProducts.data;
     if (Array.isArray(serverProducts) && serverProducts.length > 0) return serverProducts;
     return [];
   }, [serverProducts]);
+
+  // Compute dynamic max price from actual products (default 10000 if no products yet)
+  const dynamicMaxPrice = useMemo(() => {
+    if (sourceProducts.length === 0) return 10000;
+    const max = Math.max(...sourceProducts.map(p => parseFloat(p.price) || 0));
+    // Round up to nearest nice number
+    return Math.ceil(max / 1000) * 1000 || 10000;
+  }, [sourceProducts]);
 
   const sourceCategories = useMemo(() => {
     if (Array.isArray(serverCategories) && serverCategories.length > 0) {
@@ -81,7 +70,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedPricePreset, setSelectedPricePreset] = useState("all");
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  const [priceRange, setPriceRange] = useState([0, 10000000]); // Very large default — will be clamped by dynamicMaxPrice
   const [minRating, setMinRating] = useState(0);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlySale, setOnlySale] = useState(initialSale);
@@ -135,13 +124,14 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     setVisibleLimit(12);
   };
 
-  // Price preset handler
+  // Price preset handler — scales with dynamic max price
   const handlePricePreset = (preset) => {
     setSelectedPricePreset(preset);
-    if (preset === "all") setPriceRange([0, 500]);
-    else if (preset === "under-100") setPriceRange([0, 100]);
-    else if (preset === "100-200") setPriceRange([100, 200]);
-    else if (preset === "200-plus") setPriceRange([200, 500]);
+    const max = dynamicMaxPrice;
+    if (preset === "all") setPriceRange([0, 10000000]);
+    else if (preset === "under-100") setPriceRange([0, max * 0.2]);
+    else if (preset === "100-200") setPriceRange([max * 0.2, max * 0.5]);
+    else if (preset === "200-plus") setPriceRange([max * 0.5, 10000000]);
   };
 
   // Reset all filters
@@ -149,7 +139,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     setSearchQuery("");
     setSelectedCategory("All");
     setSelectedPricePreset("all");
-    setPriceRange([0, 500]);
+    setPriceRange([0, 10000000]);
     setMinRating(0);
     setOnlyInStock(false);
     setOnlySale(false);
@@ -183,9 +173,10 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
           if (!matchName && !matchCat && !matchDesc && !matchTag) return false;
         }
 
-        // Price filter
+        // Price filter — use dynamic max so high-priced products are not filtered by default
         const priceNum = parseFloat(product.price);
-        if (priceNum < priceRange[0] || priceNum > priceRange[1]) {
+        const effectiveMax = priceRange[1] >= 9999999 ? Infinity : priceRange[1];
+        if (priceNum < priceRange[0] || priceNum > effectiveMax) {
           return false;
         }
 

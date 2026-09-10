@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { AdminLayout } from "@/layouts/admin-layout";
-import { RichTextEditor } from "@/components/admin/rich-text-editor";
+import { RichTextEditor } from "@/components/admin/RichTextEditor";
 
 const TABS = [
   { id: "general", label: "General & Branding", icon: Globe },
@@ -76,6 +76,23 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
   const [activeTab, setActiveTab] = useState("general");
   const [savingGroup, setSavingGroup] = useState(null);
   const [countriesList, setCountriesList] = useState(initialCountries);
+
+  const flattenCategoryOptions = (items = [], depth = 0) => {
+    const flattened = [];
+
+    items.forEach((category) => {
+      const label = depth === 0 ? category.name : `${"— ".repeat(depth)}${category.name}`;
+      flattened.push({ ...category, label });
+
+      if (Array.isArray(category.children) && category.children.length > 0) {
+        flattened.push(...flattenCategoryOptions(category.children, depth + 1));
+      }
+    });
+
+    return flattened;
+  };
+
+  const categoryOptions = useMemo(() => flattenCategoryOptions(categories.filter((category) => !category.parent_id)), [categories]);
 
   useEffect(() => {
     if (countriesList.length === 0) {
@@ -119,6 +136,16 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
     heroImageAlt: "Model wearing an off-white oversized wool coat against a soft concrete wall",
     heroProductId: "",
     heroBadge: "Just dropped",
+    heroEnabled: true,
+    categoriesEnabled: true,
+    trendingEnabled: true,
+    flashSaleEnabled: true,
+    bestSellerEnabled: true,
+    editorialEnabled: true,
+    reviewsEnabled: true,
+    newsletterEnabled: true,
+    socialGalleryEnabled: true,
+    benefitsEnabled: true,
     categoriesEyebrow: "Shop by category",
     categoriesTitle: "Everything, carefully edited.",
     categoriesSubtitle: "Four departments, one standard of quality.",
@@ -148,11 +175,11 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
     editorialDescription: "Thoughtfully selected products. Exceptional quality. Designed for the way you live — and made by people we know by name.",
     editorialImage: "",
     editorialImageAlt: "A calm minimal living room with a linen sofa and warm daylight",
-    editorialStat1Value: "120+",
+    editorialStat1Value: "",
     editorialStat1Label: "Makers",
-    editorialStat2Value: "18",
+    editorialStat2Value: "",
     editorialStat2Label: "Countries",
-    editorialStat3Value: "94%",
+    editorialStat3Value: "",
     editorialStat3Label: "Repeat buyers",
     editorialActionLabel: "Our story",
     editorialActionUrl: "/about",
@@ -170,6 +197,88 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
     socialGalleryImages: [],
     ...(settings.homepage || {}),
   });
+  const renderSectionToggle = (key, label, description) => {
+    const isVisible = homepage[key] ?? true;
+
+    return (
+      <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
+          <p className="mt-1 text-xs text-slate-500">{description}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setHomepage({ ...homepage, [key]: !isVisible })}
+          className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5"
+          aria-label={isVisible ? `Hide ${label}` : `Show ${label}`}
+        >
+          {isVisible ? (
+            <>
+              <ToggleRight className="size-8 text-emerald-500" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Visible</span>
+            </>
+          ) : (
+            <>
+              <ToggleLeft className="size-8 text-slate-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Hidden</span>
+            </>
+          )}
+        </button>
+      </div>
+    );
+  };
+
+  const renderHomepageImageField = (field, label) => (
+    <div key={field}>
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
+        <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-violet-600 hover:text-violet-800">
+          <Upload className="size-3" />
+          <span>Upload</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+
+              const formData = new FormData();
+              formData.append("image", file);
+              formData.append("folder", "homepage");
+
+              try {
+                const response = await fetch("/admin/api/upload", {
+                  method: "POST",
+                  headers: { "X-CSRF-TOKEN": csrfToken() },
+                  body: formData,
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.url) {
+                  throw new Error(data.message || "Upload failed");
+                }
+
+                setHomepage((prev) => ({ ...prev, [field]: data.url }));
+                toast.success(`${label} uploaded successfully.`);
+              } catch (error) {
+                toast.error(`${label} upload failed.`);
+              }
+            }}
+          />
+        </label>
+      </div>
+      <input
+        type="text"
+        value={homepage[field] || ""}
+        onChange={(e) => setHomepage({ ...homepage, [field]: e.target.value })}
+        placeholder="Paste URL or click Upload"
+        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+      />
+    </div>
+  );
+
   const [navigation, setNavigation] = useState({
     marqueeText: "Free shipping on orders over {currency}100 • Easy 30-day returns • Use code ATELIER10 for 10% off",
     headerMenuItems: [],
@@ -181,7 +290,9 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
   const [contact, setContact] = useState({
     eyebrow: "Client Services", title: "How can we assist you?", description: "Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.",
     emailTitle: "Email Client Care", emailDescription: "Average reply time: under 2 hours during studio hours.", email: "care@atelier-studios.com",
-    phoneTitle: "Phone Concierge", phoneDescription: "Monday-Saturday, 9:00 AM - 6:00 PM EST.", phone: "+1 (800) 555-ATELIER", messageTitle: "Send a Message", faqTitle: "Frequently Asked Questions", faqDescription: "Find quick answers to common questions.", faqs: [],
+    phoneTitle: "Phone Concierge", phoneDescription: "Monday-Saturday, 9:00 AM - 6:00 PM EST.", phone: "+1 (800) 555-ATELIER",
+    chatTitle: "Live Stylist Chat", chatDescription: "Instant guidance on garment sizing and curated pairings.", chatButtonLabel: "Start Live Chat Session →",
+    messageTitle: "Send a Message", faqTitle: "Frequently Asked Questions", faqDescription: "Find quick answers to common questions.", faqs: [],
     ...(settings.contact || {}),
   });
   const [legal, setLegal] = useState({
@@ -869,7 +980,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <div key={index} className="mt-3 grid grid-cols-[1fr_140px_1fr_auto] gap-2">
                       <input value={item.label || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, label: e.target.value } : x) })} placeholder="Label" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />
                       <select value={item.type || "page"} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, type: e.target.value, target: "" } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="page">Page</option><option value="category">Category</option><option value="custom">Custom URL</option></select>
-                      {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
+                      {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categoryOptions.map((c) => <option key={`${c.id}-${c.parent_id ?? "root"}`} value={c.id}>{c.label}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
                       <button type="button" onClick={() => setNavigation({ ...navigation, headerMenuItems: navigation.headerMenuItems.filter((_, i) => i !== index) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button>
                     </div>
                   ))}
@@ -884,7 +995,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                       <div key={index} className="mt-3 grid grid-cols-[1fr_120px_1fr_auto] gap-2">
                         <input value={item.label || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, label: e.target.value } : x) })} placeholder="Label" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />
                         <select value={item.type || "page"} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, type: e.target.value, target: "" } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="page">Page</option><option value="category">Category</option><option value="custom">Custom URL</option></select>
-                        {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
+                        {item.type === "category" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select category</option>{categoryOptions.map((c) => <option key={`${c.id}-${c.parent_id ?? "root"}`} value={c.slug}>{c.label}</option>)}</select> : item.type === "page" ? <select value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 px-2 text-xs"><option value="">Select page</option><option value="shop">Shop</option><option value="about">About</option><option value="contact">Contact</option><option value="wishlist">Wishlist</option><option value="account">Account</option></select> : <input value={item.target || ""} onChange={(e) => setNavigation({ ...navigation, [group]: navigation[group].map((x, i) => i === index ? { ...x, target: e.target.value } : x) })} placeholder="https://... or /path" className="h-9 rounded-lg border border-slate-200 px-2 text-xs" />}
                         <button type="button" onClick={() => setNavigation({ ...navigation, [group]: navigation[group].filter((_, i) => i !== index) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button>
                       </div>
                     ))}
@@ -899,7 +1010,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
             <div className="space-y-5">
               <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h2 className="text-base font-bold text-slate-900">Contact Page</h2><p className="mt-0.5 text-xs text-slate-500">Manage contact copy and frequently asked questions.</p></div><button type="button" onClick={() => handleSaveSettings("contact", contact)} disabled={savingGroup === "contact"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "contact" ? "Saving..." : "Save Changes"}</button></div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[["eyebrow", "Eyebrow"], ["title", "Page Title"], ["description", "Page Description"], ["emailTitle", "Email Card Title"], ["emailDescription", "Email Card Description"], ["email", "Support Email"], ["phoneTitle", "Phone Card Title"], ["phoneDescription", "Phone Card Description"], ["phone", "Phone Number"], ["messageTitle", "Message Form Title"], ["faqTitle", "FAQ Title"], ["faqDescription", "FAQ Description"]].map(([field, label]) => <div key={field} className={field === "description" || field === "faqDescription" ? "sm:col-span-2" : ""}><label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label><input value={contact[field] || ""} onChange={(e) => setContact({ ...contact, [field]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /></div>)}</div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[["eyebrow", "Eyebrow"], ["title", "Page Title"], ["description", "Page Description"], ["emailTitle", "Email Card Title"], ["emailDescription", "Email Card Description"], ["email", "Support Email"], ["phoneTitle", "Phone Card Title"], ["phoneDescription", "Phone Card Description"], ["phone", "Phone Number"], ["chatTitle", "Chat Card Title"], ["chatDescription", "Chat Card Description"], ["chatButtonLabel", "Chat Button Label"], ["messageTitle", "Message Form Title"], ["faqTitle", "FAQ Title"], ["faqDescription", "FAQ Description"], ["metaTitle", "Meta Title"], ["metaDescription", "Meta Description"], ["metaKeywords", "Meta Keywords"]].map(([field, label]) => <div key={field} className={field === "description" || field === "faqDescription" || field === "metaDescription" || field === "chatDescription" ? "sm:col-span-2" : ""}><label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label><input value={contact[field] || ""} onChange={(e) => setContact({ ...contact, [field]: e.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /></div>)}</div>
                 <div className="space-y-3 border-t border-slate-100 pt-5"><div className="flex items-center justify-between"><h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Frequently Asked Questions</h3><button type="button" onClick={() => setContact({ ...contact, faqs: [...(contact.faqs || []), { id: Date.now(), category: "General", q: "", a: "" }] })} className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-bold"><Plus className="size-3.5" /> Add FAQ</button></div>{(contact.faqs || []).map((faq, index) => <div key={faq.id || index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]"><input value={faq.category || ""} placeholder="Category" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, category: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs" /><input value={faq.q || ""} placeholder="Question" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, q: e.target.value } : x) })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs" /><button type="button" onClick={() => setContact({ ...contact, faqs: contact.faqs.filter((x) => x.id !== faq.id) })} className="grid size-9 place-items-center rounded-lg text-red-500 hover:bg-red-50"><Trash2 className="size-3.5" /></button></div><textarea value={faq.a || ""} placeholder="Answer" onChange={(e) => setContact({ ...contact, faqs: contact.faqs.map((x, i) => i === index ? { ...x, a: e.target.value } : x) })} rows={3} className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs" /></div>)}{(contact.faqs || []).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 p-5 text-center text-xs text-slate-400">No custom FAQs configured. Add one to replace the default FAQ list.</p>}</div>
               </div>
             </div>
@@ -908,7 +1019,158 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
           {(activeTab === "about" || activeTab === "terms" || activeTab === "privacy") && (() => {
             const data = legal[activeTab];
             const label = activeTab === "about" ? "About Page" : activeTab === "terms" ? "Terms of Service" : "Privacy Policy";
-            return <div className="space-y-5"><div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8"><div className="flex items-center justify-between border-b border-slate-100 pb-4"><div><h2 className="text-base font-bold text-slate-900">{label}</h2><p className="mt-0.5 text-xs text-slate-500">Edit this public page with rich text formatting.</p></div><button type="button" onClick={() => handleSaveSettings(activeTab, data)} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white"><Save className="size-3.5" />Save Page</button></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><input value={data.eyebrow || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, eyebrow: e.target.value } })} placeholder="Eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /><input value={data.title || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, title: e.target.value } })} placeholder="Title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" /><input value={data.intro || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, intro: e.target.value } })} placeholder="Intro" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs sm:col-span-2" /></div>{activeTab === "about" && <input value={data.image || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, image: e.target.value } })} placeholder="About image URL" className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />}<RichTextEditor value={data.body || ""} onChange={(body) => setLegal({ ...legal, [activeTab]: { ...data, body } })} /></div></div>;
+            return (
+              <div className="space-y-5">
+                <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">{label}</h2>
+                      <p className="mt-0.5 text-xs text-slate-500">{activeTab === "about" ? "Edit the About page content blocks and image URLs." : "Edit this public page with rich text formatting."}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveSettings(activeTab, data)}
+                      disabled={savingGroup === activeTab}
+                      className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      <Save className="size-3.5" />
+                      {savingGroup === activeTab ? "Saving..." : "Save Page"}
+                    </button>
+                  </div>
+
+                  {activeTab === "about" ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <input value={data.eyebrow || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, eyebrow: e.target.value } })} placeholder="Eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, title: e.target.value } })} placeholder="Main Title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <textarea value={data.intro || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, intro: e.target.value } })} placeholder="Intro paragraph" rows={3} className="sm:col-span-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                        <div className="sm:col-span-2">
+                          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Image</label>
+                            <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold text-violet-600 hover:text-violet-800">
+                              <Upload className="size-3" />
+                              <span>Upload</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append("image", file);
+                                  fd.append("folder", "about");
+                                  try {
+                                    const res = await fetch("/admin/api/upload", { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken() }, body: fd });
+                                    const d = await res.json();
+                                    if (res.ok && d.url) {
+                                      setLegal((prev) => ({ ...prev, about: { ...prev.about, image: d.url } }));
+                                      toast.success("About hero image uploaded!");
+                                    }
+                                  } catch {
+                                    toast.error("About hero image upload failed.");
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                          <input
+                            value={data.image || ""}
+                            onChange={(e) => setLegal({ ...legal, about: { ...data, image: e.target.value } })}
+                            placeholder="Paste URL or click Upload"
+                            className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs"
+                          />
+                        </div>
+                        <input value={data.imageAlt || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, imageAlt: e.target.value } })} placeholder="Hero Image Alt Text" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <input value={data.storyEyebrow || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyEyebrow: e.target.value } })} placeholder="Story Eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.storyTitle || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyTitle: e.target.value } })} placeholder="Story Title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <textarea value={data.storyBody1 || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyBody1: e.target.value } })} placeholder="Story paragraph 1" rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                        <textarea value={data.storyBody2 || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyBody2: e.target.value } })} placeholder="Story paragraph 2" rows={3} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                        <input value={data.storyStat1Value || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyStat1Value: e.target.value } })} placeholder="Stat 1 value" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.storyStat1Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyStat1Label: e.target.value } })} placeholder="Stat 1 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.storyStat2Value || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyStat2Value: e.target.value } })} placeholder="Stat 2 value" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.storyStat2Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, storyStat2Label: e.target.value } })} placeholder="Stat 2 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-100 pt-5">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Our Standard Cards</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <input value={data.standardsEyebrow || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standardsEyebrow: e.target.value } })} placeholder="Standards eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standardsTitle || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standardsTitle: e.target.value } })} placeholder="Standards title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards1Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards1Title: e.target.value } })} placeholder="Card 1 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards1Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards1Description: e.target.value } })} placeholder="Card 1 description" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards2Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards2Title: e.target.value } })} placeholder="Card 2 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards2Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards2Description: e.target.value } })} placeholder="Card 2 description" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards3Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards3Title: e.target.value } })} placeholder="Card 3 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards3Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards3Description: e.target.value } })} placeholder="Card 3 description" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards4Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards4Title: e.target.value } })} placeholder="Card 4 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.standards4Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, standards4Description: e.target.value } })} placeholder="Card 4 description" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-100 pt-5">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Global Footprint Cards</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <input value={data.footprintEyebrow || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprintEyebrow: e.target.value } })} placeholder="Footprint eyebrow" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.footprintTitle || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprintTitle: e.target.value } })} placeholder="Footprint title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.footprintDescription || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprintDescription: e.target.value } })} placeholder="Footprint description" rows={2} className="md:col-span-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                          <input value={data.footprint1Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint1Label: e.target.value } })} placeholder="Location 1 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.footprint1Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint1Title: e.target.value } })} placeholder="Location 1 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.footprint1Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint1Description: e.target.value } })} placeholder="Location 1 description" rows={2} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                          <input value={data.footprint2Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint2Label: e.target.value } })} placeholder="Location 2 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.footprint2Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint2Title: e.target.value } })} placeholder="Location 2 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.footprint2Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint2Description: e.target.value } })} placeholder="Location 2 description" rows={2} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                          <input value={data.footprint3Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint3Label: e.target.value } })} placeholder="Location 3 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.footprint3Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint3Title: e.target.value } })} placeholder="Location 3 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.footprint3Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint3Description: e.target.value } })} placeholder="Location 3 description" rows={2} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                          <input value={data.footprint4Label || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint4Label: e.target.value } })} placeholder="Location 4 label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.footprint4Title || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint4Title: e.target.value } })} placeholder="Location 4 title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.footprint4Description || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, footprint4Description: e.target.value } })} placeholder="Location 4 description" rows={2} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-100 pt-5">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Call to Action</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <input value={data.ctaTitle || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, ctaTitle: e.target.value } })} placeholder="CTA title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.ctaDescription || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, ctaDescription: e.target.value } })} placeholder="CTA description" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.actionLabel || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, actionLabel: e.target.value } })} placeholder="Button label" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.actionUrl || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, actionUrl: e.target.value } })} placeholder="Button URL" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 border-t border-slate-100 pt-5">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">SEO Metadata</h3>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <input value={data.metaTitle || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, metaTitle: e.target.value } })} placeholder="Meta Title" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <input value={data.metaKeywords || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, metaKeywords: e.target.value } })} placeholder="Meta Keywords" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                          <textarea value={data.metaDescription || ""} onChange={(e) => setLegal({ ...legal, about: { ...data, metaDescription: e.target.value } })} placeholder="Meta Description" rows={3} className="md:col-span-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <input value={data.eyebrow || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, eyebrow: e.target.value } })} placeholder="Eyebrow (e.g. Legal)" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.title || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, title: e.target.value } })} placeholder="Title (e.g. Terms of Service)" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs" />
+                        <input value={data.intro || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, intro: e.target.value } })} placeholder="Introduction paragraph" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs sm:col-span-2" />
+                      </div>
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <RichTextEditor
+                          value={data.body || ""}
+                          onChange={(body) => setLegal({ ...legal, [activeTab]: { ...data, body } })}
+                          placeholder={`Write ${label} content here...`}
+                          height={380}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
           })()}
 
           {activeTab === "homepage" && (
@@ -930,6 +1192,31 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                   </button>
                 </div>
 
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Visibility</p>
+                    <p className="mt-1 text-xs text-slate-500">Hide or show the homepage hero section for visitors.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHomepage({ ...homepage, heroEnabled: !(homepage.heroEnabled ?? true) })}
+                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1.5"
+                    aria-label={homepage.heroEnabled === false ? "Enable hero section" : "Disable hero section"}
+                  >
+                    {homepage.heroEnabled === false ? (
+                      <>
+                        <ToggleLeft className="size-8 text-slate-400" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Hidden</span>
+                      </>
+                    ) : (
+                      <>
+                        <ToggleRight className="size-8 text-emerald-500" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Visible</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {[
                     ["heroEyebrow", "Eyebrow"],
@@ -938,8 +1225,6 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     ["heroPrimaryUrl", "Primary Button URL"],
                     ["heroSecondaryLabel", "Secondary Button Label"],
                     ["heroSecondaryUrl", "Secondary Button URL"],
-                    ["heroImage", "Hero Image URL"],
-                    ["heroImageAlt", "Hero Image Alt Text"],
                   ].map(([field, label]) => (
                     <div key={field}>
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</label>
@@ -951,6 +1236,16 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                       />
                     </div>
                   ))}
+                  {renderHomepageImageField("heroImage", "Hero Image URL")}
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Image Alt Text</label>
+                    <input
+                      type="text"
+                      value={homepage.heroImageAlt || ""}
+                      onChange={(e) => setHomepage({ ...homepage, heroImageAlt: e.target.value })}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
                   <div className="sm:col-span-2">
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Hero Title</label>
                     <textarea
@@ -992,6 +1287,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Homepage Categories Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Set the section copy and choose which categories appear below the hero.</p>
                   </div>
+                  {renderSectionToggle("categoriesEnabled", "Categories Section", "Show or hide the homepage categories section for visitors.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       ["categoriesEyebrow", "Section Eyebrow"],
@@ -1042,6 +1338,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Trending Products Section</h3>
                       <p className="mt-0.5 text-xs text-slate-500">Choose automatic sales-based ranking or a manual product list.</p>
                     </div>
+                    {renderSectionToggle("trendingEnabled", "Trending Products Section", "Show or hide the trending products section.")}
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {[
                         ["trendingEyebrow", "Section Eyebrow"],
@@ -1107,12 +1404,12 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Flash Sale Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Control the campaign content, background, and countdown duration.</p>
                   </div>
+                  {renderSectionToggle("flashSaleEnabled", "Flash Sale Section", "Show or hide the flash sale section.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       ["flashSaleEyebrow", "Sale Eyebrow"],
                       ["flashSaleActionLabel", "Button Label"],
                       ["flashSaleActionUrl", "Button URL"],
-                      ["flashSaleImage", "Background Image URL"],
                       ["flashSaleDurationHours", "Countdown Hours"],
                     ].map(([field, label]) => (
                       <div key={field}>
@@ -1126,6 +1423,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                         />
                       </div>
                     ))}
+                    {renderHomepageImageField("flashSaleImage", "Background Image URL")}
                     <div className="sm:col-span-2">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sale Title</label>
                       <textarea
@@ -1152,6 +1450,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Best Sellers Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Configure the section copy and the category tabs shown on the homepage.</p>
                   </div>
+                  {renderSectionToggle("bestSellerEnabled", "Best Sellers Section", "Show or hide the best sellers section.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       ["bestSellerEyebrow", "Section Eyebrow"],
@@ -1201,11 +1500,10 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Editorial Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Manage the editorial story, image, statistics, and link.</p>
                   </div>
+                  {renderSectionToggle("editorialEnabled", "Editorial Section", "Show or hide the editorial section.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       ["editorialEyebrow", "Eyebrow"],
-                      ["editorialImage", "Image URL"],
-                      ["editorialImageAlt", "Image Alt Text"],
                       ["editorialActionLabel", "Link Label"],
                       ["editorialActionUrl", "Link URL"],
                       ["editorialStat1Value", "Stat 1 Value"],
@@ -1225,6 +1523,16 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                         />
                       </div>
                     ))}
+                    {renderHomepageImageField("editorialImage", "Image URL")}
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Image Alt Text</label>
+                      <input
+                        type="text"
+                        value={homepage.editorialImageAlt || ""}
+                        onChange={(e) => setHomepage({ ...homepage, editorialImageAlt: e.target.value })}
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Title</label>
                       <textarea
@@ -1252,6 +1560,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                       <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Reviews Section</h3>
                       <p className="mt-0.5 text-xs text-slate-500">Show original customer reviews or manage homepage reviews manually.</p>
                     </div>
+                    {renderSectionToggle("reviewsEnabled", "Reviews Section", "Show or hide the reviews section.")}
                     <button
                       type="button"
                       onClick={() => setHomepage({
@@ -1317,9 +1626,18 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
 
                 <div className="space-y-4 border-t border-slate-100 pt-5">
                   <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Benefits Section</h3>
+                    <p className="mt-0.5 text-xs text-slate-500">Show or hide the homepage benefits strip.</p>
+                  </div>
+                  {renderSectionToggle("benefitsEnabled", "Benefits Section", "Show or hide the benefits section.")}
+                </div>
+
+                <div className="space-y-4 border-t border-slate-100 pt-5">
+                  <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Newsletter Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Customize the subscription call-to-action shown on the homepage.</p>
                   </div>
+                  {renderSectionToggle("newsletterEnabled", "Newsletter Section", "Show or hide the newsletter section.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[["newsletterEyebrow", "Eyebrow"], ["newsletterPlaceholder", "Email Placeholder"], ["newsletterButtonLabel", "Button Label"], ["newsletterTitle", "Title"]].map(([field, label]) => (
                       <div key={field}>
@@ -1339,6 +1657,7 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                     <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Social Gallery Section</h3>
                     <p className="mt-0.5 text-xs text-slate-500">Upload gallery images and set the section heading. Click any image on the storefront for a large preview.</p>
                   </div>
+                  {renderSectionToggle("socialGalleryEnabled", "Social Gallery Section", "Show or hide the social gallery section.")}
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[["socialEyebrow", "Eyebrow"], ["socialTitle", "Title"]].map(([field, label]) => (
                       <div key={field}>

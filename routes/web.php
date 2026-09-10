@@ -97,21 +97,23 @@ Route::get('/about', function () {
     $general = \App\Models\Setting::get('general', []);
     $storeName = $general['storeName'] ?? 'Atelier';
     $canonicalUrl = route('about');
-    return Inertia::render('About', ['pageContent' => \App\Models\Setting::get('about', [])])
+    $pageContent = \App\Models\Setting::get('about', []);
+
+    return Inertia::render('About', ['pageContent' => $pageContent])
         ->withViewData([
-            'metaTitle' => 'Our Story | ' . $storeName,
-            'metaDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+            'metaTitle' => $pageContent['metaTitle'] ?? ('Our Story | ' . $storeName),
+            'metaDescription' => $pageContent['metaDescription'] ?? ('Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.'),
             'metaRobots' => 'index,follow',
             'canonicalUrl' => $canonicalUrl,
             'ogType' => 'website',
-            'ogTitle' => 'Our Story | ' . $storeName,
-            'ogDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+            'ogTitle' => $pageContent['metaTitle'] ?? ('Our Story | ' . $storeName),
+            'ogDescription' => $pageContent['metaDescription'] ?? ('Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.'),
             'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
             'ogUrl' => $canonicalUrl,
             'ogSiteName' => $storeName,
             'twitterCard' => 'summary_large_image',
-            'twitterTitle' => 'Our Story | ' . $storeName,
-            'twitterDescription' => 'Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.',
+            'twitterTitle' => $pageContent['metaTitle'] ?? ('Our Story | ' . $storeName),
+            'twitterDescription' => $pageContent['metaDescription'] ?? ('Discover ' . $storeName . '\'s approach to considered design, enduring materials and responsible craftsmanship.'),
         ]);
 })->name('about');
 
@@ -161,23 +163,29 @@ Route::get('/privacy-policy', function () {
 
 Route::get('/contact', function () {
     $general = \App\Models\Setting::get('general', []);
+    $contact = \App\Models\Setting::get('contact', []);
     $storeName = $general['storeName'] ?? 'Atelier';
     $canonicalUrl = route('contact');
+    $metaTitle = $contact['metaTitle'] ?? 'Contact ' . $storeName . ' Client Care';
+    $metaDescription = $contact['metaDescription'] ?? 'Get help with orders, shipping, returns, sizing and product questions from ' . $storeName . ' Client Care.';
+    $metaKeywords = $contact['metaKeywords'] ?? null;
+
     return Inertia::render('Contact')
         ->withViewData([
-            'metaTitle' => 'Contact ' . $storeName . ' Client Care',
-            'metaDescription' => 'Get help with orders, shipping, returns, sizing and product questions from ' . $storeName . ' Client Care.',
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
             'metaRobots' => 'index,follow',
+            'metaKeywords' => $metaKeywords,
             'canonicalUrl' => $canonicalUrl,
             'ogType' => 'website',
-            'ogTitle' => 'Contact ' . $storeName . ' Client Care',
-            'ogDescription' => 'Get help with orders, shipping, returns, sizing and product questions.',
+            'ogTitle' => $metaTitle,
+            'ogDescription' => $metaDescription,
             'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
             'ogUrl' => $canonicalUrl,
             'ogSiteName' => $storeName,
             'twitterCard' => 'summary_large_image',
-            'twitterTitle' => 'Contact ' . $storeName . ' Client Care',
-            'twitterDescription' => 'Get help with orders, shipping, returns, sizing and product questions.',
+            'twitterTitle' => $metaTitle,
+            'twitterDescription' => $metaDescription,
         ]);
 })->name('contact');
 

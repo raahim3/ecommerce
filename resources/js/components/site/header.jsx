@@ -11,7 +11,7 @@ const PAGE_URLS = { shop: "/shop", about: "/about", contact: "/contact", wishlis
 
 function menuHref(item, categories) {
   if (item.type === "category") {
-    const category = categories.find((entry) => String(entry.id) === String(item.target));
+    const category = categories.find((entry) => String(entry.id) === String(item.target) || entry.slug === item.target);
     return category ? `/shop?category=${encodeURIComponent(category.slug || category.name)}` : "/shop";
   }
   return item.type === "custom" ? item.target || "/" : PAGE_URLS[item.target] || item.target || "/";

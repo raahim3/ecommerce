@@ -31,7 +31,7 @@ export function Trending({ items }) {
   };
 
   return (
-    <section id="trending" className="bg-surface py-14 lg:py-20">
+    <section id="trending" className="bg-surface pt-14 lg:pt-20">
       <div className="shell">
         <SectionHeading
           eyebrow={settings.trendingEyebrow || "Trending now"}

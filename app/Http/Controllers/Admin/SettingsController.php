@@ -20,7 +20,13 @@ class SettingsController extends Controller
     {
         $coupons = Coupon::orderByDesc('created_at')->get();
         $products = Product::active()->orderBy('name')->get(['id', 'name', 'price']);
-        $categories = Category::whereNull('parent_id')->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug']);
+        $categories = Category::where('is_active', true)
+            ->with(['children' => function ($query) {
+                $query->where('is_active', true)->orderBy('sort_order')->orderBy('name');
+            }])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'slug', 'parent_id']);
 
         $settings = [
             'general' => Setting::get('general', [
@@ -45,6 +51,16 @@ class SettingsController extends Controller
                 'heroSecondaryUrl' => '/shop?sort=newest',
                 'heroImage' => '',
                 'heroImageAlt' => 'Model wearing an off-white oversized wool coat against a soft concrete wall',
+                'heroEnabled' => true,
+                'categoriesEnabled' => true,
+                'trendingEnabled' => true,
+                'flashSaleEnabled' => true,
+                'bestSellerEnabled' => true,
+                'editorialEnabled' => true,
+                'reviewsEnabled' => true,
+                'newsletterEnabled' => true,
+                'socialGalleryEnabled' => true,
+                'benefitsEnabled' => true,
                 'heroEditorEyebrow' => "Editor's pick",
                 'heroEditorTitle' => 'Wool Overcoat — Bone',
                 'heroEditorPrice' => '420',
@@ -73,9 +89,14 @@ class SettingsController extends Controller
             'contact' => Setting::get('contact', [
                 'eyebrow' => 'Client Services', 'title' => 'How can we assist you?', 'description' => 'Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.',
                 'emailTitle' => 'Email Client Care', 'emailDescription' => 'Average reply time: under 2 hours during studio hours.', 'email' => 'care@atelier-studios.com',
-                'phoneTitle' => 'Phone Concierge', 'phoneDescription' => 'Monday-Saturday, 9:00 AM - 6:00 PM EST.', 'phone' => '+1 (800) 555-ATELIER', 'messageTitle' => 'Send a Message', 'faqTitle' => 'Frequently Asked Questions', 'faqDescription' => 'Find quick answers to common questions.', 'faqs' => [],
+                'phoneTitle' => 'Phone Concierge', 'phoneDescription' => 'Monday-Saturday, 9:00 AM - 6:00 PM EST.', 'phone' => '+1 (800) 555-ATELIER',
+                'chatTitle' => 'Live Stylist Chat', 'chatDescription' => 'Instant guidance on garment sizing and curated pairings.', 'chatButtonLabel' => 'Start Live Chat Session →',
+                'messageTitle' => 'Send a Message', 'faqTitle' => 'Frequently Asked Questions', 'faqDescription' => 'Find quick answers to common questions.', 'faqs' => [],
+                'metaTitle' => 'Contact Atelier Client Care',
+                'metaDescription' => 'Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care.',
+                'metaKeywords' => 'contact support, customer care, order help, shipping support, product sizing, Atelier',
             ]),
-            'about' => Setting::get('about', ['eyebrow' => 'The Atelier Manifesto', 'title' => 'Purity in form. Integrity in craft.', 'intro' => 'We exist to counter the culture of disposable trends.', 'image' => '', 'body' => '<h2>Our story</h2><p>We make considered essentials with integrity, quality, and care.</p>', 'storyEyebrow' => 'Where it began', 'storyTitle' => 'A refusal to compromise on materials.', 'storyBody1' => 'Founded in 2021 by a collective of industrial designers and textile purists, Atelier began with a single question: Why should modern luxury be so noisy, fragile, and marked up?', 'storyBody2' => 'We eliminated the traditional retail middlemen, licensing fees, and seasonal fashion calendars.', 'storyStat1Value' => '100%', 'storyStat1Label' => 'Direct-from-maker supply chain', 'storyStat2Value' => 'Zero', 'storyStat2Label' => 'Deadstock inventory landfills', 'standardsEyebrow' => 'Our Standard', 'standardsTitle' => 'Four Unwavering Commitments', 'footprintEyebrow' => 'Global Footprint', 'footprintTitle' => 'Where Our Makers Create', 'footprintDescription' => 'Partnering with generational workshops renowned for specific mastery.', 'ctaTitle' => 'Experience the Atelier difference.', 'ctaDescription' => 'Explore our current collection of audio, timepieces, knitwear, and lifestyle objects.', 'actionLabel' => 'Shop Current Collection', 'actionUrl' => '/shop']),
+            'about' => Setting::get('about', ['eyebrow' => 'The Atelier Manifesto', 'title' => 'Purity in form. Integrity in craft.', 'intro' => 'We exist to counter the culture of disposable trends.', 'image' => '', 'imageAlt' => 'Atelier workspace and design sketches', 'body' => '<h2>Our story</h2><p>We make considered essentials with integrity, quality, and care.</p>', 'metaTitle' => 'Our Story | Atelier', 'metaDescription' => 'Discover Atelier\'s approach to considered design, enduring materials and responsible craftsmanship.', 'metaKeywords' => 'about atelier, our story, craftsmanship, considered design, responsible materials', 'storyEyebrow' => 'Where it began', 'storyTitle' => 'A refusal to compromise on materials.', 'storyBody1' => 'Founded in 2021 by a collective of industrial designers and textile purists, Atelier began with a single question: Why should modern luxury be so noisy, fragile, and marked up?', 'storyBody2' => 'We eliminated the traditional retail middlemen, licensing fees, and seasonal fashion calendars. By producing in controlled, limited runs with master makers across Italy, France, Japan, and Portugal, we deliver uncompromising grade-A quality directly to your doorstep.', 'storyStat1Value' => '100%', 'storyStat1Label' => 'Direct-from-maker supply chain', 'storyStat2Value' => 'Zero', 'storyStat2Label' => 'Deadstock inventory landfills', 'standardsEyebrow' => 'Our Standard', 'standardsTitle' => 'Four Unwavering Commitments', 'standards1Title' => 'Material Sourcing', 'standards1Description' => 'Certified Grade-A Mongolian cashmere, Tuscan vegetable-tanned leather, and Japanese beta-titanium wireframes.', 'standards2Title' => 'Small-Batch Runs', 'standards2Description' => 'Manufactured strictly to demand. We produce fewer items with obsessive attention to stitching and tolerances.', 'standards3Title' => 'Eco Packaging', 'standards3Description' => 'Every order arrives in 100% recycled unbleached kraft boxes printed exclusively with biodegradable soy inks.', 'standards4Title' => '2-Year Warranty', 'standards4Description' => 'We stand behind every item we create with an unconditional two-year repair or replacement guarantee.', 'footprintEyebrow' => 'Global Footprint', 'footprintTitle' => 'Where Our Makers Create', 'footprintDescription' => 'Partnering with generational workshops renowned for specific mastery.', 'footprint1Label' => 'Biella, Italy', 'footprint1Title' => 'Cashmere & Knitwear', 'footprint1Description' => 'Spun in family-run mills operating along the pristine alpine waters of Piedmont since 1948.', 'footprint2Label' => 'Kyoto, Japan', 'footprint2Title' => 'Ceramics & Diffusers', 'footprint2Description' => 'Hand-thrown organic stoneware ceramics and Hinoki wood oil distillations by master artisans.', 'footprint3Label' => 'Porto, Portugal', 'footprint3Title' => 'Footwear & Leather', 'footprint3Description' => 'Constructed on natural Margom rubber cup soles with double-stitched vegetable calfskins.', 'footprint4Label' => 'Geneva, Switzerland', 'footprint4Title' => 'Horology & Crystals', 'footprint4Description' => 'Swiss quartz movement assembly and anti-reflective domed sapphire crystal fabrication.', 'ctaTitle' => 'Experience the Atelier difference.', 'ctaDescription' => 'Explore our current collection of audio, timepieces, knitwear, and lifestyle objects.', 'actionLabel' => 'Shop Current Collection', 'actionUrl' => '/shop']),
             'terms' => Setting::get('terms', ['eyebrow' => 'Legal', 'title' => 'Terms of Service', 'intro' => 'The terms that govern your use of Atelier.', 'body' => '<h2>Using our store</h2><p>By using this website, you agree to these terms and our policies.</p>']),
             'privacy' => Setting::get('privacy', ['eyebrow' => 'Legal', 'title' => 'Privacy Policy', 'intro' => 'How Atelier collects and protects your information.', 'body' => '<h2>Your privacy matters</h2><p>We use your information only to provide and improve our services.</p>']),
             'homepage' => Setting::get('homepage', [
@@ -88,6 +109,16 @@ class SettingsController extends Controller
                 'heroSecondaryUrl' => '/shop?sort=newest',
                 'heroImage' => '',
                 'heroImageAlt' => 'Model wearing an off-white oversized wool coat against a soft concrete wall',
+                'heroEnabled' => true,
+                'categoriesEnabled' => true,
+                'trendingEnabled' => true,
+                'flashSaleEnabled' => true,
+                'bestSellerEnabled' => true,
+                'editorialEnabled' => true,
+                'reviewsEnabled' => true,
+                'newsletterEnabled' => true,
+                'socialGalleryEnabled' => true,
+                'benefitsEnabled' => true,
                 'heroProductId' => null,
                 'heroBadge' => 'Just dropped',
                 'trendingEyebrow' => 'Trending now',
@@ -113,11 +144,11 @@ class SettingsController extends Controller
                 'editorialDescription' => 'Thoughtfully selected products. Exceptional quality. Designed for the way you live — and made by people we know by name.',
                 'editorialImage' => '',
                 'editorialImageAlt' => 'A calm minimal living room with a linen sofa and warm daylight',
-                'editorialStat1Value' => '120+',
+                'editorialStat1Value' => '',
                 'editorialStat1Label' => 'Makers',
-                'editorialStat2Value' => '18',
+                'editorialStat2Value' => '',
                 'editorialStat2Label' => 'Countries',
-                'editorialStat3Value' => '94%',
+                'editorialStat3Value' => '',
                 'editorialStat3Label' => 'Repeat buyers',
                 'editorialActionLabel' => 'Our story',
                 'editorialActionUrl' => '/about',

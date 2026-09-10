@@ -25,6 +25,7 @@ import {
   ShoppingBag,
   Mail,
   Receipt,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ const ADMIN_NAV = [
   { label: "Categories", href: "/admin/categories", icon: Tag },
   { label: "Inventory", href: "/admin/inventory", icon: Package },
   { label: "Expenses", href: "/admin/expenses", icon: Receipt },
+  { label: "Reviews", href: "/admin/reviews", icon: Star },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
   { label: "Store Settings", href: "/admin/settings", icon: Settings },

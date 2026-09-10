@@ -18,7 +18,11 @@ class Setting extends Model
     public static function get(string $key, mixed $default = null): mixed
     {
         $setting = static::where('key', $key)->first();
-        return $setting ? $setting->value : $default;
+        if (!$setting) return $default;
+        // Return default if stored value is null or empty
+        $value = $setting->value;
+        if ($value === null) return $default;
+        return $value;
     }
 
     public static function set(string $key, mixed $value): static

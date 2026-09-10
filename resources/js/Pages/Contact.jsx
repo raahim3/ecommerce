@@ -192,8 +192,9 @@ export function ContactPage() {
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">
       <Head>
-        <title head-key="title">Contact Atelier Client Care</title>
-        <meta head-key="description" name="description" content="Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care. Multiple contact methods available." />
+        <title head-key="title">{content.metaTitle || `Contact ${general.storeName || "Atelier"} Client Care`}</title>
+        <meta head-key="description" name="description" content={content.metaDescription || "Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care. Multiple contact methods available."} />
+        {content.metaKeywords && <meta head-key="keywords" name="keywords" content={content.metaKeywords} />}
         <meta head-key="robots" name="robots" content="index,follow" />
         <script type="application/ld+json">{JSON.stringify(contactSchema)}</script>
         <script type="application/ld+json">{JSON.stringify(faqSchema)}</script>
@@ -244,9 +245,9 @@ export function ContactPage() {
               <div className="grid size-10 place-items-center rounded-2xl bg-accent/10 text-accent">
                 <MessageCircle className="size-5" />
               </div>
-              <h3 className="mt-4 text-base font-bold text-foreground">Live Stylist Chat</h3>
+              <h3 className="mt-4 text-base font-bold text-foreground">{content.chatTitle || "Live Stylist Chat"}</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Instant guidance on garment sizing and curated pairings.
+                {content.chatDescription || "Instant guidance on garment sizing and curated pairings."}
               </p>
             </div>
             <button
@@ -254,7 +255,7 @@ export function ContactPage() {
               onClick={() => setIsChatOpen(true)}
               className="mt-4 text-xs font-bold text-accent hover:underline text-left inline-flex items-center gap-1 cursor-pointer"
             >
-              Start Live Chat Session →
+              {content.chatButtonLabel || "Start Live Chat Session →"}
             </button>
           </div>
 

@@ -9,6 +9,10 @@ export function Hero() {
   const { app_settings: appSettings = {}, heroProduct = null } = usePage().props;
   const settings = appSettings.homepage || {};
   const editorProduct = heroProduct;
+
+  if (settings.heroEnabled === false) {
+    return null;
+  }
   const headline = String(settings.heroTitle || "Discover\nWhat's\nNext.").split("\n").filter(Boolean);
   const heroImage = settings.heroImage || editorProduct?.image || editorProduct?.images?.[0]?.image_url || heroImageFallback;
   const [ready, setReady] = useState(false);
