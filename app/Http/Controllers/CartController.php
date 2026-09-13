@@ -48,7 +48,16 @@ class CartController extends Controller
         ]);
 
         $product = Product::findOrFail($request->product_id);
-        $quantity = (int) ($request->quantity ?? 1);
+        $quantity = max(1, (int) ($request->quantity ?? 1));
+        $availableStock = max(0, (int) $product->stock_quantity);
+
+        if ($availableStock <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This product is currently out of stock.',
+            ], 422);
+        }
+
         $userId = Auth::id();
         $sessionId = Auth::check() ? null : $request->session()->getId();
 
@@ -65,9 +74,17 @@ class CartController extends Controller
         }
 
         $cartItem = CartItem::where($matchAttributes)->first();
+        $newQuantity = $cartItem ? ($cartItem->quantity + $quantity) : $quantity;
+
+        if ($newQuantity > $availableStock) {
+            return response()->json([
+                'success' => false,
+                'message' => "Only {$availableStock} item(s) available in stock.",
+            ], 422);
+        }
 
         if ($cartItem) {
-            $cartItem->quantity += $quantity;
+            $cartItem->quantity = $newQuantity;
             $cartItem->save();
         } else {
             $cartItem = CartItem::create(array_merge($matchAttributes, [
@@ -96,6 +113,21 @@ class CartController extends Controller
         if ($request->quantity <= 0) {
             $item->delete();
             return response()->json(['success' => true, 'message' => 'Item removed from bag.']);
+        }
+
+        $availableStock = max(0, (int) ($item->product?->stock_quantity ?? $item->product()->value('stock_quantity') ?? 0));
+        if ($request->quantity > $availableStock && $availableStock > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Only {$availableStock} item(s) available in stock.",
+            ], 422);
+        }
+
+        if ($availableStock <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This product is currently out of stock.',
+            ], 422);
         }
 
         $item->quantity = $request->quantity;

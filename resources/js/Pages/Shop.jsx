@@ -46,11 +46,12 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
 
   const sourceCategories = useMemo(() => {
     if (Array.isArray(serverCategories) && serverCategories.length > 0) {
-      const allCount = serverCategories.reduce((acc, c) => acc + (c.products_count || 0), 0);
+      const allCount = serverProducts?.total ?? sourceProducts.length;
+
       return [
-        { id: "all", name: "All Products", count: allCount || sourceProducts.length, description: "Explore the full Atelier collection." },
+        { id: "all", name: "All Products", count: allCount, description: "Explore the full Atelier collection." },
         ...serverCategories.map(c => ({
-          id: c.slug,
+          id: c.slug || c.id,
           name: c.name,
           count: c.products_count || 0,
           image: c.image,
@@ -59,7 +60,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
       ];
     }
     return [];
-  }, [serverCategories, sourceProducts]);
+  }, [serverCategories, sourceProducts, serverProducts]);
 
   // Search & Filter State
   const initialCategory = serverFilters?.category || searchParams.get("category") || "All";
@@ -112,13 +113,14 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   }, [searchParams]);
 
   // Update query params when category changes
-  const handleCategorySelect = (cat) => {
-    setSelectedCategory(cat);
+  const handleCategorySelect = (catObj) => {
+    const selectedValue = catObj?.id || catObj?.slug || catObj?.name || "All";
+    setSelectedCategory(selectedValue);
     const newParams = new URLSearchParams(searchParams);
-    if (cat === "All" || cat === "All Products") {
+    if (selectedValue === "all" || selectedValue === "All" || selectedValue === "All Products") {
       newParams.delete("category");
     } else {
-      newParams.set("category", cat);
+      newParams.set("category", selectedValue);
     }
     setSearchParams(newParams, { replace: true });
     setVisibleLimit(12);
@@ -151,15 +153,26 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
 
   // Main Filtering & Sorting Engine
   const filteredProducts = useMemo(() => {
+    const normalize = (value) => (value || "").toLowerCase();
+    const hasCategoryFilter = selectedCategory && selectedCategory !== "All" && selectedCategory !== "All Products" && selectedCategory !== "all";
+
     return sourceProducts
       .filter((product) => {
         const catName = typeof product.category === "object" ? product.category?.name : (product.category || "");
         const catSlug = typeof product.category === "object" ? product.category?.slug : (product.category || "");
+        const subName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
+        const subSlug = typeof product.subcategory === "object" ? product.subcategory?.slug : "";
 
         // Category filter
-        if (selectedCategory !== "All" && selectedCategory !== "All Products") {
-          const matchCategory = catName.toLowerCase() === selectedCategory.toLowerCase() ||
-                                catSlug.toLowerCase() === selectedCategory.toLowerCase();
+        if (hasCategoryFilter) {
+          const selectedKey = normalize(selectedCategory);
+          const matchCategory = [
+            normalize(catName),
+            normalize(catSlug),
+            normalize(subName),
+            normalize(subSlug),
+          ].includes(selectedKey);
+
           if (!matchCategory) return false;
         }
 
@@ -230,7 +243,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   // Active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (selectedCategory !== "All") count++;
+    if (selectedCategory && selectedCategory !== "All" && selectedCategory !== "All Products" && selectedCategory !== "all") count++;
     if (searchQuery.trim()) count++;
     if (selectedPricePreset !== "all" || priceRange[0] > 0 || priceRange[1] < 400) count++;
     if (minRating > 0) count++;
@@ -328,7 +341,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
                 <button
                   key={catObj.id || catName}
                   type="button"
-                  onClick={() => handleCategorySelect(catName)}
+                  onClick={() => handleCategorySelect(catObj)}
                   className={cn(
                     "flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-all text-left",
                     isSelected

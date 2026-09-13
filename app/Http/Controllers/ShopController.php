@@ -13,7 +13,7 @@ class ShopController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Product::active()->with(['category', 'images', 'variants']);
+        $query = Product::active()->with(['category', 'subcategory', 'images', 'variants']);
 
         // Search by name or description
         if ($search = $request->input('search')) {
@@ -83,20 +83,25 @@ class ShopController extends Controller
         $products = $query->paginate(12)->withQueryString();
 
         $categories = Category::where('is_active', true)
-            ->withCount(['products as products_count' => function ($q) {
-                $q->where('is_active', true);
-            }])
             ->orderBy('sort_order')
             ->get()
             ->map(function ($cat) {
-                // For parent categories, also count products assigned to child categories
-                if ($cat->parent_id === null) {
-                    $childIds = Category::where('parent_id', $cat->id)->pluck('id');
-                    $childCount = \App\Models\Product::where('is_active', true)
-                        ->whereIn('category_id', $childIds)
-                        ->count();
-                    $cat->products_count += $childCount;
-                }
+                $childIds = Category::where('parent_id', $cat->id)->pluck('id');
+
+                $cat->products_count = Product::where('is_active', true)
+                    ->where(function ($query) use ($cat, $childIds) {
+                        $query->where('category_id', $cat->id)
+                            ->orWhere('subcategory_id', $cat->id);
+
+                        if ($childIds->isNotEmpty()) {
+                            $query->orWhere(function ($childQuery) use ($childIds) {
+                                $childQuery->whereIn('category_id', $childIds)
+                                    ->orWhereIn('subcategory_id', $childIds);
+                            });
+                        }
+                    })
+                    ->count();
+
                 return $cat;
             });
 

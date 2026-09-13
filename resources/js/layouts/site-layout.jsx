@@ -28,6 +28,8 @@ export function SiteLayout({ children }) {
     ? new URL(socialImageValue, window.location.origin).href
     : socialImageValue;
 
+  const pixelId = seo.facebookPixelId || "";
+
   return (
     <>
       <Head>
@@ -46,6 +48,19 @@ export function SiteLayout({ children }) {
         <meta head-key="twitter:title" name="twitter:title" content={seo.ogTitle || pageTitle} />
         <meta head-key="twitter:description" name="twitter:description" content={seo.ogDescription || pageDescription} />
         <meta head-key="twitter:image" name="twitter:image" content={socialImage} />
+        {pixelId && (
+          <script>{`
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document, 'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '${pixelId}');
+            fbq('track', 'PageView');
+          `}</script>
+        )}
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "Organization",

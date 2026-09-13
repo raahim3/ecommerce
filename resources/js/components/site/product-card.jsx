@@ -19,7 +19,8 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
   const mainImage = product.image || product.images?.[0]?.image_url || product.image_url || "/resources/js/assets/p-headphones.jpg";
   const hoverImage = product.hover || product.images?.[1]?.image_url || mainImage;
   const productUrl = `/product/${product.slug || product.id}`;
-  const categoryName = typeof product.category === "object" ? product.category?.name : (product.category || "Atelier");
+  const subcategoryName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
+  const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Atelier"));
   const comparePrice = (product.compare_at_price || product.compareAt) && Number(product.compare_at_price || product.compareAt) > Number(product.price)
     ? (product.compare_at_price || product.compareAt)
     : null;

@@ -47,7 +47,8 @@ export function QuickViewModal({ product, isOpen, onClose }) {
   if (!isOpen || !product) return null;
 
   const wished = wishlist.includes(product.id);
-  const categoryName = typeof product.category === "object" ? product.category?.name : (product.category || "Atelier");
+  const subcategoryName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
+  const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Atelier"));
   const reviewsCount = product.reviews_count ?? (Array.isArray(product.reviews) ? product.reviews.length : (Number(product.reviews) || 0));
   const rawImages = product.images && product.images.length > 0 ? product.images : [product.image, product.hover];
   const images = rawImages.map(img => typeof img === "object" ? img.image_url : img).filter(Boolean);

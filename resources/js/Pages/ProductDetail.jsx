@@ -254,6 +254,8 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     return src.map(c => typeof c === 'string' ? { name: c, hex: null } : c);
   }, [product]);
 
+  const availableStock = Number(product?.stock_quantity ?? product?.stockCount ?? 0);
+
   // Resolve sizes: supports string array (from available_sizes DB field)
   const productSizes = useMemo(() => {
     return product.sizes || product.available_sizes || [];
@@ -495,14 +497,31 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   return (
     <main className="min-h-screen pb-20 pt-28 lg:pt-36">
       <Head>
-        <title head-key="title">{product?.name ? `${product.name} | Atelier` : "Product | Atelier"}</title>
-        <meta head-key="description" name="description" content={(product?.description || product?.tagline || `Shop ${product?.name || "Atelier essentials"} from Atelier.`).slice(0, 160)} />
+        <title head-key="title">{product?.seo_title || (product?.name ? `${product.name} | ${appSettings.general?.storeName || "Atelier"}` : "Product | Atelier")}</title>
+        <meta
+          head-key="description"
+          name="description"
+          content={(product?.seo_description || product?.description || product?.tagline || `Shop ${product?.name || "Atelier essentials"} from ${appSettings.general?.storeName || "Atelier"}.`).slice(0, 160)}
+        />
+        {product?.seo_keywords && <meta head-key="keywords" name="keywords" content={product.seo_keywords} />}
         <meta head-key="robots" name="robots" content="index,follow" />
         <link head-key="canonical" rel="canonical" href={window.location.href.split("?")[0]} />
         <meta head-key="og:type" property="og:type" content="product" />
-        <meta head-key="og:title" property="og:title" content={`${product?.name || "Product"} | Atelier`} />
-        <meta head-key="og:description" property="og:description" content={product?.tagline || product?.description || "Considered essentials from Atelier."} />
+        <meta head-key="og:title" property="og:title" content={product?.seo_title || `${product?.name || "Product"} | ${appSettings.general?.storeName || "Atelier"}`} />
+        <meta
+          head-key="og:description"
+          property="og:description"
+          content={product?.seo_description || product?.tagline || product?.description || "Considered essentials from Atelier."}
+        />
         {productImage && <meta head-key="og:image" property="og:image" content={new URL(productImage, window.location.origin).href} />}
+        <meta head-key="twitter:card" name="twitter:card" content="summary_large_image" />
+        <meta head-key="twitter:title" name="twitter:title" content={product?.seo_title || `${product?.name || "Product"} | ${appSettings.general?.storeName || "Atelier"}`} />
+        <meta
+          head-key="twitter:description"
+          name="twitter:description"
+          content={product?.seo_description || product?.tagline || product?.description || "Considered essentials from Atelier."}
+        />
+        {productImage && <meta head-key="twitter:image" name="twitter:image" content={new URL(productImage, window.location.origin).href} />}
         <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
         <script type="application/ld+json">{JSON.stringify(productSchema)}</script>
       </Head>
@@ -937,9 +956,9 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                 <div className="flex items-center gap-2 text-emerald-700 font-semibold">
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span>
-                    {product.stockCount && product.stockCount < 10
-                      ? `Only ${product.stockCount} left in stock`
-                      : "In Stock"}
+                    {availableStock > 0 && availableStock < 10
+                      ? `Only ${availableStock} left in stock`
+                      : (availableStock > 0 ? "In Stock" : "Out of Stock")}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground text-[11px]">
@@ -963,8 +982,9 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                     <span className="w-8 text-center text-xs font-extrabold">{quantity}</span>
                     <button
                       type="button"
-                      onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-                      className="grid size-9 place-items-center rounded-full text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setQuantity((q) => Math.min(Math.max(availableStock || 1, 1), q + 1))}
+                      disabled={availableStock > 0 && quantity >= availableStock}
+                      className="grid size-9 place-items-center rounded-full text-foreground hover:bg-muted transition-colors disabled:opacity-30"
                     >
                       <Plus className="size-3.5" />
                     </button>
@@ -973,19 +993,20 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    disabled={isAdding}
-                    className="flex-1 h-11 rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm transition-all duration-300 hover:bg-accent hover:text-accent-foreground active:scale-[0.99]"
+                    disabled={isAdding || availableStock <= 0}
+                    className="flex-1 h-11 rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm transition-all duration-300 hover:bg-accent hover:text-accent-foreground active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isAdding ? "Adding to Bag..." : `Add to Bag • ${formatPrice(product.price * quantity)}`}
+                    {availableStock <= 0 ? "Out of Stock" : (isAdding ? "Adding to Bag..." : `Add to Bag • ${formatPrice(product.price * quantity)}`)}
                   </button>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="h-11 w-full rounded-full border border-primary bg-transparent text-xs font-bold text-foreground transition-all duration-300 hover:bg-foreground hover:text-background active:scale-[0.99]"
+                  disabled={availableStock <= 0}
+                  className="h-11 w-full rounded-full border border-primary bg-transparent text-xs font-bold text-foreground transition-all duration-300 hover:bg-foreground hover:text-background active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Buy with Express Checkout
+                  {availableStock <= 0 ? "Out of Stock" : "Buy with Express Checkout"}
                 </button>
 
                 {/* Order via WhatsApp */}

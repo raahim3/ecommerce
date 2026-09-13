@@ -212,8 +212,11 @@ class ProductController extends Controller
             }
         }
 
+        $slug = $request->filled('slug') ? $request->slug : Str::slug($request->name);
+
         $product->update([
             'name' => $request->name,
+            'slug' => $slug,
             'description' => $request->description ?? $product->description,
             'price' => $request->price,
             'original_price' => $request->has('compare_at_price') || $request->has('original_price') ? ($request->compare_at_price ?? $request->original_price) : $product->original_price,

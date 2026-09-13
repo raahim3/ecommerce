@@ -189,6 +189,13 @@ Route::get('/contact', function () {
         ]);
 })->name('contact');
 
+Route::get('/robots.txt', function () {
+    $seo = \App\Models\Setting::get('seo', []);
+    $content = $seo['robotsTxt'] ?? "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: /sitemap.xml";
+
+    return response($content, 200)->header('Content-Type', 'text/plain; charset=UTF-8');
+})->name('robots');
+
 Route::get('/sitemap.xml', function () {
     $urls = collect([
         ['loc' => url('/'), 'changefreq' => 'weekly', 'priority' => '1.0'],

@@ -373,6 +373,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
         },
         body: JSON.stringify({
           name: form.title,
+          slug: form.handle || form.seoHandle || null,
           description: form.description || form.title,
           price: parseFloat(form.price),
           original_price: form.comparePrice ? parseFloat(form.comparePrice) : null,

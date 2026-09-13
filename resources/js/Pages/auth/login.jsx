@@ -163,28 +163,6 @@ export function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Test Action */}
-          <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/30 p-3 text-center space-y-2">
-            <div className="text-[11px] font-semibold text-muted-foreground">Quick Test Credentials:</div>
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoFill("admin")}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-2.5 py-1 rounded-xl transition-colors"
-              >
-                <Sparkles className="size-3" />
-                Admin Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDemoFill("customer")}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl transition-colors"
-              >
-                Customer Demo
-              </button>
-            </div>
-          </div>
-
           {/* Footer Register Link */}
           <div className="mt-6 border-t border-border pt-5 text-center text-xs text-muted-foreground">
             Don&apos;t have an account yet?{" "}

@@ -32,24 +32,28 @@ class ProductController extends Controller
         $productImage = $product->images->first()?->image_url ?? $product->image ?? asset('build/assets/hero.jpg');
         $canonicalUrl = route('product-detail', ['slug' => $product->slug]);
         $productDescription = substr($product->description ?? $product->tagline ?? $product->name, 0, 160);
+        $metaTitle = $product->seo_title ?: ($product->name . ' | ' . $storeName);
+        $metaDescription = $product->seo_description ?: $productDescription;
+        $metaKeywords = $product->seo_keywords ?? '';
 
         return Inertia::render('ProductDetail', [
             'product' => $product,
             'relatedProducts' => $relatedProducts,
         ])->withViewData([
-            'metaTitle' => $product->name . ' | ' . $storeName,
-            'metaDescription' => $productDescription,
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
+            'metaKeywords' => $metaKeywords,
             'metaRobots' => 'index,follow',
             'canonicalUrl' => $canonicalUrl,
             'ogType' => 'product',
-            'ogTitle' => $product->name . ' | ' . $storeName,
-            'ogDescription' => $productDescription,
+            'ogTitle' => $metaTitle,
+            'ogDescription' => $metaDescription,
             'ogImage' => url($productImage),
             'ogUrl' => $canonicalUrl,
             'ogSiteName' => $storeName,
             'twitterCard' => 'summary_large_image',
-            'twitterTitle' => $product->name . ' | ' . $storeName,
-            'twitterDescription' => $productDescription,
+            'twitterTitle' => $metaTitle,
+            'twitterDescription' => $metaDescription,
         ]);
     }
 }

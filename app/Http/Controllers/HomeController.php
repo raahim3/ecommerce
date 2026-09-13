@@ -15,9 +15,27 @@ class HomeController extends Controller
     public function index(): Response
     {
         $categories = Category::where('is_active', true)
-            ->withCount('products')
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->map(function ($cat) {
+                $childIds = Category::where('parent_id', $cat->id)->pluck('id');
+
+                $cat->products_count = Product::where('is_active', true)
+                    ->where(function ($query) use ($cat, $childIds) {
+                        $query->where('category_id', $cat->id)
+                            ->orWhere('subcategory_id', $cat->id);
+
+                        if ($childIds->isNotEmpty()) {
+                            $query->orWhere(function ($childQuery) use ($childIds) {
+                                $childQuery->whereIn('category_id', $childIds)
+                                    ->orWhereIn('subcategory_id', $childIds);
+                            });
+                        }
+                    })
+                    ->count();
+
+                return $cat;
+            });
 
         $homepage = Setting::get('homepage', []);
         $trendingIds = collect($homepage['trendingProductIds'] ?? [])

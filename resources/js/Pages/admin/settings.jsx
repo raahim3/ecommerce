@@ -308,9 +308,10 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
     metaKeywords: "luxury essentials, cashmere knitwear, studio headphones, leather accessories",
     ogTitle: "ATELIER — Modern Essentials",
     ogDescription: "Curated essentials for conscious modern living.",
+    ogImage: "",
     googleAnalyticsId: "",
     facebookPixelId: "",
-    robotsTxt: "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://atelier-studios.com/sitemap.xml",
+    robotsTxt: "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: /sitemap.xml",
     ...(settings.seo || {}),
   });
 
@@ -1867,6 +1868,71 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                     <p className="mt-1 text-xs text-slate-400">Comma-separated keywords for search engine optimization (max 160 characters).</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Open Graph Title</label>
+                      <input
+                        type="text"
+                        value={seo.ogTitle || ""}
+                        onChange={(e) => setSeo({ ...seo, ogTitle: e.target.value })}
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Open Graph Description</label>
+                      <input
+                        type="text"
+                        value={seo.ogDescription || ""}
+                        onChange={(e) => setSeo({ ...seo, ogDescription: e.target.value })}
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Open Graph Image URL</label>
+                    <input
+                      type="text"
+                      value={seo.ogImage || ""}
+                      onChange={(e) => setSeo({ ...seo, ogImage: e.target.value })}
+                      placeholder="https://example.com/og-image.jpg"
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Google Analytics Measurement ID</label>
+                      <input
+                        type="text"
+                        value={seo.googleAnalyticsId || ""}
+                        onChange={(e) => setSeo({ ...seo, googleAnalyticsId: e.target.value })}
+                        placeholder="G-XXXXXXXXXX"
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Facebook Pixel ID</label>
+                      <input
+                        type="text"
+                        value={seo.facebookPixelId || ""}
+                        onChange={(e) => setSeo({ ...seo, facebookPixelId: e.target.value })}
+                        placeholder="123456789012345"
+                        className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">robots.txt Content</label>
+                    <textarea
+                      rows={6}
+                      value={seo.robotsTxt || ""}
+                      onChange={(e) => setSeo({ ...seo, robotsTxt: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
+                    />
                   </div>
                 </div>
               </div>

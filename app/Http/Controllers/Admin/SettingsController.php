@@ -171,9 +171,10 @@ class SettingsController extends Controller
                 'metaKeywords' => 'luxury essentials, cashmere knitwear, studio headphones, leather accessories, Copenhagen design',
                 'ogTitle' => 'ATELIER — Modern Essentials',
                 'ogDescription' => 'Curated essentials for conscious modern living.',
+                'ogImage' => '',
                 'googleAnalyticsId' => '',
                 'facebookPixelId' => '',
-                'robotsTxt' => "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: https://atelier-studios.com/sitemap.xml",
+                'robotsTxt' => "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: /sitemap.xml",
             ]),
             'smtp' => Setting::get('smtp', [
                 'driver' => 'SMTP',

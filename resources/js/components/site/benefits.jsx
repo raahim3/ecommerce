@@ -18,7 +18,7 @@ export function Benefits() {
             <benefit.icon className="mt-0.5 size-5 shrink-0 text-accent" strokeWidth={1.5} />
             <div className="min-w-0">
               <h3 className="text-sm font-bold tracking-tight">{benefit.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{typeof benefit.text === "function" ? benefit.text(formatPrice(100)) : benefit.text}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{typeof benefit.text === "function" ? benefit.text(formatPrice(5000)) : benefit.text}</p>
             </div>
           </Reveal>
         ))}

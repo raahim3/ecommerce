@@ -88,14 +88,28 @@ export function CartProvider({ children, checkoutSettings = {} }) {
   const addItem = useCallback((product, quantity = 1, openSidebar = false) => {
     // Build a composite key: product id + selected color + selected size
     const cartKey = `${product.id}__${product.selectedColor || ''}__${product.selectedSize || ''}`;
+    const availableStock = Number(product.stock_quantity ?? product.stockCount ?? 0);
+    const requestedQty = Math.max(1, Number(quantity) || 1);
+
     setItems((prev) => {
       const existing = prev.find((i) => i._cartKey === cartKey);
+      const existingQty = existing ? Number(existing.qty || 0) : 0;
+      const totalQty = existingQty + requestedQty;
+
+      if (availableStock > 0 && totalQty > availableStock) {
+        toast.error("Stock limit reached", {
+          description: `Only ${availableStock} item(s) available in stock for ${product.name}.`,
+        });
+        return prev;
+      }
+
       if (existing) {
         return prev.map((i) =>
-          i._cartKey === cartKey ? { ...i, qty: i.qty + quantity } : i,
+          i._cartKey === cartKey ? { ...i, qty: totalQty } : i,
         );
       }
-      return [...prev, { ...product, qty: quantity, _cartKey: cartKey }];
+
+      return [...prev, { ...product, qty: requestedQty, _cartKey: cartKey }];
     });
     setPulse((n) => n + 1);
     const variantLabel = [product.selectedColor, product.selectedSize].filter(Boolean).join(' / ');
@@ -126,9 +140,24 @@ export function CartProvider({ children, checkoutSettings = {} }) {
       setItems((prev) => prev.filter((i) => i._cartKey !== cartKey && i.id !== cartKey));
       return;
     }
-    setItems((prev) =>
-      prev.map((i) => (i._cartKey === cartKey || i.id === cartKey) ? { ...i, qty } : i),
-    );
+
+    setItems((prev) => {
+      const target = prev.find((i) => i._cartKey === cartKey || i.id === cartKey);
+      if (!target) return prev;
+
+      const availableStock = Number(target.stock_quantity ?? target.stockCount ?? 0);
+      const safeQty = availableStock > 0 ? Math.min(qty, availableStock) : 0;
+
+      if (availableStock > 0 && safeQty !== qty) {
+        toast.error("Stock limit reached", {
+          description: `Only ${availableStock} item(s) available in stock for ${target.name}.`,
+        });
+      }
+
+      return prev.map((i) =>
+        i._cartKey === cartKey || i.id === cartKey ? { ...i, qty: safeQty || 0 } : i,
+      );
+    });
   }, []);
 
   const count = useMemo(

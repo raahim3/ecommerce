@@ -57,6 +57,21 @@
     @if(isset($jsonLd))
       <script type="application/ld+json">{!! json_encode($jsonLd) !!}</script>
     @endif
+
+    @php
+      $seoSettings = \App\Models\Setting::get('seo', []);
+      $gaId = $seoSettings['googleAnalyticsId'] ?? '';
+    @endphp
+
+    @if($gaId)
+      <script async src="https://www.googletagmanager.com/gtag/js?id={{ $gaId }}"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){ dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', '{{ $gaId }}');
+      </script>
+    @endif
     
     @viteReactRefresh
     @vite(['resources/js/app.jsx', 'resources/css/app.css'])
