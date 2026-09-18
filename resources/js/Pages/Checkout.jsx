@@ -25,10 +25,12 @@ import { useCart } from "@/components/site/cart";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
+import { RecaptchaCheckbox } from "@/components/RecaptchaCheckbox";
 
 export function CheckoutPage({ user, savedAddresses = [] }) {
   const { props } = usePage();
   const generalSettings = props?.app_settings?.general || {};
+  const recaptcha = props?.app_settings?.recaptcha || {};
   const storeCountries = useMemo(() => {
     const raw = generalSettings?.storeCountries;
     if (Array.isArray(raw) && raw.length > 0) return raw;
@@ -112,6 +114,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
   const paymentElementRef = useRef(null);
   const paypalMountRef = useRef(null);
   const [saveAddressForNextTime, setSaveAddressForNextTime] = useState(true);
+  const [recaptchaToken, setRecaptchaToken] = useState("");
 
   // Bank Transfer receipt states
   const [receiptUrl, setReceiptUrl] = useState("");
@@ -530,6 +533,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
         shipping_method: shippingMethod,
         coupon_code: appliedPromo?.code || null,
         save_address: saveAddressForNextTime,
+        recaptcha_token: recaptchaToken,
       };
 
       const res = await fetch("/api/checkout", {
@@ -1264,6 +1268,12 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
                     </div>
                   )}
                 </div>
+
+                <RecaptchaCheckbox
+                  enabled={recaptcha.enabled}
+                  siteKey={recaptcha.siteKey}
+                  onChange={setRecaptchaToken}
+                />
 
                 <div className="flex items-center gap-3">
                   <button

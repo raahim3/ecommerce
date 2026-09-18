@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, router } from "@inertiajs/react";
 import {
   Users,
@@ -11,6 +11,11 @@ import {
   ChevronRight,
   Eye,
   X,
+  Plus,
+  Edit2,
+  Trash2,
+  AlertTriangle,
+  Loader2,
   Package,
   MapPin,
   Clock,
@@ -78,6 +83,76 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [customerDetails, setCustomerDetails] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", password: "", password_confirmation: "" });
+
+  useEffect(() => {
+    setCustomers(initialCustomers);
+  }, [serverCustomers]);
+
+  const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
+
+  const openCreate = () => {
+    setEditingCustomer(null);
+    setForm({ name: "", email: "", password: "", password_confirmation: "" });
+    setFormOpen(true);
+  };
+
+  const openEdit = (customer) => {
+    setEditingCustomer(customer);
+    setForm({ name: customer.name, email: customer.email, password: "", password_confirmation: "" });
+    setFormOpen(true);
+  };
+
+  const submitCustomer = async (event) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    const editing = Boolean(editingCustomer);
+    try {
+      const response = await fetch(editing ? `/admin/customers/${editingCustomer.id}` : "/admin/customers", {
+        method: editing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-TOKEN": csrfToken() },
+        body: JSON.stringify(form),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        const firstError = result.errors ? Object.values(result.errors).flat()[0] : result.message;
+        throw new Error(firstError || "Customer could not be saved.");
+      }
+      toast.success(result.message);
+      setFormOpen(false);
+      router.reload({ preserveScroll: true });
+    } catch (error) {
+      toast.error(error.message || "Customer could not be saved.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteCustomer = async () => {
+    if (!deleteConfirm) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/admin/customers/${deleteConfirm.id}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json", "X-CSRF-TOKEN": csrfToken() },
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Customer could not be deleted.");
+      toast.success(result.message);
+      setDeleteConfirm(null);
+      setSelectedCustomer(null);
+      setCustomers((current) => current.filter((customer) => customer.id !== deleteConfirm.id));
+      router.reload({ preserveScroll: true });
+    } catch (error) {
+      toast.error(error.message || "Customer could not be deleted.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filteredCustomers = customers;
 
@@ -119,6 +194,14 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 text-xs font-bold text-white hover:bg-slate-800"
+          >
+            <Plus className="size-3.5" />
+            Add Customer
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -253,14 +336,17 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
                     </td>
 
                     <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleInspect(customer)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                      >
-                        <Eye className="size-3.5" />
-                        <span>Inspect</span>
-                      </button>
+                      <div className="flex justify-end gap-1.5">
+                        <button type="button" onClick={() => handleInspect(customer)} title="Inspect customer" className="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                          <Eye className="size-3.5" />
+                        </button>
+                        <button type="button" onClick={() => openEdit(customer)} title="Edit customer" className="grid size-8 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                          <Edit2 className="size-3.5" />
+                        </button>
+                        <button type="button" onClick={() => setDeleteConfirm(customer)} title="Delete customer" className="grid size-8 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -353,6 +439,9 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
 
                 {/* Direct Action */}
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button type="button" onClick={() => openEdit(selectedCustomer)} className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                    <Edit2 className="size-3.5" /> Edit Customer
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -366,6 +455,60 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {formOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => !isSubmitting && setFormOpen(false)} />
+          <form onSubmit={submitCustomer} className="relative z-10 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{editingCustomer ? "Edit Customer" : "Add Customer"}</h2>
+                <p className="mt-1 text-xs text-slate-500">Manage customer account details and login access.</p>
+              </div>
+              <button type="button" onClick={() => setFormOpen(false)} className="grid size-8 place-items-center rounded-xl text-slate-400 hover:bg-slate-100"><X className="size-4" /></button>
+            </div>
+            <div className="space-y-4">
+              {[["name", "Full Name", "text"], ["email", "Email Address", "email"]].map(([field, label, type]) => (
+                <div key={field}>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label} *</label>
+                  <input required type={type} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:border-slate-900 focus:bg-white focus:outline-none" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Password {editingCustomer ? "(leave blank to keep current)" : "*"}</label>
+                <input required={!editingCustomer} minLength={8} type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:border-slate-900 focus:bg-white focus:outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Confirm Password {(!editingCustomer || form.password) && "*"}</label>
+                <input required={!editingCustomer || Boolean(form.password)} type="password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:border-slate-900 focus:bg-white focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+              <button type="button" onClick={() => setFormOpen(false)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700">Cancel</button>
+              <button type="submit" disabled={isSubmitting} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white disabled:opacity-50">
+                {isSubmitting && <Loader2 className="size-3.5 animate-spin" />}
+                {editingCustomer ? "Save Changes" : "Create Customer"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" onClick={() => !isSubmitting && setDeleteConfirm(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600"><AlertTriangle className="size-5" /></div>
+              <div><h2 className="font-bold text-slate-900">Delete customer?</h2><p className="mt-1 text-xs leading-5 text-slate-500">Delete {deleteConfirm.name}'s account? Customers with orders cannot be deleted.</p></div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="h-9 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700">Cancel</button>
+              <button type="button" onClick={deleteCustomer} disabled={isSubmitting} className="h-9 rounded-xl bg-red-600 px-4 text-xs font-bold text-white disabled:opacity-50">Delete Customer</button>
+            </div>
           </div>
         </div>
       )}

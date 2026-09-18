@@ -1,22 +1,31 @@
 import { useState } from "react";
-import { Link, useForm } from "@inertiajs/react";
+import { Link, useForm, usePage } from "@inertiajs/react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, Sparkles, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { SiteLayout } from "@/layouts/site-layout";
+import { RecaptchaCheckbox } from "@/components/RecaptchaCheckbox";
 
 export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const { props } = usePage();
+  const recaptcha = props?.app_settings?.recaptcha || {};
+  const googleAuth = props?.app_settings?.googleAuth || {};
 
   const { data, setData, post, processing, errors, reset } = useForm({
     email: "",
     password: "",
     remember: true,
+    recaptcha_token: "",
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     post("/login", {
-      onFinish: () => reset("password"),
+      onFinish: () => {
+        reset("password", "recaptcha_token");
+        setCaptchaReset((value) => value + 1);
+      },
       onError: () => {
         toast.error("Invalid email or password.");
       },
@@ -65,11 +74,21 @@ export function LoginPage() {
           </div>
 
           {/* Validation Error Banner */}
-          {errors.email && (
+          {(errors.email || errors.google) && (
             <div className="mt-5 flex items-center gap-2.5 rounded-2xl bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
               <AlertCircle className="size-4 shrink-0" />
-              <span>{errors.email}</span>
+              <span>{errors.email || errors.google}</span>
             </div>
+          )}
+
+          {googleAuth.enabled && googleAuth.clientId && (
+            <>
+              <button type="button" onClick={() => { window.location.href = "/auth/google/redirect"; }} className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border bg-surface text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+                <span className="grid size-5 place-items-center rounded-full bg-white text-xs font-extrabold text-blue-600 shadow-sm">G</span>
+                Continue with Google
+              </button>
+              <div className="mt-4 flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><span className="h-px flex-1 bg-border" /><span>or use email</span><span className="h-px flex-1 bg-border" /></div>
+            </>
           )}
 
           {/* Form */}
@@ -142,6 +161,14 @@ export function LoginPage() {
                 <span>Remember this device</span>
               </label>
             </div>
+
+            <RecaptchaCheckbox
+              enabled={recaptcha.enabled}
+              siteKey={recaptcha.siteKey}
+              onChange={(token) => setData("recaptcha_token", token)}
+              error={errors.recaptcha_token}
+              resetSignal={captchaReset}
+            />
 
             {/* Submit Button */}
             <button

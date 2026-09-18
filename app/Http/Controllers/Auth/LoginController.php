@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use App\Services\RecaptchaService;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,6 +20,7 @@ class LoginController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        RecaptchaService::verifyOrFail($request);
         $credentials = $request->validate([
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\CurrencyService;
 use App\Models\Setting;
 use Pusher\Pusher;
+use App\Models\AdminDeviceToken;
 
 class AdminNotifier
 {
@@ -44,6 +45,17 @@ class AdminNotifier
                 );
                 $pusher->trigger('private-admin-notifications', 'admin.notification', $notification->toArray());
             }
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        try {
+            FirebasePushService::send(
+                AdminDeviceToken::query()->pluck('token')->all(),
+                $title,
+                $message,
+                array_merge(['type' => $type, 'link' => $link ?? '/admin'], $data ?? [])
+            );
         } catch (\Throwable $exception) {
             report($exception);
         }

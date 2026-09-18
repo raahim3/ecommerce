@@ -1,6 +1,30 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
+Route::get('/firebase-messaging-sw.js', function () {
+    $config = json_encode([
+        'apiKey' => env('FIREBASE_WEB_API_KEY', ''),
+        'authDomain' => env('FIREBASE_WEB_AUTH_DOMAIN', ''),
+        'projectId' => env('FIREBASE_PROJECT_ID', ''),
+        'storageBucket' => env('FIREBASE_WEB_STORAGE_BUCKET', ''),
+        'messagingSenderId' => env('FIREBASE_WEB_MESSAGING_SENDER_ID', ''),
+        'appId' => env('FIREBASE_WEB_APP_ID', ''),
+    ]);
+
+    return response(sprintf(<<<'JS'
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+
+firebase.initializeApp(%s);
+const messaging = firebase.messaging();
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil(clients.openWindow(event.notification.data?.link || '/admin'));
+});
+JS, $config))->header('Content-Type', 'application/javascript');
+});
 use Inertia\Inertia;
 
 use App\Http\Controllers\Auth\ForgotPasswordController;
@@ -8,10 +32,13 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\Auth\GoogleAuthController;
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'create'])->name('login');
     Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:login')->name('login.store');
+    Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])->middleware('throttle:login')->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
 
     Route::get('/register', [RegisterController::class, 'create'])->name('register');
     Route::post('/register', [RegisterController::class, 'store'])->name('register.store');

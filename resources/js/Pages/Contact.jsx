@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
+import { RecaptchaCheckbox } from "@/components/RecaptchaCheckbox";
 
 const FAQS = [
   {
@@ -61,6 +62,7 @@ export function ContactPage() {
   const { props } = usePage();
   const content = props?.app_settings?.contact || {};
   const general = props?.app_settings?.general || {};
+  const recaptcha = props?.app_settings?.recaptcha || {};
   const faqs = content.faqs?.length ? content.faqs : FAQS;
 
   const contactSchema = {
@@ -92,6 +94,7 @@ export function ContactPage() {
   const [activeFaqCategory, setActiveFaqCategory] = useState("All");
   const [faqSearchQuery, setFaqSearchQuery] = useState("");
   const [isSending , setIsSending ] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState("");
   const [openFaqIdx, setOpenFaqIdx] = useState(0);
 
   // Form State
@@ -180,12 +183,13 @@ export function ContactPage() {
     fetch("/api/contact/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "" },
-      body: JSON.stringify(contactForm),
+      body: JSON.stringify({ ...contactForm, recaptcha_token: recaptchaToken }),
     }).then(async (response) => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Message could not be sent.");
       toast.success(data.message || "Message sent successfully!");
       setContactForm({ name: "", email: "", subject: "General Inquiry", orderId: "", message: "" });
+      setRecaptchaToken("");
     }).catch((error) => toast.error(error.message)).finally(() => setIsSending(false));
   };
 
@@ -358,6 +362,12 @@ export function ContactPage() {
                   className="mt-1 w-full rounded-xl border border-border bg-background p-3.5 text-sm focus:border-accent focus:outline-none"
                 />
               </div>
+
+              <RecaptchaCheckbox
+                enabled={recaptcha.enabled}
+                siteKey={recaptcha.siteKey}
+                onChange={setRecaptchaToken}
+              />
 
               <button
                 type="submit"

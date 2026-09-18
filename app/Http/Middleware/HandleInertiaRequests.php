@@ -193,6 +193,23 @@ class HandleInertiaRequests extends Middleware
                     'key' => $realtime['key'] ?? '',
                     'cluster' => $realtime['cluster'] ?? 'mt1',
                 ],
+                'firebase' => [
+                    'apiKey' => env('FIREBASE_WEB_API_KEY', ''),
+                    'authDomain' => env('FIREBASE_WEB_AUTH_DOMAIN', ''),
+                    'projectId' => env('FIREBASE_PROJECT_ID', ''),
+                    'storageBucket' => env('FIREBASE_WEB_STORAGE_BUCKET', ''),
+                    'messagingSenderId' => env('FIREBASE_WEB_MESSAGING_SENDER_ID', ''),
+                    'appId' => env('FIREBASE_WEB_APP_ID', ''),
+                    'vapidKey' => env('FIREBASE_WEB_VAPID_KEY', ''),
+                ],
+                'recaptcha' => [
+                    'enabled' => (bool) data_get(\App\Models\Setting::get('security', []), 'recaptchaEnabled', false),
+                    'siteKey' => data_get(\App\Models\Setting::get('security', []), 'recaptchaSiteKey', ''),
+                ],
+                'googleAuth' => [
+                    'enabled' => (bool) data_get(\App\Models\Setting::get('security', []), 'googleEnabled', false),
+                    'clientId' => data_get(\App\Models\Setting::get('security', []), 'googleClientId', ''),
+                ],
                     'currencySymbol' => CurrencyService::symbol($general['currency'] ?? null),
                 'homepage' => Setting::get('homepage', [
                     'heroEyebrow' => 'New Season / 2026 Collection',

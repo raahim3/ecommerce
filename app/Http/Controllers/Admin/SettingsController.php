@@ -176,6 +176,14 @@ class SettingsController extends Controller
                 'facebookPixelId' => '',
                 'robotsTxt' => "User-agent: *\nAllow: /\nDisallow: /admin/\nSitemap: /sitemap.xml",
             ]),
+            'security' => Setting::get('security', [
+                'recaptchaEnabled' => false,
+                'recaptchaSiteKey' => '',
+                'recaptchaSecretKey' => '',
+                'googleEnabled' => false,
+                'googleClientId' => '',
+                'googleClientSecret' => '',
+            ]),
             'smtp' => Setting::get('smtp', [
                 'driver' => 'SMTP',
                 'host' => 'smtp.mailtrap.io',
@@ -238,6 +246,7 @@ class SettingsController extends Controller
             ['payments', 'stripeSecret'],
             ['payments', 'paypalSecret'],
             ['pusher', 'secret'],
+            ['security', 'recaptchaSecretKey'],
         ] as [$group, $key]) {
             if (!empty($settings[$group][$key])) {
                 $settings[$group][$key] = '';
@@ -263,14 +272,14 @@ class SettingsController extends Controller
     public function saveSettings(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'group' => ['required', 'string', 'in:general,homepage,navigation,contact,about,terms,privacy,seo,smtp,payments,shipping,pusher'],
+            'group' => ['required', 'string', 'in:general,homepage,navigation,contact,about,terms,privacy,seo,security,smtp,payments,shipping,pusher'],
             'data' => ['required', 'array'],
         ]);
 
         $data = $validated['data'];
-        if (in_array($request->group, ['smtp', 'payments', 'pusher'], true)) {
+        if (in_array($request->group, ['smtp', 'payments', 'pusher', 'security'], true)) {
             $existing = Setting::get($request->group, []);
-            foreach (['password', 'stripeSecret', 'paypalSecret', 'secret'] as $secretKey) {
+            foreach (['password', 'stripeSecret', 'paypalSecret', 'secret', 'recaptchaSecretKey', 'googleClientSecret'] as $secretKey) {
                 if (array_key_exists($secretKey, $data) && $data[$secretKey] === '' && !empty($existing[$secretKey])) {
                     $data[$secretKey] = $existing[$secretKey];
                 }
@@ -300,7 +309,7 @@ class SettingsController extends Controller
         }
 
         $responseSettings = $data;
-        foreach (['password', 'stripeSecret', 'paypalSecret', 'secret'] as $secretKey) {
+        foreach (['password', 'stripeSecret', 'paypalSecret', 'secret', 'recaptchaSecretKey', 'googleClientSecret'] as $secretKey) {
             if (array_key_exists($secretKey, $responseSettings)) {
                 $responseSettings[$secretKey] = '';
             }

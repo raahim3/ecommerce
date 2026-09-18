@@ -6,11 +6,13 @@ use App\Models\AdminNotification;
 use App\Models\ContactSubmission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Services\RecaptchaService;
 
 class ContactController extends Controller
 {
     public function submit(Request $request): JsonResponse
     {
+        RecaptchaService::verifyOrFail($request);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],

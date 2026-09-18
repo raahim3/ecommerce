@@ -38,6 +38,8 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { AdminLayout } from "@/layouts/admin-layout";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken, isSupported } from "firebase/messaging";
 
 const TABS = [
   { id: "general", label: "General & Branding", icon: Globe },
@@ -49,6 +51,7 @@ const TABS = [
   { id: "privacy", label: "Privacy Policy", icon: FileText },
   { id: "coupons", label: "Promo Codes & Discounts", icon: Tag },
   { id: "seo", label: "SEO & Social", icon: Globe },
+  { id: "security", label: "Security & Spam", icon: Shield },
   { id: "smtp", label: "Mail & SMTP", icon: Mail },
   { id: "payments", label: "Payments & Gateways", icon: CreditCard },
   { id: "pusher", label: "Realtime Notifications", icon: Bell },
@@ -72,9 +75,10 @@ const EMPTY_COUPON = {
   is_active: true,
 };
 
-export function AdminSettingsPage({ settings = {}, allCountries: initialCountries = [], shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
+export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {}, allCountries: initialCountries = [], shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
   const [activeTab, setActiveTab] = useState("general");
   const [savingGroup, setSavingGroup] = useState(null);
+  const [pushStatus, setPushStatus] = useState("idle");
   const [countriesList, setCountriesList] = useState(initialCountries);
 
   const flattenCategoryOptions = (items = [], depth = 0) => {
@@ -361,6 +365,16 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
     ...(settings.pusher || {}),
   });
 
+  const [security, setSecurity] = useState({
+    recaptchaEnabled: false,
+    recaptchaSiteKey: "",
+    recaptchaSecretKey: "",
+    googleEnabled: false,
+    googleClientId: "",
+    googleClientSecret: "",
+    ...(settings.security || {}),
+  });
+
   // 5. Shipping & Taxes
   const [shipping, setShipping] = useState({
     freeShippingThresholdEnabled: true,
@@ -413,6 +427,39 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
       toast.error("Network error — settings could not be saved. Check your connection.");
     } finally {
       setSavingGroup(null);
+    }
+  };
+
+  const enableAdminPush = async () => {
+    const firebaseConfig = appSettings.firebase;
+    if (!firebaseConfig?.apiKey || !firebaseConfig?.projectId || !firebaseConfig?.vapidKey) {
+      toast.error("Firebase web push settings are not configured on the server.");
+      return;
+    }
+
+    setPushStatus("working");
+    try {
+      if (!(await isSupported())) throw new Error("This browser does not support web push.");
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") throw new Error("Notification permission was not granted.");
+
+      const app = initializeApp(firebaseConfig);
+      const messaging = getMessaging(app);
+      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+      const token = await getToken(messaging, { vapidKey: firebaseConfig.vapidKey, serviceWorkerRegistration: registration });
+      if (!token) throw new Error("Firebase did not return a device token.");
+
+      const response = await fetch("/admin/api/push-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": csrfToken() },
+        body: JSON.stringify({ token, platform: "web" }),
+      });
+      if (!response.ok) throw new Error("The device token could not be saved.");
+      setPushStatus("enabled");
+      toast.success("Admin notifications enabled on this device.");
+    } catch (error) {
+      setPushStatus("idle");
+      toast.error(error.message || "Could not enable admin notifications.");
     }
   };
 
@@ -1939,6 +1986,66 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
             </div>
           )}
 
+          {/* ============ SECURITY & SPAM ============ */}
+          {activeTab === "security" && (
+            <div className="space-y-5">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">reCAPTCHA v2 Protection</h2>
+                    <p className="text-xs text-slate-500">Protect login, registration, checkout, and contact forms from automated spam.</p>
+                  </div>
+                  <button type="button" onClick={() => setSecurity({ ...security, recaptchaEnabled: !security.recaptchaEnabled })} className="flex items-center gap-2 text-xs font-bold">
+                    {security.recaptchaEnabled ? <ToggleRight className="size-8 text-emerald-500" /> : <ToggleLeft className="size-8 text-slate-400" />}
+                    {security.recaptchaEnabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+                  Create a <strong>reCAPTCHA v2 &quot;I&apos;m not a robot&quot; Checkbox</strong> key in Google reCAPTCHA Admin. Save the site key and secret key here; do not add them to the frontend or `.env`.
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Site Key</label>
+                    <input value={security.recaptchaSiteKey || ""} onChange={(event) => setSecurity({ ...security, recaptchaSiteKey: event.target.value })} placeholder="6Lc..." className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Secret Key</label>
+                    <input type="password" value={security.recaptchaSecretKey || ""} onChange={(event) => setSecurity({ ...security, recaptchaSecretKey: event.target.value })} placeholder="Secret key" className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                    <p className="mt-1 text-[10px] text-slate-400">Leave blank to keep the saved secret.</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => handleSaveSettings("security", security)} disabled={savingGroup === "security"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "security" ? "Saving..." : "Save Security Settings"}</button>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Google Sign In & Sign Up</h2>
+                    <p className="text-xs text-slate-500">Allow customers and existing admins to authenticate with Google OAuth.</p>
+                  </div>
+                  <button type="button" onClick={() => setSecurity({ ...security, googleEnabled: !security.googleEnabled })} className="flex items-center gap-2 text-xs font-bold">
+                    {security.googleEnabled ? <ToggleRight className="size-8 text-emerald-500" /> : <ToggleLeft className="size-8 text-slate-400" />}
+                    {security.googleEnabled ? "Enabled" : "Disabled"}
+                  </button>
+                </div>
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-xs leading-5 text-sky-800">
+                  Create a Google OAuth Web Application and add this callback URL to Authorized redirect URIs: <strong>{window.location.origin}/auth/google/callback</strong>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Google Client ID</label>
+                    <input value={security.googleClientId || ""} onChange={(event) => setSecurity({ ...security, googleClientId: event.target.value })} placeholder="...apps.googleusercontent.com" className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Google Client Secret</label>
+                    <input type="password" value={security.googleClientSecret || ""} onChange={(event) => setSecurity({ ...security, googleClientSecret: event.target.value })} placeholder="GOCSPX-..." className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 font-mono text-xs focus:border-slate-900 focus:bg-white focus:outline-none" />
+                    <p className="mt-1 text-[10px] text-slate-400">Leave blank to keep the saved secret.</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => handleSaveSettings("security", security)} disabled={savingGroup === "security"} className="flex h-9 items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"><Save className="size-3.5" />{savingGroup === "security" ? "Saving..." : "Save Google Settings"}</button>
+              </div>
+            </div>
+          )}
+
           {/* ============ 4. MAIL & SMTP ============ */}
           {activeTab === "smtp" && (
             <div className="space-y-5">
@@ -2327,6 +2434,16 @@ export function AdminSettingsPage({ settings = {}, allCountries: initialCountrie
           {/* ============ REALTIME NOTIFICATIONS ============ */}
           {activeTab === "pusher" && (
             <div className="space-y-5">
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 sm:p-8 shadow-xs space-y-4">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Mobile Push Notifications</h2>
+                  <p className="mt-1 text-xs text-slate-600">Enable browser notifications on this admin device for new registrations and orders.</p>
+                </div>
+                <button type="button" onClick={enableAdminPush} disabled={pushStatus === "working"} className="flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50">
+                  <Bell className="size-4" />
+                  {pushStatus === "working" ? "Enabling..." : pushStatus === "enabled" ? "Notifications Enabled" : "Enable Mobile Notifications"}
+                </button>
+              </div>
               <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div>

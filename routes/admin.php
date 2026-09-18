@@ -15,10 +15,13 @@ use App\Http\Controllers\Admin\ContactSubmissionController;
 use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\ReviewController;
+use App\Http\Controllers\Admin\AdminPushController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/api/broadcasting/auth', [AdminNotificationController::class, 'broadcastAuth'])->name('broadcasting.auth');
+    Route::post('/api/push-token', [AdminPushController::class, 'storeToken'])->name('push-token.store');
+    Route::delete('/api/push-token', [AdminPushController::class, 'destroyToken'])->name('push-token.destroy');
 
     // File Upload API
     Route::post('/api/upload', [UploadController::class, 'upload'])->middleware('throttle:uploads')->name('upload');
@@ -54,6 +57,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Orders
     Route::get('/orders', [OrderController::class, 'index'])->name('orders');
+    Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('/orders/{id}/payment', [OrderController::class, 'updatePaymentStatus'])->name('orders.payment');
     Route::post('/orders/{id}/tracking', [OrderController::class, 'addTracking'])->name('orders.tracking');
@@ -81,6 +85,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Customers
     Route::get('/customers', [CustomersController::class, 'index'])->name('customers');
     Route::get('/customers/{id}', [CustomersController::class, 'show'])->name('customers.show');
+    Route::post('/customers', [CustomersController::class, 'store'])->name('customers.store');
+    Route::patch('/customers/{id}', [CustomersController::class, 'update'])->name('customers.update');
+    Route::delete('/customers/{id}', [CustomersController::class, 'destroy'])->name('customers.destroy');
     Route::get('/contact-submissions', [ContactSubmissionController::class, 'index'])->name('contact-submissions');
     Route::patch('/contact-submissions/{id}', [ContactSubmissionController::class, 'update'])->name('contact-submissions.update');
     Route::delete('/contact-submissions/{id}', [ContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');

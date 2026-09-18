@@ -21,6 +21,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\RecaptchaService;
 
 class CheckoutController extends Controller
 {
@@ -44,6 +45,7 @@ class CheckoutController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        RecaptchaService::verifyOrFail($request);
         $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
