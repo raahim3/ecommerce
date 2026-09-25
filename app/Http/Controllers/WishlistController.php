@@ -26,7 +26,8 @@ class WishlistController extends Controller
         }
 
         $recommendedProducts = Product::active()
-            ->with(['category', 'images', 'variants'])
+            ->with(['category', 'images', 'variants', 'reviews'])
+            ->withCount('reviews')
             ->latest()
             ->take(4)
             ->get();

@@ -24,7 +24,14 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
   const comparePrice = (product.compare_at_price || product.compareAt) && Number(product.compare_at_price || product.compareAt) > Number(product.price)
     ? (product.compare_at_price || product.compareAt)
     : null;
-  const reviewsCount = product.reviews_count ?? product.reviews ?? 0;
+  const loadedReviews = Array.isArray(product.reviews) ? product.reviews : [];
+  const reviewsCount = loadedReviews.length > 0
+    ? loadedReviews.length
+    : (Number(product.reviews_count ?? 0) || 0);
+  const averageRating = loadedReviews.length > 0
+    ? loadedReviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / loadedReviews.length
+    : ((Number(product.reviews_count ?? 0) > 0 && Number(product.rating || 0) === 5) ? 0 : (Number(product.rating) > 0 ? Number(product.rating) : 0));
+  const displayRating = averageRating > 0 ? averageRating.toFixed(1) : "0.0";
   const badgeText = product.badge || (product.is_on_sale ? "Sale" : (product.is_featured ? "Featured" : null));
   const colorsList = product.colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex })) || [];
 
@@ -79,7 +86,7 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
               <span className="eyebrow">{categoryName}</span>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Star className="size-3.5 fill-accent text-accent" />
-                <span className="font-semibold text-foreground">{product.rating}</span>
+                <span className="font-semibold text-foreground">{displayRating}</span>
                 <span>({reviewsCount})</span>
               </div>
             </div>
@@ -245,7 +252,7 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
             <span className="eyebrow">{categoryName}</span>
             <div className="flex items-center gap-1 text-muted-foreground">
               <Star className="size-3 fill-accent text-accent" />
-              <span className="font-semibold text-foreground">{product.rating}</span>
+              <span className="font-semibold text-foreground">{displayRating}</span>
               <span className="text-[11px]">({reviewsCount})</span>
             </div>
           </div>

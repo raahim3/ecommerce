@@ -134,8 +134,29 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
   const [variants, setVariants] = useState(() => {
     if (product) {
       const v = [];
-      if (Array.isArray(product.available_colors) && product.available_colors.length > 0) {
-        v.push({ id: 1, name: "Color", values: [...product.available_colors] });
+      const savedColors = Array.isArray(product.available_colors) ? product.available_colors : [];
+      const legacyColors = (product.variants || [])
+        .filter((variant) => variant.color_name)
+        .map((variant) => ({ name: variant.color_name, image: variant.image_url || null, hex: variant.color_hex || null }));
+      const colorMap = new Map();
+      [...savedColors, ...legacyColors].forEach((color) => {
+        const normalized = typeof color === "string"
+          ? { name: color, image: null, hex: null }
+          : { name: color.name || "", image: color.image || null, hex: color.hex || null };
+        if (!normalized.name) return;
+        const existing = colorMap.get(normalized.name);
+        colorMap.set(normalized.name, {
+          ...normalized,
+          image: existing?.image || normalized.image,
+          hex: existing?.hex || normalized.hex,
+        });
+      });
+      if (colorMap.size > 0) {
+        v.push({
+          id: 1,
+          name: "Color",
+          values: [...colorMap.values()],
+        });
       }
       if (Array.isArray(product.available_sizes) && product.available_sizes.length > 0) {
         v.push({ id: 2, name: "Size", values: [...product.available_sizes] });
@@ -143,7 +164,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
       return v;
     }
     return [
-      { id: 1, name: "Color", values: ["Obsidian Black", "Chalk White"] },
+      { id: 1, name: "Color", values: [{ name: "Obsidian Black", image: null }, { name: "Chalk White", image: null }] },
       { id: 2, name: "Size", values: ["XS", "S", "M", "L", "XL"] },
     ];
   });
@@ -314,7 +335,9 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
     if (!newVariantVal.trim()) return;
     setVariants((prev) =>
       prev.map((v) =>
-        v.id === variantId ? { ...v, values: [...v.values, newVariantVal.trim()] } : v
+        v.id === variantId
+          ? { ...v, values: [...v.values, v.name.toLowerCase() === "color" ? { name: newVariantVal.trim(), image: null } : newVariantVal.trim()] }
+          : v
       )
     );
     setNewVariantVal("");
@@ -326,6 +349,37 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
         v.id === variantId ? { ...v, values: v.values.filter((x) => x !== val) } : v
       )
     );
+  };
+
+  const handleVariantImageUpload = async (variantId, color, file) => {
+    if (!file || !file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("folder", "products");
+      const res = await fetch("/admin/api/upload", {
+        method: "POST",
+        headers: { "X-CSRF-TOKEN": csrfToken() },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.url) throw new Error("Upload failed");
+
+      setVariants((prev) => prev.map((variant) => {
+        if (variant.id !== variantId) return variant;
+        return {
+          ...variant,
+          values: variant.values.map((value) => value === color ? { ...value, image: data.url } : value),
+        };
+      }));
+      toast.success("Color image uploaded.");
+    } catch {
+      toast.error("Could not upload the color image.");
+    }
   };
 
   const handleAddVariant = () => {
@@ -390,7 +444,9 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
           sku: form.sku || null,
           is_active: form.status === "Active",
           material: form.material || null,
-          available_colors: variants.find((v) => v.name.toLowerCase() === "color")?.values || [],
+          available_colors: (variants.find((v) => v.name.toLowerCase() === "color")?.values || []).map((color) =>
+            typeof color === "string" ? { name: color, image: null } : color
+          ),
           available_sizes: variants.find((v) => v.name.toLowerCase() === "size")?.values || [],
           specs: specs.filter((s) => s.key && s.key.trim() && s.value && s.value.trim()),
           faqs: faqs.filter((f) => f.question && f.question.trim() && f.answer && f.answer.trim()),
@@ -802,9 +858,24 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {variant.values.map((val) => (
-                      <span key={val} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs">
-                        {val}
+                    {variant.values.map((val, valueIndex) => {
+                      const valueName = typeof val === "string" ? val : val.name;
+                      const isColor = variant.name.toLowerCase() === "color";
+                      return (
+                      <span key={`${valueName}-${valueIndex}`} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs">
+                          {isColor && val.image && <img src={val.image} alt="" className="size-5 rounded object-cover" />}
+                          {valueName}
+                          {isColor && (
+                            <label className="cursor-pointer text-slate-400 hover:text-slate-900" title="Upload color image">
+                              <ImageIcon className="size-3.5" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleVariantImageUpload(variant.id, val, e.target.files?.[0])}
+                              />
+                            </label>
+                          )}
                         <button
                           type="button"
                           onClick={() => handleRemoveVariantValue(variant.id, val)}
@@ -813,7 +884,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
                           <X className="size-3" />
                         </button>
                       </span>
-                    ))}
+                    );})}
                   </div>
 
                   {activeVariantId === variant.id ? (

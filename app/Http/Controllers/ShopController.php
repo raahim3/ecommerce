@@ -13,7 +13,9 @@ class ShopController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Product::active()->with(['category', 'subcategory', 'images', 'variants']);
+        $query = Product::active()
+            ->with(['category', 'subcategory', 'images', 'variants', 'reviews'])
+            ->withCount('reviews');
 
         // Search by name or description
         if ($search = $request->input('search')) {
@@ -106,7 +108,7 @@ class ShopController extends Controller
             });
 
         $general = Setting::get('general', []);
-        $storeName = $general['storeName'] ?? 'Atelier';
+        $storeName = $general['storeName'] ?? '';
         $canonicalUrl = route('shop');
 
         return Inertia::render('Shop', [

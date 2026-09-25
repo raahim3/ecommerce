@@ -49,16 +49,31 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   // Resolve category name and slug
   const categoryName = typeof product.category === "object" ? product.category?.name : (product.category || "Collection");
   const categorySlug = typeof product.category === "object" ? product.category?.slug : (product.category || "all");
-  const reviewsCount = product.reviews_count ?? (Array.isArray(product.reviews) ? product.reviews.length : (Number(product.reviews) || 0));
 
-  // Gallery state - handles both database image objects and static asset strings
+  // Normalize legacy string colors and newer colors with optional images.
+  const productColors = useMemo(() => {
+    const src = product?.colors || product?.available_colors || product?.variants?.map((v) => ({
+      name: v.color_name,
+      hex: v.color_hex,
+      image: v.image_url,
+    })) || [];
+    return src.map((color) => typeof color === "string" ? { name: color, hex: null, image: null } : color);
+  }, [product]);
+
+  const [selectedColorIdx, setSelectedColorIdx] = useState(0);
+
+  // Keep product images and color images together in one stable gallery.
   const images = useMemo(() => {
     if (!product) return ["/resources/js/assets/p-headphones.jpg"];
-    if (product.images && product.images.length > 0) {
-      return product.images.map(img => typeof img === "object" ? img.image_url : img);
-    }
-    return [product.image || "/resources/js/assets/p-headphones.jpg", product.hover || product.image || "/resources/js/assets/p-headphones.jpg"];
-  }, [product]);
+    const relationImages = (product.images || [])
+      .map((image) => typeof image === "object" ? image.image_url : image)
+      .filter(Boolean);
+    const storedGallery = Array.isArray(product.gallery) ? product.gallery.filter(Boolean) : [];
+    const productImages = [product.image, product.hover].filter(Boolean);
+    const colorImages = productColors.map((color) => color.image).filter(Boolean);
+
+    return [...new Set([...relationImages, ...storedGallery, ...productImages, ...colorImages])];
+  }, [product, productColors]);
 
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -66,7 +81,6 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   // Variant selection
-  const [selectedColorIdx, setSelectedColorIdx] = useState(0);
   const [selectedSizeIdx, setSelectedSizeIdx] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
@@ -135,6 +149,18 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   // Reviews state & new review submission
   const [reviewsList, setReviewsList] = useState([]);
+  const reviewsCount = useMemo(() => {
+    if (reviewsList.length > 0) return reviewsList.length;
+    return product?.reviews_count ?? (Array.isArray(product?.reviews) ? product.reviews.length : (Number(product?.reviews) || 0));
+  }, [product?.reviews, product?.reviews_count, reviewsList.length]);
+  const effectiveRating = useMemo(() => {
+    if (reviewsList.length > 0) {
+      const total = reviewsList.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
+      return total / reviewsList.length;
+    }
+    if (Number(product?.rating) > 0) return Number(product.rating);
+    return 0;
+  }, [product?.rating, reviewsList]);
   const [reviewFilterRating, setReviewFilterRating] = useState(0);
   const [reviewSearchQuery, setReviewSearchQuery] = useState("");
   const [isWriteReviewOpen, setIsWriteReviewOpen] = useState(false);
@@ -247,12 +273,6 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   const wished = wishlist.includes(product.id);
   const activeImage = images[selectedImgIdx] || images[0] || "/resources/js/assets/p-headphones.jpg";
-
-  // Resolve colors: supports object array (with hex) or string array (from available_colors DB field)
-  const productColors = useMemo(() => {
-    const src = product.colors || product.available_colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex, image: v.image_url })) || [];
-    return src.map(c => typeof c === 'string' ? { name: c, hex: null } : c);
-  }, [product]);
 
   const availableStock = Number(product?.stock_quantity ?? product?.stockCount ?? 0);
 
@@ -487,7 +507,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     },
     aggregateRating: reviewsCount > 0 ? {
       "@type": "AggregateRating",
-      ratingValue: Number(product.rating || 0).toFixed(2),
+      ratingValue: Number(effectiveRating || 0).toFixed(2),
       reviewCount: reviewsCount,
       bestRating: "5",
       worstRating: "1",
@@ -824,14 +844,14 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                         key={i}
                         className={cn(
                           "size-3.5",
-                          i < Math.floor(product.rating)
+                          i < Math.floor(effectiveRating || 0)
                             ? "fill-accent text-accent"
                             : "fill-muted text-muted-foreground/30",
                         )}
                       />
                     ))}
                   </div>
-                  <span className="text-foreground font-bold text-xs">{product.rating}</span>
+                  <span className="text-foreground font-bold text-xs">{Number(effectiveRating || 0).toFixed(1)}</span>
                 </a>
                 <span className="text-muted-foreground text-xs">•</span>
                 <a href="#reviews" className="text-muted-foreground hover:text-foreground text-xs font-medium">

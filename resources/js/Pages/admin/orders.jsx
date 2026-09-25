@@ -115,7 +115,10 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     date: new Date(o.placed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
     customer: { name: o.customer_name, email: o.customer_email, phone: o.customer_phone ?? "" },
     shippingAddress: o.shipping_address ? `${o.shipping_address.address_line1}, ${o.shipping_address.city}, ${o.shipping_address.state} ${o.shipping_address.postal_code}` : "",
-    items: (o.items ?? []).map((it) => ({ name: it.product_name, sku: it.sku ?? "", qty: it.quantity, price: parseFloat(it.price), color: it.selected_color ?? "", size: it.selected_size ?? "" })),
+    shippingAddressData: o.shipping_address ?? {},
+    status: o.status,
+    paymentStatusValue: o.payment_status,
+    items: (o.items ?? []).map((it) => ({ productId: it.product_id, variantId: it.variant_id, name: it.product_name, sku: it.product_sku ?? "", qty: it.quantity, price: parseFloat(it.price), color: it.selected_color ?? "", size: it.selected_size ?? "" })),
     subtotal: parseFloat(o.subtotal_amount ?? 0),
     shipping: parseFloat(o.shipping_amount ?? 0),
     tax: parseFloat(o.tax_amount ?? 0),
@@ -141,6 +144,27 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const [activeTab, setActiveTab] = useState("All Orders");
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [editOrderOpen, setEditOrderOpen] = useState(false);
+  const [editOrderForm, setEditOrderForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    postal_code: "",
+    country: "Pakistan",
+    shipping_method: "standard",
+    payment_method: "cod",
+    payment_status: "unpaid",
+    status: "pending",
+    coupon_code: "",
+    notes: "",
+    send_customer_update_email: false,
+    items: [{ product_id: "", variant_id: "", quantity: 1, selected_color: "", selected_size: "" }],
+  });
   const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
@@ -290,6 +314,33 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     setNewOrder((current) => ({ ...current, items: current.items.length === 1 ? current.items : current.items.filter((_, itemIndex) => itemIndex !== index) }));
     setCouponState({ status: "idle", discount: 0, message: "" });
   };
+
+  const updateEditOrderItem = (index, field, value) => {
+    setEditOrderForm((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
+    }));
+  };
+
+  const addEditOrderItem = () => {
+    setEditOrderForm((current) => ({
+      ...current,
+      items: [...current.items, { product_id: "", variant_id: "", quantity: 1, selected_color: "", selected_size: "" }],
+    }));
+  };
+
+  const removeEditOrderItem = (index) => {
+    setEditOrderForm((current) => ({
+      ...current,
+      items: current.items.length === 1 ? current.items : current.items.filter((_, itemIndex) => itemIndex !== index),
+    }));
+  };
+
+  const editOrderSubtotal = editOrderForm.items.reduce((sum, item) => {
+    const product = orderProducts.find((candidate) => String(candidate.id) === String(item.product_id));
+    const variant = product?.variants?.find((candidate) => String(candidate.id) === String(item.variant_id));
+    return sum + (product ? (Number(product.price) + Number(variant?.additional_price || 0)) * Number(item.quantity || 0) : 0);
+  }, 0);
 
   const submitNewOrder = async (event) => {
     event.preventDefault();
@@ -456,6 +507,104 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const handleResendEmail = async () => {
     const updated = await updateOrder("resend-email", {}, "Order confirmation email sent.");
     if (updated) return;
+  };
+
+  const openEditOrder = () => {
+    if (!selectedOrder?._serverId) {
+      toast.warning("Demo order — edit is not available in the database.");
+      return;
+    }
+
+    const address = selectedOrder.shippingAddressData ?? {};
+    const nameParts = (selectedOrder.customer?.name || "").trim().split(/\s+/);
+
+    setEditOrderForm({
+      first_name: nameParts[0] || "",
+      last_name: nameParts.slice(1).join(" ") || "",
+      email: selectedOrder.customer?.email ?? "",
+      phone: selectedOrder.customer?.phone ?? "",
+      address_line1: address.address_line1 ?? "",
+      address_line2: address.address_line2 ?? "",
+      city: address.city ?? "",
+      state: address.state ?? "",
+      postal_code: address.postal_code ?? "",
+      country: address.country ?? orderCountries[0] ?? "Pakistan",
+      shipping_method: orderShippingMethods[0]?.code ?? "standard",
+      payment_method: selectedOrder.paymentMethod ?? "cod",
+      payment_status: selectedOrder.paymentStatusValue ?? "unpaid",
+      status: selectedOrder.status ?? "pending",
+      coupon_code: selectedOrder.promoCode ?? "",
+      notes: selectedOrder.notes?.map((note) => note.text).join("\n") || "",
+      send_customer_update_email: false,
+      items: (selectedOrder.items ?? []).map((item) => {
+        const product = orderProducts.find((candidate) => String(candidate.id) === String(item.productId));
+        const variant = product?.variants?.find((candidate) => String(candidate.id) === String(item.variantId))
+          ?? product?.variants?.find((candidate) => candidate.color_name === item.color && candidate.size === item.size);
+        return {
+          product_id: item.productId ?? "",
+          variant_id: variant?.id ?? "",
+          quantity: item.qty ?? 1,
+          selected_color: item.color ?? "",
+          selected_size: item.size ?? "",
+        };
+      }),
+    });
+
+    setEditOrderOpen(true);
+  };
+
+  const submitEditedOrder = async (event) => {
+    event.preventDefault();
+    if (!selectedOrder?._serverId) return;
+
+    try {
+      const response = await fetch(`/admin/orders/${selectedOrder._serverId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-TOKEN": csrfToken() },
+        body: JSON.stringify({ ...editOrderForm, customer_id: null }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        const firstError = result.errors ? Object.values(result.errors).flat()[0] : result.message;
+        throw new Error(firstError || "Order could not be updated.");
+      }
+
+      toast.success(result.message || "Order updated successfully.");
+      setEditOrderOpen(false);
+      window.location.reload();
+    } catch (error) {
+      toast.error(error.message || "Order could not be updated.");
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!selectedOrder?._serverId) {
+      toast.warning("Demo order — delete is not available in the database.");
+      return;
+    }
+
+    if (!window.confirm(`Delete order ${selectedOrder.id}? This will remove the order and its related data.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/admin/orders/${selectedOrder._serverId}`, {
+        method: "DELETE",
+        headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Unable to delete order.");
+      }
+
+      toast.success(`Order #${selectedOrder.id} deleted.`);
+      setSelectedOrder(null);
+      window.location.reload();
+    } catch (error) {
+      toast.error(error.message || "Unable to delete order.");
+    }
   };
 
   const handlePrintPackingSlip = () => {
@@ -681,7 +830,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                         <select required value={item.product_id} onChange={(event) => updateOrderItem(index, "product_id", event.target.value)} className="min-w-0 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs focus:border-slate-900 focus:outline-none"><option value="">Select product *</option>{orderProducts.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} — {formatPrice(candidate.price)} ({candidate.stock_quantity} in stock)</option>)}</select>
                         <input required type="number" min="1" max={product?.stock_quantity || 100} value={item.quantity} onChange={(event) => updateOrderItem(index, "quantity", event.target.value)} className="min-w-0 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs focus:border-slate-900 focus:outline-none" />
                         <button type="button" onClick={() => removeOrderItem(index)} className="grid size-9 place-items-center rounded-lg text-red-600 hover:bg-red-50"><Trash2 className="size-3.5" /></button>
-                        {product && <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">{(product.available_colors?.length > 0 || product.variants?.some((variant) => variant.color_name)) && <select value={item.selected_color} onChange={(event) => updateOrderItem(index, "selected_color", event.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px]"><option value="">Color (optional)</option>{[...new Set((product.available_colors || []).concat((product.variants || []).map((variant) => variant.color_name).filter(Boolean)))].map((color) => <option key={color} value={color}>{color}</option>)}</select>}{(product.available_sizes?.length > 0 || product.variants?.some((variant) => variant.size)) && <select value={item.selected_size} onChange={(event) => updateOrderItem(index, "selected_size", event.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px]"><option value="">Size (optional)</option>{[...new Set((product.available_sizes || []).concat((product.variants || []).map((variant) => variant.size).filter(Boolean)))].map((size) => <option key={size} value={size}>{size}</option>)}</select>}</div>}
+                        {product && <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">{(product.available_colors?.length > 0 || product.variants?.some((variant) => variant.color_name)) && <select value={item.selected_color} onChange={(event) => updateOrderItem(index, "selected_color", event.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px]"><option value="">Color (optional)</option>{[...new Set((product.available_colors || []).map((color) => typeof color === "string" ? color : color.name).filter(Boolean).concat((product.variants || []).map((variant) => variant.color_name).filter(Boolean)))].map((color) => <option key={color} value={color}>{color}</option>)}</select>}{(product.available_sizes?.length > 0 || product.variants?.some((variant) => variant.size)) && <select value={item.selected_size} onChange={(event) => updateOrderItem(index, "selected_size", event.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-[11px]"><option value="">Size (optional)</option>{[...new Set((product.available_sizes || []).concat((product.variants || []).map((variant) => variant.size).filter(Boolean)))].map((size) => <option key={size} value={size}>{size}</option>)}</select>}</div>}
                       </div>;
                     })}
                   </div>
@@ -922,6 +1071,20 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
               </button>
               <button
                 type="button"
+                onClick={openEditOrder}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <FileText className="size-3.5" /> Edit Order
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteOrder}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="size-3.5" /> Delete Order
+              </button>
+              <button
+                type="button"
                 onClick={handlePrintPackingSlip}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
@@ -1035,6 +1198,143 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
               <button type="button" onClick={handleAddNote} className="flex-1 h-10 rounded-xl bg-slate-900 text-xs font-bold text-white hover:bg-slate-800">Add Note</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {editOrderOpen && (
+        <div className="fixed inset-0 z-70 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6">
+          <form onSubmit={submitEditedOrder} className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-[1.75rem] border border-white/20 bg-slate-50 shadow-2xl">
+            <div className="flex items-center justify-between bg-slate-950 px-5 py-4 text-white sm:px-8 sm:py-5">
+              <div>
+                <div className="flex items-center gap-2.5"><span className="grid size-8 place-items-center rounded-xl bg-white/10"><FileText className="size-4" /></span><h2 className="text-lg font-bold">Edit Order #{selectedOrder?.id}</h2></div>
+                <p className="mt-1.5 text-xs text-slate-400">Update contact details, shipping, payment and status.</p>
+              </div>
+              <button type="button" onClick={() => setEditOrderOpen(false)} className="grid size-9 place-items-center rounded-xl text-slate-400 transition-colors hover:bg-white/10 hover:text-white"><X className="size-4" /></button>
+            </div>
+
+            <div className="grid gap-5 overflow-y-auto p-4 sm:p-6">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input value={editOrderForm.first_name} onChange={(event) => setEditOrderForm((current) => ({ ...current, first_name: event.target.value }))} placeholder="First name" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+                <input value={editOrderForm.last_name} onChange={(event) => setEditOrderForm((current) => ({ ...current, last_name: event.target.value }))} placeholder="Last name" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+                <input type="email" value={editOrderForm.email} onChange={(event) => setEditOrderForm((current) => ({ ...current, email: event.target.value }))} placeholder="Email" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none sm:col-span-2" />
+                <input value={editOrderForm.phone} onChange={(event) => setEditOrderForm((current) => ({ ...current, phone: event.target.value }))} placeholder="Phone" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none sm:col-span-2" />
+                <input value={editOrderForm.address_line1} onChange={(event) => setEditOrderForm((current) => ({ ...current, address_line1: event.target.value }))} placeholder="Address line 1" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none sm:col-span-2" />
+                <input value={editOrderForm.address_line2} onChange={(event) => setEditOrderForm((current) => ({ ...current, address_line2: event.target.value }))} placeholder="Address line 2" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none sm:col-span-2" />
+                <input value={editOrderForm.city} onChange={(event) => setEditOrderForm((current) => ({ ...current, city: event.target.value }))} placeholder="City" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+                <input value={editOrderForm.state} onChange={(event) => setEditOrderForm((current) => ({ ...current, state: event.target.value }))} placeholder="State" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+                <input value={editOrderForm.postal_code} onChange={(event) => setEditOrderForm((current) => ({ ...current, postal_code: event.target.value }))} placeholder="Postal code" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+                <input value={editOrderForm.country} onChange={(event) => setEditOrderForm((current) => ({ ...current, country: event.target.value }))} placeholder="Country" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none" />
+              </div>
+
+              <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Order items</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Change products and quantities. Stock and final totals are checked when saved.</p>
+                  </div>
+                  <button type="button" onClick={addEditOrderItem} className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-bold text-white hover:bg-slate-800">
+                    <Plus className="size-3.5" /> Add item
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {editOrderForm.items.map((item, index) => {
+                    const product = orderProducts.find((candidate) => String(candidate.id) === String(item.product_id));
+                    const variants = product?.variants ?? [];
+                    const selectedVariant = variants.find((variant) => String(variant.id) === String(item.variant_id));
+                    const colors = [...new Set([...(product?.available_colors || []).map((color) => typeof color === "string" ? color : color.name)].filter(Boolean))];
+                    const sizes = [...new Set([...(product?.available_sizes || [])].filter(Boolean))];
+                    const unitPrice = product ? Number(product.price) + Number(selectedVariant?.additional_price || 0) : 0;
+
+                    return (
+                      <div key={index} className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_100px_40px]">
+                        <select required value={item.product_id} onChange={(event) => setEditOrderForm((current) => ({ ...current, items: current.items.map((currentItem, itemIndex) => itemIndex === index ? { ...currentItem, product_id: event.target.value, variant_id: "", selected_color: "", selected_size: "" } : currentItem) }))} className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs focus:border-slate-900 focus:outline-none">
+                          <option value="">Select product</option>
+                          {orderProducts.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {formatPrice(candidate.price)} · {candidate.stock_quantity} in stock</option>)}
+                        </select>
+                        <input required type="number" min="1" max="100" value={item.quantity} onChange={(event) => updateEditOrderItem(index, "quantity", event.target.value)} aria-label={`Quantity for item ${index + 1}`} className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs focus:border-slate-900 focus:outline-none" />
+                        <button type="button" onClick={() => removeEditOrderItem(index)} disabled={editOrderForm.items.length === 1} aria-label={`Remove item ${index + 1}`} className="grid size-10 place-items-center rounded-lg text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30">
+                          <Trash2 className="size-4" />
+                        </button>
+                        {variants.length > 0 && (
+                          <select required value={item.variant_id} onChange={(event) => {
+                            const variant = variants.find((candidate) => String(candidate.id) === event.target.value);
+                            setEditOrderForm((current) => ({
+                              ...current,
+                              items: current.items.map((currentItem, itemIndex) => itemIndex === index
+                                ? { ...currentItem, variant_id: variant?.id ?? "", selected_color: variant?.color_name ?? "", selected_size: variant?.size ?? "" }
+                                : currentItem),
+                            }));
+                          }} className="h-10 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs focus:border-slate-900 focus:outline-none sm:col-span-3">
+                            <option value="">Select variant</option>
+                            {variants.map((variant) => {
+                              const label = [variant.color_name, variant.size].filter(Boolean).join(" / ") || `Variant #${variant.id}`;
+                              const variantPrice = Number(product.price) + Number(variant.additional_price || 0);
+                              return <option key={variant.id} value={variant.id}>{label} · SKU {variant.sku || "N/A"} · Stock {variant.stock_quantity} · {formatPrice(variantPrice)}</option>;
+                            })}
+                          </select>
+                        )}
+                        {product && variants.length === 0 && (colors.length > 0 || sizes.length > 0) && (
+                          <div className="grid gap-2 sm:col-span-3 sm:grid-cols-2">
+                            {colors.length > 0 && <select value={item.selected_color} onChange={(event) => updateEditOrderItem(index, "selected_color", event.target.value)} className="h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs"><option value="">Color (optional)</option>{colors.map((color) => <option key={color} value={color}>{color}</option>)}</select>}
+                            {sizes.length > 0 && <select value={item.selected_size} onChange={(event) => updateEditOrderItem(index, "selected_size", event.target.value)} className="h-9 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs"><option value="">Size (optional)</option>{sizes.map((size) => <option key={size} value={size}>{size}</option>)}</select>}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-[11px] sm:col-span-3">
+                          <span className="text-slate-500">{product ? `${formatPrice(unitPrice)} × ${item.quantity || 0}${selectedVariant?.sku ? ` · SKU ${selectedVariant.sku}` : ""}` : "Select a product to see its price"}</span>
+                          <strong className="text-slate-900">{product ? formatPrice(unitPrice * Number(item.quantity || 0)) : ""}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-xs">
+                  <span className="font-semibold text-slate-500">Items subtotal estimate</span>
+                  <strong className="text-sm text-slate-900">{formatPrice(editOrderSubtotal)}</strong>
+                </div>
+              </section>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <select value={editOrderForm.status} onChange={(event) => setEditOrderForm((current) => ({ ...current, status: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none">
+                  {availableOrderStatuses.map((status) => <option key={status.id} value={status.id}>{status.label}</option>)}
+                </select>
+                <select value={editOrderForm.payment_status} onChange={(event) => setEditOrderForm((current) => ({ ...current, payment_status: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none">
+                  <option value="unpaid">Unpaid</option>
+                  <option value="paid">Paid</option>
+                  <option value="refunded">Refunded</option>
+                </select>
+                <select value={editOrderForm.payment_method} onChange={(event) => setEditOrderForm((current) => ({ ...current, payment_method: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none">
+                  {availablePaymentMethods.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Coupon code</label>
+                <input value={editOrderForm.coupon_code} onChange={(event) => setEditOrderForm((current) => ({ ...current, coupon_code: event.target.value.toUpperCase() }))} placeholder="No coupon" className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs uppercase focus:border-slate-900 focus:outline-none" />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select value={editOrderForm.shipping_method} onChange={(event) => setEditOrderForm((current) => ({ ...current, shipping_method: event.target.value }))} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none">
+                  {orderShippingMethods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}
+                </select>
+                <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                  <input type="checkbox" checked={editOrderForm.send_customer_update_email} onChange={(event) => setEditOrderForm((current) => ({ ...current, send_customer_update_email: event.target.checked }))} />
+                  Send update email to customer
+                </label>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Notes</label>
+                <textarea rows={4} value={editOrderForm.notes} onChange={(event) => setEditOrderForm((current) => ({ ...current, notes: event.target.value }))} className="w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-xs focus:border-slate-900 focus:outline-none" />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:px-8">
+              <button type="button" onClick={() => setEditOrderOpen(false)} className="h-10 rounded-xl border border-slate-200 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+              <button type="submit" className="h-10 rounded-xl bg-slate-950 px-5 text-xs font-bold text-white hover:bg-slate-800">Save Order Update</button>
+            </div>
+          </form>
         </div>
       )}
 

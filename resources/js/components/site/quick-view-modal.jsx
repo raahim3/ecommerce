@@ -49,7 +49,13 @@ export function QuickViewModal({ product, isOpen, onClose }) {
   const wished = wishlist.includes(product.id);
   const subcategoryName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
   const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Atelier"));
-  const reviewsCount = product.reviews_count ?? (Array.isArray(product.reviews) ? product.reviews.length : (Number(product.reviews) || 0));
+  const loadedReviews = Array.isArray(product.reviews) ? product.reviews : [];
+  const reviewsCount = loadedReviews.length > 0
+    ? loadedReviews.length
+    : (Number(product.reviews_count ?? 0) || 0);
+  const averageRating = loadedReviews.length > 0
+    ? loadedReviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / loadedReviews.length
+    : ((Number(product.reviews_count ?? 0) > 0 && Number(product.rating || 0) === 5) ? 0 : (Number(product.rating) > 0 ? Number(product.rating) : 0));
   const rawImages = product.images && product.images.length > 0 ? product.images : [product.image, product.hover];
   const images = rawImages.map(img => typeof img === "object" ? img.image_url : img).filter(Boolean);
   const activeImage = images[selectedImgIdx] || images[0] || "/resources/js/assets/p-headphones.jpg";
@@ -176,7 +182,7 @@ export function QuickViewModal({ product, isOpen, onClose }) {
               <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1 text-accent">
                   <Star className="size-4 fill-accent" />
-                  <span className="font-semibold text-foreground">{product.rating}</span>
+                  <span className="font-semibold text-foreground">{averageRating.toFixed(1)}</span>
                 </div>
                 <span>•</span>
                 <span>{reviewsCount} customer reviews</span>

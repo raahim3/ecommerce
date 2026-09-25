@@ -46,10 +46,10 @@ class HandleInertiaRequests extends Middleware
 
         // 1. General Branding
         $general = Setting::get('general', [
-            'storeName' => 'Atelier Studios Inc.',
-            'tagline' => 'Precision-Crafted Modern Essentials',
-            'supportEmail' => 'care@atelier-studios.com',
-            'phone' => '+1 (800) 555-ATELIER',
+            'storeName' => '',
+            'tagline' => '',
+            'supportEmail' => '',
+            'phone' => '',
             'currency' => 'USD — US Dollar',
             'timezone' => 'UTC-5 (Eastern Standard)',
             'orderPrefix' => 'ATL',
@@ -89,10 +89,10 @@ class HandleInertiaRequests extends Middleware
 
         // 2. SEO Settings
         $seo = Setting::get('seo', [
-            'metaTitle' => 'ATELIER — Precision-Crafted Modern Essentials',
+            'metaTitle' => '',
             'metaDescription' => 'Curated audio, timepieces, Mongolian cashmere knitwear, and artisanal home goods. Designed in Copenhagen and shipped worldwide.',
             'metaKeywords' => 'luxury essentials, cashmere knitwear, studio headphones, leather accessories, Copenhagen design',
-            'ogTitle' => 'ATELIER — Modern Essentials',
+            'ogTitle' => '',
             'ogDescription' => 'Curated essentials for conscious modern living.',
         ]);
         if (($general['storeName'] ?? null) && ($seo['metaTitle'] ?? null)) {

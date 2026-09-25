@@ -43,10 +43,11 @@ class HomeController extends Controller
             ->map(fn ($id) => (int) $id)
             ->values();
 
-        $productRelations = ['category', 'images', 'variants'];
+        $productRelations = ['category', 'images', 'variants', 'reviews'];
         if (($homepage['trendingMode'] ?? 'automatic') === 'manual' && $trendingIds->isNotEmpty()) {
             $trendingProducts = Product::active()
                 ->with($productRelations)
+                ->withCount('reviews')
                 ->whereIn('id', $trendingIds)
                 ->get()
                 ->sortBy(fn ($product) => $trendingIds->search($product->id))
@@ -70,6 +71,7 @@ class HomeController extends Controller
                 })
                 ->select('products.*')
                 ->with($productRelations)
+                ->withCount('reviews')
                 ->orderByDesc(DB::raw('COALESCE(trending_sales.total_sold, 0)'))
                 ->orderByDesc('products.created_at')
                 ->take(8)
@@ -79,6 +81,7 @@ class HomeController extends Controller
         $flashSaleProducts = Product::active()
             ->onSale()
             ->with(['category', 'images', 'variants'])
+            ->withCount('reviews')
             ->take(6)
             ->get();
 
@@ -107,6 +110,7 @@ class HomeController extends Controller
             })
             ->select('products.*')
             ->with(['category', 'images', 'variants'])
+            ->withCount('reviews')
             ->orderByDesc(DB::raw('COALESCE(best_seller_sales.total_sold, 0)'))
             ->orderByDesc('products.created_at')
             ->take(20)
@@ -136,14 +140,20 @@ class HomeController extends Controller
 
         $seo = Setting::get('seo', []);
         $general = Setting::get('general', []);
-        $storeName = $general['storeName'] ?? 'Atelier';
+        $storeName = $general['storeName'] ?? '';
         if (($seo['metaTitle'] ?? null)) {
             $seo['metaTitle'] = preg_replace('/^ATELIER\\b/', $storeName, $seo['metaTitle']);
         }
         if (($seo['ogTitle'] ?? null)) {
             $seo['ogTitle'] = preg_replace('/^ATELIER\\b/', $storeName, $seo['ogTitle']);
         }
-        $canonicalUrl = route('home');
+        $requestRoot = rtrim(request()->root(), '/');
+        $canonicalUrl = $requestRoot . route('home', [], false);
+        $ogImage = $seo['ogImage'] ?? ($general['logoLight'] ?? asset('build/assets/hero.jpg'));
+        if (!filter_var($ogImage, FILTER_VALIDATE_URL)) {
+            $ogImage = str_starts_with($ogImage, '//') ? 'https:' . $ogImage : (str_starts_with($ogImage, '/') ? $requestRoot . $ogImage : url($ogImage));
+        }
+        $ogImage = filter_var($ogImage, FILTER_VALIDATE_URL) ? $ogImage : asset('build/assets/hero.jpg');
 
         return Inertia::render('Home', [
             'categories' => $categories,
@@ -162,7 +172,7 @@ class HomeController extends Controller
             'ogType' => 'website',
             'ogTitle' => $seo['ogTitle'] ?? $seo['metaTitle'] ?? $storeName,
             'ogDescription' => $seo['ogDescription'] ?? $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
-            'ogImage' => $seo['ogImage'] ?? ($general['logoLight'] ?? asset('build/assets/hero.jpg')),
+            'ogImage' => $ogImage,
             'ogUrl' => $canonicalUrl,
             'ogSiteName' => $storeName,
             'twitterCard' => 'summary_large_image',
@@ -172,8 +182,8 @@ class HomeController extends Controller
                 '@context' => 'https://schema.org',
                 '@type' => 'Organization',
                 'name' => $storeName,
-                'url' => url('/'),
-                'logo' => $general['logoLight'] ? url($general['logoLight']) : null,
+                'url' => $requestRoot . '/',
+                'logo' => $general['logoLight'] ? (str_starts_with($general['logoLight'], '/') ? $requestRoot . $general['logoLight'] : url($general['logoLight'])) : null,
                 'description' => $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
             ],
         ]);

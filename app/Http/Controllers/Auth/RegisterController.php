@@ -56,6 +56,6 @@ class RegisterController extends Controller
 
         Auth::login($user);
 
-        return redirect()->intended('/')->with('success', 'Welcome to Atelier! Your account has been created.');
+        return redirect()->intended('/')->with('success', 'Welcome! Your account has been created.');
     }
 }

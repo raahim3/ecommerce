@@ -58,6 +58,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Orders
     Route::get('/orders', [OrderController::class, 'index'])->name('orders');
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
+    Route::patch('/orders/{id}', [OrderController::class, 'update'])->name('orders.update');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::patch('/orders/{id}/payment', [OrderController::class, 'updatePaymentStatus'])->name('orders.payment');
     Route::post('/orders/{id}/tracking', [OrderController::class, 'addTracking'])->name('orders.tracking');

@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\User;
 use App\Models\Coupon;
+use App\Models\ContactSubmission;
 use App\Services\AdminNotifier;
 use App\Services\ShippingRateService;
 use App\Models\Setting;
 use App\Mail\OrderConfirmationEmail;
+use App\Mail\OrderStatusUpdateEmail;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -102,6 +105,7 @@ class OrderController extends Controller
             'payment_receipt_url' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'send_confirmation' => ['nullable', 'boolean'],
+            'send_customer_update_email' => ['nullable', 'boolean'],
         ]);
 
         $paymentSettings = Setting::get('payments', []);
@@ -197,7 +201,7 @@ class OrderController extends Controller
 
             AdminNotifier::notifyNewOrder($order);
             foreach ($lowStockProducts as $product) AdminNotifier::notifyLowStock($product);
-            if (!empty($validated['send_confirmation'])) {
+            if (!empty($validated['send_confirmation']) || !empty($validated['send_customer_update_email'])) {
                 try {
                     Mail::to($order->customer_email)->send(new OrderConfirmationEmail($order->load('items')));
                 } catch (\Throwable $exception) {
@@ -213,6 +217,7 @@ class OrderController extends Controller
     {
         $request->validate([
             'status' => ['required', 'string', 'in:pending,processing,shipped,delivered,cancelled'],
+            'send_customer_update_email' => ['nullable', 'boolean'],
         ]);
 
         $order = Order::findOrFail($id);
@@ -230,6 +235,14 @@ class OrderController extends Controller
 
         $order->save();
 
+        if ($request->boolean('send_customer_update_email')) {
+            try {
+                Mail::to($order->customer_email)->send(new OrderStatusUpdateEmail($order, 'Status updated'));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
         return response()->json(['success' => true, 'order' => $order]);
     }
 
@@ -237,13 +250,189 @@ class OrderController extends Controller
     {
         $request->validate([
             'payment_status' => ['required', 'in:unpaid,paid,refunded'],
+            'send_customer_update_email' => ['nullable', 'boolean'],
         ]);
 
         $order = Order::findOrFail($id);
         $order->payment_status = $request->payment_status;
         $order->save();
 
+        if ($request->boolean('send_customer_update_email')) {
+            try {
+                Mail::to($order->customer_email)->send(new OrderStatusUpdateEmail($order, 'Payment updated'));
+            } catch (\Throwable $exception) {
+                report($exception);
+            }
+        }
+
         return response()->json(['success' => true, 'order' => $order]);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => ['nullable', 'integer', 'exists:users,id'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['nullable', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:30'],
+            'address_line1' => ['required', 'string', 'max:255'],
+            'address_line2' => ['nullable', 'string', 'max:255'],
+            'city' => ['required', 'string', 'max:100'],
+            'state' => ['required', 'string', 'max:100'],
+            'postal_code' => ['required', 'string', 'max:30'],
+            'country' => ['required', 'string', 'max:50'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
+            'items.*.selected_color' => ['nullable', 'string', 'max:100'],
+            'items.*.selected_size' => ['nullable', 'string', 'max:100'],
+            'payment_method' => ['required', 'in:card,stripe,paypal,cod,bank_transfer'],
+            'payment_status' => ['required', 'in:unpaid,paid,refunded'],
+            'status' => ['required', 'in:pending,processing,shipped,delivered,cancelled'],
+            'shipping_method' => ['required', 'string', 'max:50'],
+            'coupon_code' => ['nullable', 'string', 'max:50'],
+            'payment_receipt_url' => ['nullable', 'string', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+            'send_customer_update_email' => ['nullable', 'boolean'],
+        ]);
+
+        $order = Order::with('items')->findOrFail($id);
+
+        return DB::transaction(function () use ($order, $validated) {
+            foreach ($order->items as $existingItem) {
+                if (!empty($existingItem->product_id)) {
+                    Product::whereKey($existingItem->product_id)->lockForUpdate()->increment('stock_quantity', $existingItem->quantity);
+                }
+                if (!empty($existingItem->variant_id)) {
+                    ProductVariant::whereKey($existingItem->variant_id)->lockForUpdate()->increment('stock_quantity', $existingItem->quantity);
+                }
+            }
+
+            $subtotal = 0.0;
+            $weight = 0.0;
+            $newItems = [];
+
+            foreach ($validated['items'] as $item) {
+                $product = Product::with(['images', 'variants'])->whereKey($item['product_id'])->where('is_active', true)->lockForUpdate()->firstOrFail();
+                $quantity = (int) $item['quantity'];
+
+                $variant = null;
+                if (!empty($item['variant_id'])) {
+                    $variant = ProductVariant::whereKey($item['variant_id'])
+                        ->where('product_id', $product->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (!$variant) {
+                        throw ValidationException::withMessages(['items' => "The selected variant does not belong to {$product->name}."]);
+                    }
+                } elseif ($product->variants->isNotEmpty()) {
+                    throw ValidationException::withMessages(['items' => "Select a variant for {$product->name}."]);
+                }
+
+                if ($product->stock_quantity < $quantity) {
+                    throw ValidationException::withMessages(['items' => "{$product->name} does not have enough stock."]);
+                }
+
+                if ($variant && $variant->stock_quantity < $quantity) {
+                    throw ValidationException::withMessages(['items' => "The selected variant of {$product->name} does not have enough stock."]);
+                }
+
+                $price = (float) $product->price + (float) ($variant?->additional_price ?? 0);
+                $itemTotal = round($price * $quantity, 2);
+                $subtotal += $itemTotal;
+                $weight += (float) $product->weight_kg * $quantity;
+                $product->decrement('stock_quantity', $quantity);
+                $variant?->decrement('stock_quantity', $quantity);
+
+                $newItems[] = [
+                    'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
+                    'product_name' => $product->name,
+                    'product_sku' => $variant?->sku ?: $product->sku,
+                    'product_image' => $product->images->first()?->image_url ?? $product->image,
+                    'selected_color' => $variant?->color_name ?? ($item['selected_color'] ?? null),
+                    'selected_size' => $variant?->size ?? ($item['selected_size'] ?? null),
+                    'price' => $price,
+                    'quantity' => $quantity,
+                    'total' => $itemTotal,
+                ];
+            }
+
+            $requestedCouponCode = strtoupper(trim($validated['coupon_code'] ?? ''));
+            $existingCouponCode = strtoupper(trim($order->coupon_code ?? ''));
+            $discount = 0.0;
+            $couponCode = null;
+            if ($requestedCouponCode !== '' && $requestedCouponCode === $existingCouponCode) {
+                $discount = (float) $order->discount_amount;
+                $couponCode = $order->coupon_code;
+            } elseif ($requestedCouponCode !== '') {
+                $coupon = Coupon::where('code', $requestedCouponCode)->where('is_active', true)->lockForUpdate()->first();
+                if (!$coupon || !$coupon->isValid($subtotal)) {
+                    throw ValidationException::withMessages(['coupon_code' => 'This coupon is invalid, expired, exhausted, or the minimum spend has not been reached.']);
+                }
+                $discount = $coupon->calculateDiscount($subtotal);
+                $couponCode = $coupon->code;
+                $coupon->increment('used_count');
+            }
+
+            $shippingSettings = Setting::get('shipping', []);
+            $taxConfig = $shippingSettings['tax'] ?? [];
+            $taxRate = (float) ($taxConfig['flatRate'] ?? 8);
+            $taxIncluded = (bool) ($taxConfig['taxIncluded'] ?? false);
+            $shippingRate = app(ShippingRateService::class)->rate($validated['shipping_method'], $validated['country'], $subtotal, $weight);
+            $shippingAmount = (float) $shippingRate['amount'];
+            $taxAmount = $taxIncluded ? 0.0 : round(($subtotal - $discount) * ($taxRate / 100), 2);
+            $total = max(0.0, round($subtotal - $discount + $shippingAmount + $taxAmount, 2));
+
+            $shippingAddress = [
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'] ?? '',
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+                'address_line1' => $validated['address_line1'],
+                'address_line2' => $validated['address_line2'] ?? '',
+                'city' => $validated['city'],
+                'state' => $validated['state'],
+                'postal_code' => $validated['postal_code'],
+                'country' => $validated['country'],
+            ];
+
+            $order->user_id = $validated['customer_id'] ?? $order->user_id;
+            $order->customer_email = $validated['email'];
+            $order->customer_name = trim(($validated['first_name'] ?? '') . ' ' . ($validated['last_name'] ?? ''));
+            $order->customer_phone = $validated['phone'];
+            $order->shipping_address = $shippingAddress;
+            $order->billing_address = $shippingAddress;
+            $order->subtotal = $subtotal;
+            $order->discount_amount = $discount;
+            $order->coupon_code = $couponCode;
+            $order->tax_amount = $taxAmount;
+            $order->shipping_amount = $shippingAmount;
+            $order->total_amount = $total;
+            $order->status = $validated['status'];
+            $order->payment_status = $validated['payment_status'];
+            $order->payment_method = $validated['payment_method'];
+            $order->payment_receipt_url = $validated['payment_receipt_url'] ?? $order->payment_receipt_url;
+            $order->notes = $validated['notes'] ?? $order->notes;
+            $order->save();
+
+            $order->items()->delete();
+            foreach ($newItems as $item) {
+                $order->items()->create($item);
+            }
+
+            if ($request->boolean('send_customer_update_email')) {
+                try {
+                    Mail::to($order->customer_email)->send(new OrderStatusUpdateEmail($order->fresh(['items']), 'Order updated'));
+                } catch (\Throwable $exception) {
+                    report($exception);
+                }
+            }
+
+            return response()->json(['success' => true, 'message' => "Order #{$order->order_number} updated successfully.", 'order' => $order->fresh(['items'])]);
+        }, 3);
     }
 
     public function addTracking(Request $request, int $id): JsonResponse
@@ -298,6 +487,11 @@ class OrderController extends Controller
     public function destroy(int $id): JsonResponse
     {
         $order = Order::findOrFail($id);
+
+        ContactSubmission::where('order_id', (string) $order->id)
+            ->orWhere('order_id', $order->order_number)
+            ->delete();
+
         $order->items()->delete();
         $order->delete();
 

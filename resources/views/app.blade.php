@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <meta name="theme-color" content="#111111" />
-    
+    <link rel="icon" href="{{ asset('favicon.ico') }}" />
     {{-- Server-rendered SEO meta tags --}}
     @if(isset($metaTitle))
       <title>{{ $metaTitle }}</title>
@@ -23,6 +23,26 @@
     @endif
     
     {{-- OpenGraph Tags --}}
+    @php
+      $normalizedOgImage = null;
+      if (!empty($ogImage)) {
+        if (filter_var($ogImage, FILTER_VALIDATE_URL)) {
+          $normalizedOgImage = $ogImage;
+        } elseif (str_starts_with($ogImage, '//')) {
+          $normalizedOgImage = 'https:' . $ogImage;
+        } elseif (str_starts_with($ogImage, '/')) {
+          $normalizedOgImage = rtrim(request()->root(), '/') . $ogImage;
+        } else {
+          $normalizedOgImage = url($ogImage);
+        }
+      }
+      $normalizedOgImage = $normalizedOgImage ?: asset('build/assets/hero.jpg');
+
+      $normalizedOgUrl = null;
+      if (!empty($ogUrl)) {
+        $normalizedOgUrl = filter_var($ogUrl, FILTER_VALIDATE_URL) ? $ogUrl : (str_starts_with($ogUrl, '/') ? rtrim(request()->root(), '/') . $ogUrl : url($ogUrl));
+      }
+    @endphp
     @if(isset($ogType))
       <meta property="og:type" content="{{ $ogType }}" data-inertia="og:type">
     @endif
@@ -33,10 +53,10 @@
       <meta property="og:description" content="{{ $ogDescription }}" data-inertia="og:description">
     @endif
     @if(isset($ogImage))
-      <meta property="og:image" content="{{ filter_var($ogImage, FILTER_VALIDATE_URL) ? $ogImage : url($ogImage) }}" data-inertia="og:image">
+      <meta property="og:image" content="{{ $normalizedOgImage }}" data-inertia="og:image">
     @endif
     @if(isset($ogUrl))
-      <meta property="og:url" content="{{ $ogUrl }}" data-inertia="og:url">
+      <meta property="og:url" content="{{ $normalizedOgUrl ?? $ogUrl }}" data-inertia="og:url">
     @endif
     @if(isset($ogSiteName))
       <meta property="og:site_name" content="{{ $ogSiteName }}" data-inertia="og:site_name">
