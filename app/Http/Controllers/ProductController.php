@@ -21,6 +21,8 @@ class ProductController extends Controller
             ->withCount('reviews')
             ->firstOrFail();
 
+        $product->increment('views');
+
         $relatedProducts = Product::active()
             ->where('category_id', $product->category_id)
             ->where('id', '!=', $product->id)

@@ -302,8 +302,8 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   };
 
   // Buy now direct handler
-  const handleBuyNow = () => {
-    addItem(
+  const handleBuyNow = async () => {
+    const added = await addItem(
       {
         ...product,
         selectedColor: chosenColor?.name,
@@ -312,7 +312,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
       quantity,
       false,
     );
-    navigate("/checkout");
+    if (added) navigate("/checkout");
   };
 
   // Order via WhatsApp handler

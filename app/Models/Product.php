@@ -43,6 +43,8 @@ class Product extends Model
         'available_sizes',
         'rating',
         'reviews_count',
+        'views',
+        'add_to_cart_count',
         'seo_title',
         'seo_description',
         'seo_keywords',
@@ -70,6 +72,8 @@ class Product extends Model
             'available_sizes' => 'array',
             'rating' => 'decimal:2',
             'reviews_count' => 'integer',
+            'views' => 'integer',
+            'add_to_cart_count' => 'integer',
             'tags' => 'array',
         ];
     }

@@ -85,23 +85,44 @@ export function CartProvider({ children, checkoutSettings = {} }) {
   const closeCart = useCallback(() => setIsCartOpen(false), []);
   const toggleCart = useCallback(() => setIsCartOpen((prev) => !prev), []);
 
-  const addItem = useCallback((product, quantity = 1, openSidebar = false) => {
+  const addItem = useCallback(async (product, quantity = 1, openSidebar = false) => {
     // Build a composite key: product id + selected color + selected size
     const cartKey = `${product.id}__${product.selectedColor || ''}__${product.selectedSize || ''}`;
-    const availableStock = Number(product.stock_quantity ?? product.stockCount ?? 0);
     const requestedQty = Math.max(1, Number(quantity) || 1);
+
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+      const response = await fetch("/api/cart/add", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": csrfToken,
+        },
+        body: JSON.stringify({
+          product_id: product.id,
+          quantity: requestedQty,
+          selected_color: product.selectedColor || null,
+          selected_size: product.selectedSize || null,
+          variant_id: product.variant_id || product.variantId || null,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        toast.error(result.message || "Could not add this product to your bag.");
+        return false;
+      }
+    } catch {
+      toast.error("Could not add this product to your bag.");
+      return false;
+    }
 
     setItems((prev) => {
       const existing = prev.find((i) => i._cartKey === cartKey);
       const existingQty = existing ? Number(existing.qty || 0) : 0;
       const totalQty = existingQty + requestedQty;
-
-      if (availableStock > 0 && totalQty > availableStock) {
-        toast.error("Stock limit reached", {
-          description: `Only ${availableStock} item(s) available in stock for ${product.name}.`,
-        });
-        return prev;
-      }
 
       if (existing) {
         return prev.map((i) =>
@@ -123,6 +144,7 @@ export function CartProvider({ children, checkoutSettings = {} }) {
     if (openSidebar) {
       setIsCartOpen(true);
     }
+    return true;
   }, []);
 
   const removeItem = useCallback((cartKey) => {

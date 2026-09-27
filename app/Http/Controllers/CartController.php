@@ -94,6 +94,8 @@ class CartController extends Controller
             ]));
         }
 
+        $product->increment('add_to_cart_count');
+
         return response()->json([
             'success' => true,
             'message' => 'Item added to bag.',

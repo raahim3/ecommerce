@@ -46,6 +46,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
           price: parseFloat(p.price),
           original_price: p.original_price ? parseFloat(p.original_price) : null,
           stock: p.stock_quantity,
+          views: p.views ?? 0,
+          addToCartCount: p.add_to_cart_count ?? 0,
           category: p.category?.name ?? "—",
           status: p.is_active ? "Active" : "Draft",
           image: p.image ?? null,
@@ -138,7 +140,7 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
             type="button"
             onClick={() => {
               if (managedProducts.length === 0) { toast.info("No products to export."); return; }
-              const headers = ["ID", "Name", "SKU", "Category", "Price", "Compare Price", "Stock Quantity", "Status"];
+              const headers = ["ID", "Name", "SKU", "Category", "Price", "Compare Price", "Stock Quantity", "Views", "Add to Cart", "Status"];
               const rows = managedProducts.map((p) => [
                 p.id,
                 p.name,
@@ -147,6 +149,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
                 p.price,
                 p.original_price || p.comparePrice || "",
                 p.stock || 0,
+                p.views || 0,
+                p.addToCartCount || 0,
                 p.status,
               ]);
               downloadCsv("store_product_catalog", headers, rows);
@@ -234,6 +238,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
                 <th className="p-4 hidden sm:table-cell">SKU</th>
                 <th className="p-4 hidden md:table-cell">Category</th>
                 <th className="p-4 hidden lg:table-cell">Stock</th>
+                <th className="p-4 hidden xl:table-cell">Views</th>
+                <th className="p-4 hidden xl:table-cell">Add to Cart</th>
                 <th className="p-4">Price</th>
                 <th className="p-4 text-center">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -285,6 +291,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
                         </div>
                       </div>
                     </td>
+                    <td className="p-4 hidden xl:table-cell text-slate-900">{product.views.toLocaleString()}</td>
+                    <td className="p-4 hidden xl:table-cell text-slate-900">{product.addToCartCount.toLocaleString()}</td>
                     <td className="p-4">
                       <div>
                         <p className="font-extrabold text-slate-900">{formatPrice(product.price)}</p>
