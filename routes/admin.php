@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\AdminPushController;
+use App\Http\Controllers\Admin\PageViewsController;
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -70,6 +71,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Reports & Analytics
     Route::get('/reports', [ReportsController::class, 'index'])->name('reports');
     Route::get('/reports/export', [ReportsController::class, 'export'])->name('reports.export');
+    Route::get('/page-views', [PageViewsController::class, 'index'])->name('page-views');
+    Route::post('/page-views/reset', [PageViewsController::class, 'reset'])->name('page-views.reset');
 
     // Settings & Coupons
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings');

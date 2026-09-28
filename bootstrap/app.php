@@ -13,7 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [HandleInertiaRequests::class]);
+        $middleware->web(append: [HandleInertiaRequests::class, \App\Http\Middleware\TrackPageViews::class]);
         $middleware->validateCsrfTokens(except: ['api/webhooks/stripe']);
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminMiddleware::class,

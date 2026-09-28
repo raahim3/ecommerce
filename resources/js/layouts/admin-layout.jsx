@@ -26,6 +26,7 @@ import {
   Mail,
   Receipt,
   Star,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const ADMIN_NAV = [
   { label: "Reviews", href: "/admin/reviews", icon: Star },
   { label: "Customers", href: "/admin/customers", icon: Users },
   { label: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
+  { label: "Page Views", href: "/admin/page-views", icon: Eye },
   { label: "Store Settings", href: "/admin/settings", icon: Settings },
   { label: "Contact Messages", href: "/admin/contact-submissions", icon: Mail },
 ];

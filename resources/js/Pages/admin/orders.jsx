@@ -106,6 +106,18 @@ const MOCK_ORDERS = [
 
 const STATUS_TABS = ["All Orders", "Unfulfilled", "In Transit", "Fulfilled", "Pending Payment", "Cancelled"];
 
+const getOrderSubtotal = (order) => {
+  const storedSubtotal = Number(order.subtotal ?? order.subtotal_amount ?? 0);
+  if (storedSubtotal > 0 || !order.items?.length) return storedSubtotal;
+
+  return order.items.reduce((sum, item) => {
+    const itemTotal = item.total != null
+      ? Number(item.total)
+      : Number(item.price || 0) * Number(item.quantity || 0);
+    return sum + (Number.isFinite(itemTotal) ? itemTotal : 0);
+  }, 0);
+};
+
 export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }, filters = {}, orderProducts = [], orderCustomers = [], orderShippingMethods = [], orderCountries = ["Pakistan"], orderPaymentMethods = [], orderStatuses = [] }) {
   // Use only persisted orders.
   const serverData = serverOrders?.data ?? [];
@@ -119,7 +131,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     status: o.status,
     paymentStatusValue: o.payment_status,
     items: (o.items ?? []).map((it) => ({ productId: it.product_id, variantId: it.variant_id, name: it.product_name, sku: it.product_sku ?? "", qty: it.quantity, price: parseFloat(it.price), color: it.selected_color ?? "", size: it.selected_size ?? "" })),
-    subtotal: parseFloat(o.subtotal_amount ?? 0),
+    subtotal: getOrderSubtotal(o),
     shipping: parseFloat(o.shipping_amount ?? 0),
     tax: parseFloat(o.tax_amount ?? 0),
     discount: parseFloat(o.discount_amount ?? 0),

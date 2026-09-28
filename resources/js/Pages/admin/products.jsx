@@ -238,8 +238,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
                 <th className="p-4 hidden sm:table-cell">SKU</th>
                 <th className="p-4 hidden md:table-cell">Category</th>
                 <th className="p-4 hidden lg:table-cell">Stock</th>
-                <th className="p-4 hidden xl:table-cell">Views</th>
-                <th className="p-4 hidden xl:table-cell">Add to Cart</th>
+                <th className="p-2 sm:p-4 whitespace-nowrap">Views</th>
+                <th className="p-2 sm:p-4 whitespace-nowrap">Add to Cart</th>
                 <th className="p-4">Price</th>
                 <th className="p-4 text-center">Status</th>
                 <th className="p-4 text-right">Actions</th>
@@ -291,8 +291,8 @@ export function AdminProductsPage({ products: serverProducts = { data: [] }, cat
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 hidden xl:table-cell text-slate-900">{product.views.toLocaleString()}</td>
-                    <td className="p-4 hidden xl:table-cell text-slate-900">{product.addToCartCount.toLocaleString()}</td>
+                    <td className="p-2 sm:p-4 whitespace-nowrap text-center text-slate-900">{product.views.toLocaleString()}</td>
+                    <td className="p-2 sm:p-4 whitespace-nowrap text-center text-slate-900">{product.addToCartCount.toLocaleString()}</td>
                     <td className="p-4">
                       <div>
                         <p className="font-extrabold text-slate-900">{formatPrice(product.price)}</p>
