@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, router } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import {
   User,
   Package,
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { useCart } from "@/components/site/cart";
 import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
@@ -34,7 +35,7 @@ const INITIAL_ORDERS = [
     status: "Delivered",
     total: 338,
     items: [
-      { name: "Atelier Studio Headphones", qty: 1, price: 149, color: "Matte Obsidian" },
+      { name: "Studio Headphones", qty: 1, price: 149, color: "Matte Obsidian" },
       { name: "Heavy Rib Cashmere Knit", qty: 1, price: 189, color: "Oatmeal Cream" },
     ],
     trackingNumber: "TRK-98421092",
@@ -52,6 +53,7 @@ const INITIAL_ORDERS = [
 ];
 
 export function AccountPage({ user: serverUser = null, orders: serverOrders = [], addresses: serverAddresses = [] }) {
+  const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
   const navigate = (href) => router.visit(href);
   const { count, wishlist } = useCart();
   const [activeTab, setActiveTab] = useState("orders");
@@ -61,12 +63,12 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
     name: serverUser?.name || "Alex Rivers",
     email: serverUser?.email || "alex.rivers@example.com",
     phone: serverUser?.phone || "+1 (555) 234-5678",
-    tier: "Atelier VIP Member",
+    tier: `${storeName} VIP Member`,
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Use only persisted orders.
-  const [orders, setOrders] = useState(serverOrders);
+  const [orders, setOrders] = useState(() => replaceStoreNameInContent(serverOrders, storeName));
 
   // Addresses — seeded from server
   const [addresses, setAddresses] = useState(serverAddresses);
@@ -242,7 +244,7 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
 
   const handleLogout = () => {
     router.post("/logout", {}, {
-      onSuccess: () => toast.info("Signed out of Atelier"),
+      onSuccess: () => toast.info(`Signed out of ${storeName}`),
     });
   };
 

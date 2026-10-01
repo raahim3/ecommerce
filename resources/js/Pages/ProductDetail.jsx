@@ -32,19 +32,21 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { useCart } from "@/components/site/cart";
 import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function ProductDetailPage({ product: serverProduct, relatedProducts: serverRelatedProducts }) {
   const { id, app_settings: appSettings = {} } = usePage().props;
+  const storeName = appSettings.general?.storeName || "Store";
   const navigate = (href) => router.visit(href);
   const { addItem, wishlist, toggleWish } = useCart();
 
   // Resolve product only from persisted server data.
   const product = useMemo(() => {
-    return serverProduct || null;
-  }, [serverProduct, id]);
+    return serverProduct ? replaceStoreNameInContent(serverProduct, storeName) : null;
+  }, [serverProduct, id, storeName]);
 
   // Resolve category name and slug
   const categoryName = typeof product.category === "object" ? product.category?.name : (product.category || "Collection");
@@ -416,7 +418,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     }
 
     toast.success("Review submitted!", {
-      description: "Thank you for sharing your feedback with the Atelier community.",
+      description: `Thank you for sharing your feedback with the ${storeName} community.`,
     });
 
     setIsWriteReviewOpen(false);
@@ -496,7 +498,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
     description: product.description || product.tagline || product.name,
     sku: product.sku || undefined,
     image: productImage ? [new URL(productImage, window.location.origin).href] : undefined,
-    brand: { "@type": "Brand", name: "Atelier" },
+    brand: { "@type": "Brand", name: storeName },
     offers: {
       "@type": "Offer",
       url: window.location.href,
@@ -517,29 +519,29 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   return (
     <main className="min-h-screen pb-20 pt-28 lg:pt-36">
       <Head>
-        <title head-key="title">{product?.seo_title || (product?.name ? `${product.name} | ${appSettings.general?.storeName || "Atelier"}` : "Product | Atelier")}</title>
+        <title head-key="title">{product?.seo_title || (product?.name ? `${product.name} | ${storeName}` : `Product | ${storeName}`)}</title>
         <meta
           head-key="description"
           name="description"
-          content={(product?.seo_description || product?.description || product?.tagline || `Shop ${product?.name || "Atelier essentials"} from ${appSettings.general?.storeName || "Atelier"}.`).slice(0, 160)}
+          content={(product?.seo_description || product?.description || product?.tagline || `Shop ${product?.name || `${storeName} essentials`} from ${storeName}.`).slice(0, 160)}
         />
         {product?.seo_keywords && <meta head-key="keywords" name="keywords" content={product.seo_keywords} />}
         <meta head-key="robots" name="robots" content="index,follow" />
         <link head-key="canonical" rel="canonical" href={window.location.href.split("?")[0]} />
         <meta head-key="og:type" property="og:type" content="product" />
-        <meta head-key="og:title" property="og:title" content={product?.seo_title || `${product?.name || "Product"} | ${appSettings.general?.storeName || "Atelier"}`} />
+        <meta head-key="og:title" property="og:title" content={product?.seo_title || `${product?.name || "Product"} | ${storeName}`} />
         <meta
           head-key="og:description"
           property="og:description"
-          content={product?.seo_description || product?.tagline || product?.description || "Considered essentials from Atelier."}
+          content={product?.seo_description || product?.tagline || product?.description || `Considered essentials from ${storeName}.`}
         />
         {productImage && <meta head-key="og:image" property="og:image" content={new URL(productImage, window.location.origin).href} />}
         <meta head-key="twitter:card" name="twitter:card" content="summary_large_image" />
-        <meta head-key="twitter:title" name="twitter:title" content={product?.seo_title || `${product?.name || "Product"} | ${appSettings.general?.storeName || "Atelier"}`} />
+        <meta head-key="twitter:title" name="twitter:title" content={product?.seo_title || `${product?.name || "Product"} | ${storeName}`} />
         <meta
           head-key="twitter:description"
           name="twitter:description"
-          content={product?.seo_description || product?.tagline || product?.description || "Considered essentials from Atelier."}
+          content={product?.seo_description || product?.tagline || product?.description || `Considered essentials from ${storeName}.`}
         />
         {productImage && <meta head-key="twitter:image" name="twitter:image" content={new URL(productImage, window.location.origin).href} />}
         <script type="application/ld+json">{JSON.stringify(breadcrumbSchema)}</script>
@@ -1245,7 +1247,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               <h2 className="mt-1 text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
                 Verified Buyer Reviews
               </h2>
-              <p className="mt-1 text-xs text-muted-foreground">Real feedback from the Atelier community.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Real feedback from the {storeName} community.</p>
             </div>
             <button
               type="button"

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { Heart, ShoppingBag, Trash2, ArrowRight, Share2, Sparkles, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useCart } from "@/components/site/cart";
@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function WishlistPage({ initialWishlist = [], recommendedProducts = [] }) {
+  const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
   const { wishlist, toggleWish, addItem } = useCart();
 
   const savedProducts = useMemo(() => {
@@ -97,7 +98,7 @@ export function WishlistPage({ initialWishlist = [], recommendedProducts = [] })
             </div>
             <h2 className="mt-4 text-xl font-bold text-foreground">Your wishlist is empty</h2>
             <p className="mt-2 max-w-sm text-xs sm:text-sm text-muted-foreground">
-              Explore the Atelier catalog and tap the heart icon on any product to save it to your wishlist.
+              Explore the {storeName} catalog and tap the heart icon on any product to save it to your wishlist.
             </p>
             <Link
               to="/shop"

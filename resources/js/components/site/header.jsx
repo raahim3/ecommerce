@@ -125,7 +125,7 @@ export function Header() {
               />
             ) : (
               <span>
-                {generalSettings.storeName || "ATELIER"}
+                {generalSettings.storeName || "Store"}
                 <span className="text-accent">.</span>
               </span>
             )}
@@ -354,7 +354,7 @@ export function Header() {
               onClick={() => setMenuOpen(false)}
               className="text-lg font-extrabold tracking-[-0.06em]"
             >
-              ATELIER<span className="text-accent">.</span>
+              {generalSettings.storeName || "Store"}<span className="text-accent">.</span>
             </Link>
             <IconButton label="Close menu" onClick={() => setMenuOpen(false)}>
               <X className="size-5" strokeWidth={1.6} />

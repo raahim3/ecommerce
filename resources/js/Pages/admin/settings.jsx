@@ -49,6 +49,7 @@ const TABS = [
   { id: "about", label: "About Page", icon: FileText },
   { id: "terms", label: "Terms of Service", icon: FileText },
   { id: "privacy", label: "Privacy Policy", icon: FileText },
+  { id: "returns", label: "Return Policy", icon: FileText },
   { id: "coupons", label: "Promo Codes & Discounts", icon: Tag },
   { id: "seo", label: "SEO & Social", icon: Globe },
   { id: "security", label: "Security & Spam", icon: Shield },
@@ -113,10 +114,10 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
 
   // 1. General & Branding
   const [general, setGeneral] = useState({
-    storeName: "Atelier Studios Inc.",
+    storeName: "Store",
     tagline: "Precision-Crafted Modern Essentials",
-    supportEmail: "care@atelier-studios.com",
-    phone: "+1 (800) 555-ATELIER",
+    supportEmail: "",
+    phone: "",
     currency: "USD — US Dollar",
     timezone: "UTC-5 (Eastern Standard)",
     orderPrefix: "ATL",
@@ -197,7 +198,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
     newsletterPlaceholder: "Enter your email",
     newsletterButtonLabel: "Subscribe",
     socialEyebrow: "Follow the journey",
-    socialTitle: "@atelier",
+    socialTitle: "",
     socialGalleryImages: [],
     ...(settings.homepage || {}),
   });
@@ -293,24 +294,25 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
   });
   const [contact, setContact] = useState({
     eyebrow: "Client Services", title: "How can we assist you?", description: "Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.",
-    emailTitle: "Email Client Care", emailDescription: "Average reply time: under 2 hours during studio hours.", email: "care@atelier-studios.com",
-    phoneTitle: "Phone Concierge", phoneDescription: "Monday-Saturday, 9:00 AM - 6:00 PM EST.", phone: "+1 (800) 555-ATELIER",
+    emailTitle: "Email Client Care", emailDescription: "Average reply time: under 2 hours during studio hours.", email: general.supportEmail || "",
+    phoneTitle: "Phone Concierge", phoneDescription: "Monday-Saturday, 9:00 AM - 6:00 PM EST.", phone: general.phone || "",
     chatTitle: "Live Stylist Chat", chatDescription: "Instant guidance on garment sizing and curated pairings.", chatButtonLabel: "Start Live Chat Session →",
     messageTitle: "Send a Message", faqTitle: "Frequently Asked Questions", faqDescription: "Find quick answers to common questions.", faqs: [],
     ...(settings.contact || {}),
   });
   const [legal, setLegal] = useState({
-    about: { eyebrow: "The Atelier Manifesto", title: "Purity in form. Integrity in craft.", intro: "We exist to counter the culture of disposable trends.", image: "", body: "<h2>Our story</h2><p>We make considered essentials with integrity, quality, and care.</p>", ...(settings.about || {}) },
-    terms: { eyebrow: "Legal", title: "Terms of Service", intro: "The terms that govern your use of Atelier.", body: "<h2>Using our store</h2><p>By using this website, you agree to these terms and our policies.</p>", ...(settings.terms || {}) },
-    privacy: { eyebrow: "Legal", title: "Privacy Policy", intro: "How Atelier collects and protects your information.", body: "<h2>Your privacy matters</h2><p>We use your information only to provide and improve our services.</p>", ...(settings.privacy || {}) },
+    about: { eyebrow: `The ${general.storeName || "Store"} Manifesto`, title: "Purity in form. Integrity in craft.", intro: "We exist to counter the culture of disposable trends.", image: "", body: "<h2>Our story</h2><p>We make considered essentials with integrity, quality, and care.</p>", ...(settings.about || {}) },
+    terms: { eyebrow: "Legal", title: "Terms of Service", intro: `The terms that govern your use of ${general.storeName || "the store"}.`, body: "<h2>Using our store</h2><p>By using this website, you agree to these terms and our policies.</p>", ...(settings.terms || {}) },
+    privacy: { eyebrow: "Legal", title: "Privacy Policy", intro: `How ${general.storeName || "the store"} collects and protects your information.`, body: "<h2>Your privacy matters</h2><p>We use your information only to provide and improve our services.</p>", ...(settings.privacy || {}) },
+    returns: { eyebrow: "Returns & Refunds", title: "Return Policy", intro: "Learn how to return an eligible order and receive a refund or exchange.", body: "<h2>Return window</h2><p>Eligible items may be returned within 30 days of delivery. Items must be unused and returned in their original condition with tags and packaging.</p><h2>How to start a return</h2><p>Contact our client care team with your order number to arrange a return. We will provide instructions and a prepaid return label for eligible returns.</p><h2>Refunds</h2><p>After the returned item is received and inspected, approved refunds are sent to the original payment method. Processing times may vary by payment provider.</p><h2>Exchanges</h2><p>Contact our client care team to ask about exchanging an eligible item.</p>", ...(settings.returns || {}) },
   });
 
   // 2. SEO & Social
   const [seo, setSeo] = useState({
-    metaTitle: "ATELIER — Precision-Crafted Modern Essentials",
+    metaTitle: `${general.storeName || "Store"} — Precision-Crafted Modern Essentials`,
     metaDescription: "Curated audio, timepieces, Mongolian cashmere knitwear, and artisanal home goods.",
     metaKeywords: "luxury essentials, cashmere knitwear, studio headphones, leather accessories",
-    ogTitle: "ATELIER — Modern Essentials",
+    ogTitle: `${general.storeName || "Store"} — Modern Essentials`,
     ogDescription: "Curated essentials for conscious modern living.",
     ogImage: "",
     googleAnalyticsId: "",
@@ -327,8 +329,8 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
     encryption: "TLS (Port 587)",
     username: "",
     password: "",
-    fromName: "Atelier Studios",
-    fromEmail: "noreply@atelier-studios.com",
+    fromName: general.storeName || "Store",
+    fromEmail: general.supportEmail || "",
     ...(settings.smtp || {}),
   });
   const [smtpPasswordVisible, setSmtpPasswordVisible] = useState(false);
@@ -400,9 +402,9 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
 
   // 7. Staff
   const [staff, setStaff] = useState([
-    { id: 1, name: "Alex Rivers", email: "alex@atelier-studios.com", role: "Super Admin", lastActive: "Just now", avatar: "AR" },
-    { id: 2, name: "Sarah Chen", email: "sarah@atelier-studios.com", role: "Store Manager", lastActive: "2 hours ago", avatar: "SC" },
-    { id: 3, name: "Mike Torres", email: "mike@atelier-studios.com", role: "Fulfillment Agent", lastActive: "Yesterday", avatar: "MT" },
+    { id: 1, name: "Alex Rivers", email: "alex@example.com", role: "Super Admin", lastActive: "Just now", avatar: "AR" },
+    { id: 2, name: "Sarah Chen", email: "sarah@example.com", role: "Store Manager", lastActive: "2 hours ago", avatar: "SC" },
+    { id: 3, name: "Mike Torres", email: "mike@example.com", role: "Fulfillment Agent", lastActive: "Yesterday", avatar: "MT" },
   ]);
 
   // Generic Save for any Settings Group
@@ -914,7 +916,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                         {general.logoLight ? (
                           <img src={general.logoLight} alt="Light Logo Preview" className="max-h-full object-contain" />
                         ) : (
-                          <span className="text-xs font-bold tracking-tight text-white">{general.storeName || "ATELIER"}</span>
+                          <span className="text-xs font-bold tracking-tight text-white">{general.storeName || "Store"}</span>
                         )}
                       </div>
                     </div>
@@ -959,7 +961,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                         {general.logoDark ? (
                           <img src={general.logoDark} alt="Dark Logo Preview" className="max-h-full object-contain" />
                         ) : (
-                          <span className="text-xs font-bold tracking-tight text-slate-900">{general.storeName || "ATELIER"}</span>
+                          <span className="text-xs font-bold tracking-tight text-slate-900">{general.storeName || "Store"}</span>
                         )}
                       </div>
                     </div>
@@ -1064,9 +1066,9 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
             </div>
           )}
 
-          {(activeTab === "about" || activeTab === "terms" || activeTab === "privacy") && (() => {
+          {(activeTab === "about" || activeTab === "terms" || activeTab === "privacy" || activeTab === "returns") && (() => {
             const data = legal[activeTab];
-            const label = activeTab === "about" ? "About Page" : activeTab === "terms" ? "Terms of Service" : "Privacy Policy";
+            const label = activeTab === "about" ? "About Page" : activeTab === "terms" ? "Terms of Service" : activeTab === "privacy" ? "Privacy Policy" : "Return Policy";
             return (
               <div className="space-y-5">
                 <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
@@ -2146,7 +2148,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                       type="text"
                       value={smtp.fromName}
                       onChange={(e) => setSmtp({ ...smtp, fromName: e.target.value })}
-                      placeholder="Atelier Studios"
+                      placeholder={general.storeName || "Store"}
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -2156,7 +2158,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                       type="email"
                       value={smtp.fromEmail}
                       onChange={(e) => setSmtp({ ...smtp, fromEmail: e.target.value })}
-                      placeholder="noreply@atelier-studios.com"
+                      placeholder={general.supportEmail || "noreply@example.com"}
                       className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                     />
                   </div>
@@ -2388,7 +2390,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                           type="text"
                           value={payments.bankAccountTitle || ""}
                           onChange={(e) => setPayments({ ...payments, bankAccountTitle: e.target.value })}
-                          placeholder="e.g. Atelier Studios Inc."
+                          placeholder={`e.g. ${general.storeName || "Store"}`}
                           className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:border-slate-900 focus:bg-white focus:outline-none"
                         />
                       </div>

@@ -67,7 +67,7 @@ const RECENT_ORDERS_ADMIN = [
   {
     id: "ATL-894210",
     customer: { name: "Alex Rivers", email: "alex.rivers@example.com" },
-    items: "Atelier Studio Headphones (x1), Knit (x1)",
+    items: "Studio Headphones (x1), Knit (x1)",
     total: 338.0,
     date: "10 mins ago",
     paymentStatus: "Paid",
@@ -219,8 +219,8 @@ export function AdminDashboardPage({
         const headers = Object.keys(data.orders[0]).join(",");
         const rows = data.orders.map((r) => Object.values(r).join(",")).join("\n");
         const blob = new Blob([headers + "\n" + rows], { type: "text/csv" });
-        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "atelier_orders.csv"; a.click();
-        toast.success("Exported atelier_orders.csv");
+        const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "orders.csv"; a.click();
+        toast.success("Exported orders.csv");
       }
     } catch { toast.success("Exporting store_sales_analytics.csv"); }
   };

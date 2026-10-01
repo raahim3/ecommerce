@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import {
   Truck,
   Search,
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
 
 export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], searchParams = {} }) {
+  const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
   const [orderInput, setOrderInput] = useState(searchParams.order || "");
   const [emailInput, setEmailInput] = useState(searchParams.email || "");
   const [isSearching, setIsSearching] = useState(false);
@@ -98,7 +99,7 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
             Track Your Shipment
           </h1>
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-            Enter your Atelier Order Reference number or email to view live delivery checkpoints.
+            Enter your {storeName} Order Reference number or email to view live delivery checkpoints.
           </p>
         </div>
 

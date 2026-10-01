@@ -40,7 +40,7 @@ const MOCK_ORDERS = [
     customer: { name: "Alex Rivers", email: "alex@example.com", phone: "+1 555-234-5678" },
     shippingAddress: "742 Evergreen Terrace, Apt 4B, New York, NY 10001, USA",
     items: [
-      { name: "Atelier Studio Headphones", sku: "ATL-AUD-001", qty: 1, price: 149, color: "Matte Obsidian" },
+      { name: "Studio Headphones", sku: "ATL-AUD-001", qty: 1, price: 149, color: "Matte Obsidian" },
       { name: "Heavy Rib Cashmere Knit", sku: "ATL-KNT-003", qty: 1, price: 189, color: "Oatmeal Cream", size: "M" },
     ],
     subtotal: 338, shipping: 0, tax: 27.04, discount: 33.8, total: 331.24,

@@ -6,6 +6,7 @@ import { Reveal } from "./reveal";
 export function SocialGallery() {
   const { app_settings: appSettings = {} } = usePage().props;
   const settings = appSettings.homepage || {};
+  const storeName = appSettings.general?.storeName || "Store";
   const images = settings.socialGalleryImages || [];
   const [activeIndex, setActiveIndex] = useState(null);
   const activeImage = activeIndex === null ? null : images[activeIndex];
@@ -26,7 +27,7 @@ export function SocialGallery() {
       <div className="shell">
         <Reveal className="text-center">
           <p className="eyebrow">{settings.socialEyebrow || "Follow the journey"}</p>
-          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">{settings.socialTitle || "@atelier"}</h2>
+          <h2 className="mt-3 text-3xl font-extrabold sm:text-4xl">{settings.socialTitle || storeName}</h2>
         </Reveal>
 
         <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

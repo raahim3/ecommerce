@@ -24,14 +24,19 @@ export function Footer() {
   const general = props?.app_settings?.general || {};
   const navigation = props?.app_settings?.navigation || {};
   const categories = props?.app_settings?.navigationCategories || [];
-  const store = general.storeName || "ATELIER";
+  const store = general.storeName || "Store";
   const year = new Date().getFullYear();
   const description = (navigation.footerDescription || "Curated essentials for modern living. Designed in Copenhagen, shipped worldwide with sustainable packaging.").replace("{store}", store);
   const copyright = (navigation.footerCopyright || "© {year} {store} All rights reserved.").replace("{year}", String(year)).replace("{store}", store);
 
   return <footer className="bg-ink text-ink-foreground"><div className="shell grid gap-12 py-12 lg:grid-cols-[1.4fr_repeat(3,1fr)] lg:gap-10 lg:py-16"><div className="min-w-0"><Link href="/" className="text-lg font-extrabold tracking-[-0.06em]">{general.logoLight ? <img src={general.logoLight} alt={store} className="h-14 w-auto object-contain" /> : <>{store}<span className="text-accent">.</span></>}</Link><p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-foreground/60">{description}</p></div><LinkColumn title="Shop" items={navigation.footerShopLinks || DEFAULT_COLUMNS.footerShopLinks} categories={categories} /><LinkColumn title="Account & Services" items={navigation.footerServiceLinks || DEFAULT_COLUMNS.footerServiceLinks} categories={categories} /><LinkColumn title="Company & Help" items={navigation.footerCompanyLinks || DEFAULT_COLUMNS.footerCompanyLinks} categories={categories} /></div><div className="border-t border-ink-foreground/10">
-      <div className="shell py-6 text-xs text-ink-foreground/55 flex justify-between items-center flex-col md:flex-row gap-2">
+      <div className="shell py-6 text-xs text-ink-foreground/55 flex justify-between items-center flex-col md:flex-row gap-3">
         <p>{copyright}</p>
+        <nav aria-label="Legal policies" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <Link href="/terms-of-service" className="hover:text-ink-foreground">Terms of Service</Link>
+          <Link href="/privacy-policy" className="hover:text-ink-foreground">Privacy Policy</Link>
+          <Link href="/return-policy" className="hover:text-ink-foreground">Return Policy</Link>
+        </nav>
         <p>Developed By <a href="https://rahim-dev32.netlify.app/" className="text-accent hover:underline font-bold" target="_blank" rel="noopener noreferrer">Muhammad Rahim</a></p>
       </div>
     </div></footer>;

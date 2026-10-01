@@ -21,15 +21,17 @@ class ResetPasswordNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
+        $store = \App\Models\Setting::get('general', []);
+        $storeName = !empty($store['storeName']) ? $store['storeName'] : 'Store';
         $resetUrl = url(route('password.reset', [
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
         ], false));
 
         return (new MailMessage)
-            ->subject('Reset Your Atelier Account Password')
+            ->subject('Reset Your ' . $storeName . ' Account Password')
             ->greeting('Hello ' . $notifiable->name . ',')
-            ->line('You are receiving this email because we received a password reset request for your Atelier account.')
+            ->line('You are receiving this email because we received a password reset request for your ' . $storeName . ' account.')
             ->action('Reset Password', $resetUrl)
             ->line('This password reset link will expire in 60 minutes.')
             ->line('If you did not request a password reset, no further action is required.');

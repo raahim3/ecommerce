@@ -1,18 +1,34 @@
 import { Head, Link, usePage } from "@inertiajs/react";
 import { SiteLayout } from "@/layouts/site-layout";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 
 export function LegalPage({ page = "terms" }) {
   const { props } = usePage();
-  const content = props?.app_settings?.legal?.[page] || {};
-  const isTerms = page === "terms";
-  const defaultTitle = isTerms ? "Terms of Service" : "Privacy Policy";
+  const storeName = props?.app_settings?.general?.storeName || "Store";
+  const savedContent = props?.app_settings?.legal?.[page] || {};
+  const content = replaceStoreNameInContent(savedContent, storeName);
+  const defaults = {
+    terms: {
+      title: "Terms of Service",
+      intro: "Please review these terms and conditions carefully before using our store.",
+    },
+    privacy: {
+      title: "Privacy Policy",
+      intro: "Learn how we protect and manage your personal data.",
+    },
+    returns: {
+      title: "Return Policy",
+      intro: "Learn how to return an eligible order and receive a refund or exchange.",
+    },
+  }[page] || { title: "Legal Information", intro: "Review this store policy carefully." };
+  const defaultTitle = defaults.title;
   const title = content.title || defaultTitle;
   const eyebrow = content.eyebrow || "Legal";
-  const intro = content.intro || (isTerms ? "Please review these terms and conditions carefully before using our store." : "Learn how we protect and manage your personal data.");
-  const pageTitle = `${title} | Atelier`;
-  const metaDescription = content.intro || `Read Atelier's ${defaultTitle}.`;
+  const intro = content.intro || defaults.intro;
+  const pageTitle = `${title} | ${storeName}`;
+  const metaDescription = content.intro || `Read ${storeName}'s ${defaultTitle}.`;
   
-  const body = content.body;
+  const body = replaceStoreNameInContent(savedContent.body, storeName, true);
 
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">

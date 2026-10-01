@@ -122,7 +122,7 @@ Route::post('/api/contact/submit', [ContactController::class, 'submit'])->name('
 
 Route::get('/about', function () {
     $general = \App\Models\Setting::get('general', []);
-    $storeName = $general['storeName'] ?? 'Atelier';
+    $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
     $canonicalUrl = route('about');
     $pageContent = \App\Models\Setting::get('about', []);
 
@@ -146,7 +146,7 @@ Route::get('/about', function () {
 
 Route::get('/terms-of-service', function () {
     $general = \App\Models\Setting::get('general', []);
-    $storeName = $general['storeName'] ?? 'Atelier';
+    $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
     $canonicalUrl = route('terms');
     return Inertia::render('LegalPage', ['page' => 'terms'])
         ->withViewData([
@@ -168,7 +168,7 @@ Route::get('/terms-of-service', function () {
 
 Route::get('/privacy-policy', function () {
     $general = \App\Models\Setting::get('general', []);
-    $storeName = $general['storeName'] ?? 'Atelier';
+    $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
     $canonicalUrl = route('privacy');
     return Inertia::render('LegalPage', ['page' => 'privacy'])
         ->withViewData([
@@ -188,10 +188,35 @@ Route::get('/privacy-policy', function () {
         ]);
 })->name('privacy');
 
+Route::get('/return-policy', function () {
+    $general = \App\Models\Setting::get('general', []);
+    $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
+    $canonicalUrl = route('returns');
+    $metaTitle = 'Return Policy | ' . $storeName;
+    $metaDescription = 'Read the return, refund, and exchange policy for ' . $storeName . '.';
+
+    return Inertia::render('LegalPage', ['page' => 'returns'])
+        ->withViewData([
+            'metaTitle' => $metaTitle,
+            'metaDescription' => $metaDescription,
+            'metaRobots' => 'index,nofollow',
+            'canonicalUrl' => $canonicalUrl,
+            'ogType' => 'website',
+            'ogTitle' => $metaTitle,
+            'ogDescription' => $metaDescription,
+            'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
+            'ogUrl' => $canonicalUrl,
+            'ogSiteName' => $storeName,
+            'twitterCard' => 'summary',
+            'twitterTitle' => $metaTitle,
+            'twitterDescription' => $metaDescription,
+        ]);
+})->name('returns');
+
 Route::get('/contact', function () {
     $general = \App\Models\Setting::get('general', []);
     $contact = \App\Models\Setting::get('contact', []);
-    $storeName = $general['storeName'] ?? 'Atelier';
+    $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
     $canonicalUrl = route('contact');
     $metaTitle = $contact['metaTitle'] ?? 'Contact ' . $storeName . ' Client Care';
     $metaDescription = $contact['metaDescription'] ?? 'Get help with orders, shipping, returns, sizing and product questions from ' . $storeName . ' Client Care.';
@@ -230,7 +255,8 @@ Route::get('/sitemap.xml', function () {
         ['loc' => url('/about'), 'changefreq' => 'monthly', 'priority' => '0.5'],
         ['loc' => url('/contact'), 'changefreq' => 'monthly', 'priority' => '0.4'],
         ['loc' => url('/terms-of-service'), 'changefreq' => 'monthly', 'priority' => '0.3'],
-        ['loc' => url('/privacy-policy'), 'changefreq' => 'monthly', 'priority' => '0.3']
+        ['loc' => url('/privacy-policy'), 'changefreq' => 'monthly', 'priority' => '0.3'],
+        ['loc' => url('/return-policy'), 'changefreq' => 'monthly', 'priority' => '0.3']
     ])->concat(
         \App\Models\Product::active()->get(['slug', 'updated_at'])->map(fn ($product) => [
             'loc' => url('/product/' . $product->slug),

@@ -2,11 +2,13 @@ import { Head, Link, usePage } from "@inertiajs/react";
 import { Sparkles, ShieldCheck, Leaf, Globe, ArrowRight, Award, Compass, Heart } from "lucide-react";
 import editorialImg from "@/assets/editorial.jpg";
 import { SiteLayout } from "@/layouts/site-layout";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 
 export function AboutPage() {
   const { props } = usePage();
-  const content = props?.pageContent || {};
   const general = props?.app_settings?.general || {};
+  const storeName = general.storeName || "Store";
+  const content = replaceStoreNameInContent(props?.pageContent || {}, storeName);
 
   const standards = [
     {
@@ -57,7 +59,7 @@ export function AboutPage() {
   const orgSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": general.storeName || "Atelier",
+    "name": storeName,
     "url": typeof window !== "undefined" ? window.location.origin : undefined,
     "logo": general.logoLight ? new URL(general.logoLight, typeof window !== "undefined" ? window.location.origin : undefined).href : undefined,
     "description": content.intro || "Curated essentials for conscious modern living.",
@@ -66,8 +68,8 @@ export function AboutPage() {
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">
       <Head>
-        <title head-key="title">{content.metaTitle || `Our Story | ${general.storeName || "Atelier"}`}</title>
-        <meta head-key="description" name="description" content={content.metaDescription || content.intro || "Discover Atelier's approach to considered design, enduring materials and responsible craftsmanship."} />
+        <title head-key="title">{content.metaTitle || `Our Story | ${storeName}`}</title>
+        <meta head-key="description" name="description" content={content.metaDescription || content.intro || `Discover ${storeName}'s approach to considered design, enduring materials and responsible craftsmanship.`} />
         {content.metaKeywords && <meta head-key="keywords" name="keywords" content={content.metaKeywords} />}
         <meta head-key="robots" name="robots" content="index,follow" />
         <script type="application/ld+json">{JSON.stringify(orgSchema)}</script>
@@ -84,7 +86,7 @@ export function AboutPage() {
 
         {/* Hero Section */}
         <div className="border-b border-border pb-10 text-center max-w-3xl mx-auto">
-          <span className="eyebrow">{content.eyebrow || "The Atelier Manifesto"}</span>
+          <span className="eyebrow">{content.eyebrow || `The ${storeName} Manifesto`}</span>
           <h1 className="mt-3 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-foreground">
             {content.title || "Purity in form. Integrity in craft."}
           </h1>
@@ -98,7 +100,7 @@ export function AboutPage() {
           <div className="relative mx-auto w-full max-w-[420px] aspect-[4/5] overflow-hidden rounded-3xl bg-muted shadow-sm">
               <img
               src={content.image || editorialImg}
-              alt={content.imageAlt || "Atelier workspace and design sketches"}
+              alt={content.imageAlt || `${storeName} workspace and design sketches`}
               className="h-full w-full object-cover"
             />
           </div>
@@ -109,7 +111,7 @@ export function AboutPage() {
               {content.storyTitle || "A refusal to compromise on materials."}
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              {content.storyBody1 || "Founded in 2021 by a collective of industrial designers and textile purists, Atelier began with a single question: Why should modern luxury be so noisy, fragile, and marked up?"}
+              {content.storyBody1 || `Founded in 2021 by a collective of industrial designers and textile purists, ${storeName} began with a single question: Why should modern luxury be so noisy, fragile, and marked up?`}
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {content.storyBody2 || "We eliminated the traditional retail middlemen, licensing fees, and seasonal fashion calendars. By producing in controlled, limited runs with master makers across Italy, France, Japan, and Portugal, we deliver uncompromising grade-A quality directly to your doorstep."}
@@ -182,7 +184,7 @@ export function AboutPage() {
         <div className="mt-16 rounded-3xl bg-ink p-8 sm:p-12 text-center text-ink-foreground relative overflow-hidden">
           <div className="relative z-10 max-w-xl mx-auto">
             <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {content.ctaTitle || "Experience the Atelier difference."}
+              {content.ctaTitle || `Experience the ${storeName} difference.`}
             </h3>
             <p className="mt-2 text-xs sm:text-sm text-ink-foreground/70 leading-relaxed">
               {content.ctaDescription || "Explore our current collection of audio, timepieces, knitwear, and lifestyle objects."}

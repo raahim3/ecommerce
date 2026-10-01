@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Head, Link, router } from "@inertiajs/react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
 import {
   Search,
   SlidersHorizontal,
@@ -27,6 +27,7 @@ import { SiteLayout } from "@/layouts/site-layout";
 
 
 export function ShopPage({ products: serverProducts, categories: serverCategories, filters: serverFilters }) {
+  const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
   const searchParams = new URLSearchParams(window.location.search);
   const setSearchParams = (params) => { router.visit(window.location.pathname + '?' + params.toString()); };
 
@@ -49,7 +50,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
       const allCount = serverProducts?.total ?? sourceProducts.length;
 
       return [
-        { id: "all", name: "All Products", count: allCount, description: "Explore the full Atelier collection." },
+        { id: "all", name: "All Products", count: allCount, description: `Explore the full ${storeName} collection.` },
         ...serverCategories.map(c => ({
           id: c.slug || c.id,
           name: c.name,
@@ -518,7 +519,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
         {/* Header Hero Section */}
         <div className="flex flex-col gap-3 border-b border-border/80 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <span className="eyebrow">Atelier Catalog</span>
+            <span className="eyebrow">{storeName} Catalog</span>
             <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
               {selectedCategory === "All" ? "Everyday Essentials" : `${selectedCategory} Collection`}
             </h1>

@@ -54,7 +54,7 @@ const MOCK_CUSTOMERS = [
   {
     id: 3,
     name: "Marcus Vance",
-    email: "marcus.v@atelier-club.com",
+    email: "marcus.v@example.com",
     phone: "+1 (555) 987-6543",
     orders_count: 2,
     total_spent: 450.00,

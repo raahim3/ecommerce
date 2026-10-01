@@ -4,21 +4,23 @@ import { Footer } from "@/components/site/footer";
 import { CartSidebar } from "@/components/site/cart-sidebar";
 import { ScrollToTop } from "@/components/common/scroll-to-top";
 import { WhatsAppButton } from "@/components/common/whatsapp-button";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 
 export function SiteLayout({ children }) {
   const { props } = usePage();
   const general = props?.app_settings?.general || {};
-  const seo = props?.app_settings?.seo || {};
+  const storeName = general.storeName || "Store";
+  const seo = replaceStoreNameInContent(props?.app_settings?.seo || {}, storeName);
   const path = typeof window !== "undefined" ? window.location.pathname : "/";
   const pageMeta = {
     "/": { title: seo.metaTitle, description: seo.metaDescription },
-    "/shop": { title: "Shop Curated Essentials | Atelier", description: "Explore Atelier's curated collection of modern essentials, from precision timepieces and audio to fashion and home goods." },
-    "/about": { title: "Our Story | Atelier", description: "Discover Atelier's approach to considered design, enduring materials and responsible craftsmanship." },
-    "/contact": { title: "Contact Atelier Client Care", description: "Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care." },
-    "/order-tracking": { title: "Track Your Atelier Order", description: "Track your Atelier order and view the latest delivery status." },
+    "/shop": { title: `Shop Curated Essentials | ${storeName}`, description: `Explore ${storeName}'s curated collection of modern essentials, from precision timepieces and audio to fashion and home goods.` },
+    "/about": { title: `Our Story | ${storeName}`, description: `Discover ${storeName}'s approach to considered design, enduring materials and responsible craftsmanship.` },
+    "/contact": { title: `Contact ${storeName} Client Care`, description: `Get help with orders, shipping, returns, sizing and product questions from ${storeName} Client Care.` },
+    "/order-tracking": { title: `Track Your ${storeName} Order`, description: `Track your ${storeName} order and view the latest delivery status.` },
   }[path] || {};
 
-  const pageTitle = pageMeta.title || seo.metaTitle || general.storeName || "ATELIER — Modern Essentials";
+  const pageTitle = pageMeta.title || seo.metaTitle || `${storeName} — Modern Essentials`;
   const pageDescription = pageMeta.description || seo.metaDescription || "Curated audio, timepieces, Mongolian cashmere knitwear, and artisanal home goods.";
   const canonicalUrl = typeof window !== "undefined" ? `${window.location.origin}${path}` : "/";
   const isPrivatePage = ["/checkout", "/account", "/wishlist", "/login", "/register", "/forgot-password"].includes(path)
@@ -39,7 +41,7 @@ export function SiteLayout({ children }) {
         <link head-key="canonical" rel="canonical" href={canonicalUrl} />
         {seo.metaKeywords && <meta head-key="keywords" name="keywords" content={seo.metaKeywords} />}
         <meta head-key="og:type" property="og:type" content="website" />
-        <meta head-key="og:site_name" property="og:site_name" content={general.storeName || "Atelier"} />
+        <meta head-key="og:site_name" property="og:site_name" content={storeName} />
         <meta head-key="og:url" property="og:url" content={canonicalUrl} />
         <meta head-key="og:title" property="og:title" content={seo.ogTitle || pageTitle} />
         <meta head-key="og:description" property="og:description" content={seo.ogDescription || pageDescription} />
@@ -64,7 +66,7 @@ export function SiteLayout({ children }) {
         <script type="application/ld+json">{JSON.stringify({
           "@context": "https://schema.org",
           "@type": "Organization",
-          name: general.storeName || "Atelier",
+          name: storeName,
           url: typeof window !== "undefined" ? window.location.origin : undefined,
           logo: general.logoLight ? new URL(general.logoLight, canonicalUrl).href : undefined,
         })}</script>

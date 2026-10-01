@@ -20,7 +20,11 @@ class TrackPageViews
             return $response;
         }
 
-        if ($request->is('admin/*') || $request->is('api/*') || in_array($routeName, ['robots', 'sitemap'], true)) {
+        if (
+            $request->is('admin', 'admin/*', 'api/*')
+            || $request->user()?->isAdmin()
+            || in_array($routeName, ['robots', 'sitemap'], true)
+        ) {
             return $response;
         }
 

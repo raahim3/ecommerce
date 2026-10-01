@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Update - {{ $store['storeName'] ?? 'Atelier' }}</title>
+    <title>Order Update - {{ $store['storeName'] ?? 'Store' }}</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
         .wrap { max-width: 640px; margin: 32px auto; background: white; border-radius: 18px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }
@@ -36,7 +36,7 @@
             @if($logo)
                 <img src="{{ $logo }}" alt="{{ $store['storeName'] ?? 'Store' }}" style="display:block; max-height:52px; max-width:220px; object-fit:contain;">
             @else
-                <div class="brand">{{ $store['storeName'] ?? 'Atelier' }}</div>
+                <div class="brand">{{ $store['storeName'] ?? 'Store' }}</div>
             @endif
         </div>
 
@@ -87,7 +87,7 @@
         </div>
 
         <div class="footer">
-            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Atelier' }}. Need help? {{ !empty($store['supportEmail']) ? $store['supportEmail'] : 'Reply to this email' }}.
+            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Store' }}. Need help? {{ !empty($store['supportEmail']) ? $store['supportEmail'] : 'Reply to this email' }}.
         </div>
     </div>
 </body>

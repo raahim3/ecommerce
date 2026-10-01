@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Atelier</title>
+    <title>Welcome to {{ $store['storeName'] ?? 'Store' }}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -98,11 +98,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">ATELIER<span class="logo-dot">.</span></div>
+            <div class="logo">{{ $store['storeName'] ?? 'Store' }}<span class="logo-dot">.</span></div>
         </div>
         <div class="content">
             <h1>Welcome, {{ $user->name }}!</h1>
-            <p>Thank you for creating an account with <strong>Atelier</strong>. Your journey into curated essentials, timeless luxury, and artisanal craftsmanship starts here.</p>
+            <p>Thank you for creating an account with <strong>{{ $store['storeName'] ?? 'Store' }}</strong>. Your journey into curated essentials, timeless luxury, and artisanal craftsmanship starts here.</p>
             
             <div class="promo-box">
                 <div class="promo-title">Special Welcome Privilege (10% Off)</div>
@@ -116,7 +116,7 @@
             </div>
         </div>
         <div class="footer">
-            &copy; {{ date('Y') }} Atelier Luxury Goods. All rights reserved.<br>
+            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Store' }}. All rights reserved.<br>
             If you did not create this account, please disregard this email.
         </div>
     </div>

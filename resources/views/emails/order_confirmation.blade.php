@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation - {{ $store['storeName'] ?? 'Atelier' }}</title>
+    <title>Order Confirmation - {{ $store['storeName'] ?? 'Store' }}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -226,7 +226,7 @@
             </a>
         </div>
         <div class="footer">
-            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Atelier' }}. Need assistance? Reply directly to this email{{ !empty($store['supportEmail']) ? ' or contact ' . $store['supportEmail'] : '' }}.
+            &copy; {{ date('Y') }} {{ $store['storeName'] ?? 'Store' }}. Need assistance? Reply directly to this email{{ !empty($store['supportEmail']) ? ' or contact ' . $store['supportEmail'] : '' }}.
         </div>
     </div>
 </body>

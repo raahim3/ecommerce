@@ -24,7 +24,10 @@ class ProductPublishedEmail extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.product_published');
+        return new Content(
+            view: 'emails.product_published',
+            with: ['store' => \App\Models\Setting::get('general', [])],
+        );
     }
 
     public function attachments(): array

@@ -86,6 +86,7 @@ class HandleInertiaRequests extends Middleware
         if (empty($general['storeCountries']) || !is_array($general['storeCountries'])) {
             $general['storeCountries'] = ['Pakistan'];
         }
+        $storeName = !empty($general['storeName']) ? $general['storeName'] : 'Store';
 
         // 2. SEO Settings
         $seo = Setting::get('seo', [
@@ -280,7 +281,7 @@ class HandleInertiaRequests extends Middleware
                         'newsletterPlaceholder' => 'Enter your email',
                         'newsletterButtonLabel' => 'Subscribe',
                         'socialEyebrow' => 'Follow the journey',
-                        'socialTitle' => '@atelier',
+                        'socialTitle' => $storeName,
                         'socialGalleryImages' => [],
                 ]),
                 'navigation' => Setting::get('navigation', [
@@ -297,6 +298,7 @@ class HandleInertiaRequests extends Middleware
                 'legal' => [
                     'terms' => Setting::get('terms', ['title' => 'Terms of Service', 'eyebrow' => '', 'intro' => '', 'body' => '<p>Terms of service content will be available soon.</p>']),
                     'privacy' => Setting::get('privacy', ['title' => 'Privacy Policy', 'eyebrow' => '', 'intro' => '', 'body' => '<p>Privacy policy content will be available soon.</p>']),
+                    'returns' => Setting::get('returns', ['eyebrow' => 'Returns & Refunds', 'title' => 'Return Policy', 'intro' => 'Learn how to return an eligible order and receive a refund or exchange.', 'body' => '<h2>Return window</h2><p>Eligible items may be returned within 30 days of delivery. Items must be unused and returned in their original condition with tags and packaging.</p><h2>How to start a return</h2><p>Contact our client care team with your order number to arrange a return. We will provide instructions and a prepaid return label for eligible returns.</p><h2>Refunds</h2><p>After the returned item is received and inspected, approved refunds are sent to the original payment method. Processing times may vary by payment provider.</p><h2>Exchanges</h2><p>Contact our client care team to ask about exchanging an eligible item.</p>']),
                 ],
                 'navigationCategories' => Category::active()->orderBy('sort_order')->orderBy('name')->get(['id', 'name', 'slug', 'parent_id']),
                 'seo' => $seo,
@@ -304,14 +306,14 @@ class HandleInertiaRequests extends Middleware
                     'eyebrow' => 'Client Services',
                     'title' => 'How can we assist you?',
                     'description' => 'Our client care specialists are on hand 7 days a week to answer questions regarding orders, sizing, materials, and styling.',
-                    'emailTitle' => 'Email Client Care', 'emailDescription' => 'Average reply time: under 2 hours during studio hours.', 'email' => 'care@atelier-studios.com',
-                    'phoneTitle' => 'Phone Concierge', 'phoneDescription' => 'Monday-Saturday, 9:00 AM - 6:00 PM EST.', 'phone' => '+1 (800) 555-ATELIER',
+                    'emailTitle' => 'Email Client Care', 'emailDescription' => 'Average reply time: under 2 hours during studio hours.', 'email' => $general['supportEmail'] ?? '',
+                    'phoneTitle' => 'Phone Concierge', 'phoneDescription' => 'Monday-Saturday, 9:00 AM - 6:00 PM EST.', 'phone' => $general['phone'] ?? '',
                     'chatTitle' => 'Live Stylist Chat', 'chatDescription' => 'Instant guidance on garment sizing and curated pairings.', 'chatButtonLabel' => 'Start Live Chat Session →',
                     'messageTitle' => 'Send a Message', 'faqTitle' => 'Frequently Asked Questions', 'faqDescription' => 'Find quick answers to common questions.',
                     'faqs' => [],
-                    'metaTitle' => 'Contact Atelier Client Care',
-                    'metaDescription' => 'Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care.',
-                    'metaKeywords' => 'contact support, customer care, order help, shipping support, product sizing, Atelier',
+                    'metaTitle' => 'Contact ' . $storeName . ' Client Care',
+                    'metaDescription' => 'Get help with orders, shipping, returns, sizing and product questions from ' . $storeName . ' Client Care.',
+                    'metaKeywords' => 'contact support, customer care, order help, shipping support, product sizing, ' . $storeName,
                 ]),
                 'about' => Setting::get('about', []),
                 'payments' => $publicPayments,

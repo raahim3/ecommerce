@@ -220,7 +220,7 @@ export function AdminLayout({ children }) {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-extrabold tracking-tight text-slate-900 text-base truncate">
-                    {generalSettings.storeName || "ATELIER"}
+                    {generalSettings.storeName || "Store"}
                   </span>
                   <span className="rounded-md bg-violet-100 px-1.5 py-0.2 text-[10px] font-extrabold text-violet-700 uppercase shrink-0">
                     Admin

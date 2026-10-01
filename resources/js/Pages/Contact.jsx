@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
 import { RecaptchaCheckbox } from "@/components/RecaptchaCheckbox";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 
 const FAQS = [
   {
@@ -32,7 +33,7 @@ const FAQS = [
   {
     category: "Orders & Shipping",
     q: "Can I modify or cancel my order after placing it?",
-    a: "Orders are processed swiftly at our automated warehouse. If you need to make changes, please email support@atelier-studios.com within 60 minutes of placing your order.",
+    a: "Orders are processed swiftly at our automated warehouse. If you need to make changes, please contact our client care team within 60 minutes of placing your order.",
   },
   {
     category: "Returns & Exchanges",
@@ -60,20 +61,27 @@ export const FAQ_CATEGORIES = ["All", "Orders & Shipping", "Returns & Exchanges"
 
 export function ContactPage() {
   const { props } = usePage();
-  const content = props?.app_settings?.contact || {};
   const general = props?.app_settings?.general || {};
+  const storeName = general.storeName || "Store";
+  const content = replaceStoreNameInContent(props?.app_settings?.contact || {}, storeName);
+  const supportEmail = content.email || general.supportEmail || "";
+  const supportPhone = content.phone || general.phone || "";
   const recaptcha = props?.app_settings?.recaptcha || {};
-  const faqs = content.faqs?.length ? content.faqs : FAQS;
+  const faqs = (content.faqs?.length ? content.faqs : FAQS).map((faq) => ({
+    ...faq,
+    q: faq.q?.replace(/\bAtelier\b/g, storeName),
+    a: faq.a?.replace(/\bAtelier\b/g, storeName),
+  }));
 
   const contactSchema = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    "name": general.storeName || "Atelier",
+    "name": storeName,
     "contactPoint": {
       "@type": "ContactPoint",
       "contactType": "Customer Support",
-      "email": content.email || general.supportEmail || "support@atelier-studios.com",
-      "telephone": content.phone || general.phone || "+1 (800) 555-ATELIER",
+      "email": supportEmail,
+      "telephone": supportPhone,
     },
   };
   
@@ -113,8 +121,8 @@ export function ContactPage() {
     {
       id: 1,
       sender: "stylist",
-      name: "Camille (Atelier Stylist)",
-      text: "Hello! Welcome to Atelier Client Services. How can I assist you today with product sizing, pairing advice, or order inquiries?",
+      name: `Camille (${storeName} Stylist)`,
+      text: `Hello! Welcome to ${storeName} Client Services. How can I assist you today with product sizing, pairing advice, or order inquiries?`,
       time: "Just now",
     },
   ]);
@@ -152,7 +160,7 @@ export function ContactPage() {
         {
           id: Date.now() + 1,
           sender: "stylist",
-          name: "Camille (Atelier Stylist)",
+          name: `Camille (${storeName} Stylist)`,
           text: reply,
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
@@ -196,8 +204,8 @@ export function ContactPage() {
   return (
     <main className="min-h-screen pb-24 pt-28 lg:pt-36">
       <Head>
-        <title head-key="title">{content.metaTitle || `Contact ${general.storeName || "Atelier"} Client Care`}</title>
-        <meta head-key="description" name="description" content={content.metaDescription || "Get help with orders, shipping, returns, sizing and product questions from Atelier Client Care. Multiple contact methods available."} />
+        <title head-key="title">{content.metaTitle || `Contact ${storeName} Client Care`}</title>
+        <meta head-key="description" name="description" content={content.metaDescription || `Get help with orders, shipping, returns, sizing and product questions from ${storeName} Client Care. Multiple contact methods available.`} />
         {content.metaKeywords && <meta head-key="keywords" name="keywords" content={content.metaKeywords} />}
         <meta head-key="robots" name="robots" content="index,follow" />
         <script type="application/ld+json">{JSON.stringify(contactSchema)}</script>
@@ -236,12 +244,14 @@ export function ContactPage() {
                 {content.emailDescription || "Average reply time: under 2 hours during studio hours."}
               </p>
             </div>
-            <a
-              href={`mailto:${content.email || "care@atelier-studios.com"}`}
-              className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
-            >
-              {content.email || "care@atelier-studios.com"}
-            </a>
+            {supportEmail && (
+              <a
+                href={`mailto:${supportEmail}`}
+                className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
+              >
+                {supportEmail}
+              </a>
+            )}
           </div>
 
           <div className="rounded-3xl border border-border/80 bg-surface p-6 shadow-xs flex flex-col justify-between">
@@ -273,12 +283,14 @@ export function ContactPage() {
                 {content.phoneDescription || "Monday-Saturday, 9:00 AM - 6:00 PM EST."}
               </p>
             </div>
-            <a
-              href={`tel:${content.phone || "+18005558942"}`}
-              className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
-            >
-              {content.phone || "+1 (800) 555-ATELIER"}
-            </a>
+            {supportPhone && (
+              <a
+                href={`tel:${supportPhone}`}
+                className="mt-4 text-xs font-bold text-accent hover:underline inline-flex items-center gap-1"
+              >
+                {supportPhone}
+              </a>
+            )}
           </div>
         </div>
 
@@ -473,7 +485,7 @@ export function ContactPage() {
                   <span className="absolute bottom-0 right-0 size-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-extrabold text-foreground">Camille • Atelier Concierge</h4>
+                  <h4 className="text-xs font-extrabold text-foreground">Camille • {storeName} Concierge</h4>
                   <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
                     <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Now
                   </p>

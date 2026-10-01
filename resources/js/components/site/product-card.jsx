@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { Heart, Star, Eye, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { formatPrice } from "@/lib/shop-data";
 import { useCart } from "./cart";
 
@@ -10,7 +11,9 @@ const stripHtml = (html) => {
   return html.replace(/<[^>]*>?/gm, "").trim();
 };
 
-export function ProductCard({ product, layout = "grid", onQuickView, className }) {
+export function ProductCard({ product: productData, layout = "grid", onQuickView, className }) {
+  const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
+  const product = replaceStoreNameInContent(productData, storeName);
   const { addItem, wishlist, toggleWish } = useCart();
   const [isHovered, setIsHovered] = useState(false);
   const wished = wishlist.includes(product.id);
@@ -20,7 +23,7 @@ export function ProductCard({ product, layout = "grid", onQuickView, className }
   const hoverImage = product.hover || product.images?.[1]?.image_url || mainImage;
   const productUrl = `/product/${product.slug || product.id}`;
   const subcategoryName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
-  const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Atelier"));
+  const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Collection"));
   const comparePrice = (product.compare_at_price || product.compareAt) && Number(product.compare_at_price || product.compareAt) > Number(product.price)
     ? (product.compare_at_price || product.compareAt)
     : null;

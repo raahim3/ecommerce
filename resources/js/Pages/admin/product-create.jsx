@@ -805,7 +805,7 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-900">Track Inventory Quantity</p>
-                <p className="text-[11px] text-slate-400">Atelier will monitor stock levels and show Out of Stock status automatically</p>
+                <p className="text-[11px] text-slate-400">{storeName} will monitor stock levels and show Out of Stock status automatically</p>
               </div>
             </label>
 
@@ -1123,8 +1123,8 @@ export function AdminProductCreatePage({ categories: serverCategories = [], prod
             {/* Google Preview */}
             <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-1">
               <p className="text-xs text-slate-400">Preview in Google Search Results:</p>
-              <p className="text-sm text-blue-700 font-semibold">{form.seoTitle || "Product Title | Atelier Studios"}</p>
-              <p className="text-xs text-emerald-700">atelier-studios.com/products/{form.seoHandle || "product-handle"}</p>
+              <p className="text-sm text-blue-700 font-semibold">{form.seoTitle || `Product Title | ${storeName}`}</p>
+              <p className="text-xs text-emerald-700">{typeof window !== "undefined" ? window.location.host : "your-store.com"}/products/{form.seoHandle || "product-handle"}</p>
               <p className="text-xs text-slate-600 line-clamp-2">{form.seoDescription || "Your SEO meta description will appear here. Make it compelling and 155 characters or fewer."}</p>
             </div>
 

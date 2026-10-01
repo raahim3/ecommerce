@@ -58,7 +58,7 @@ class CatalogSeeder extends Seeder
         $productsData = [
             [
                 'category_slug' => 'electronics',
-                'name' => 'Atelier Studio Headphones',
+                'name' => 'Studio Headphones',
                 'slug' => 'atelier-studio-headphones',
                 'sku' => 'ATL-AUD-001',
                 'price' => 149.00,
@@ -67,7 +67,7 @@ class CatalogSeeder extends Seeder
                 'is_featured' => true,
                 'is_on_sale' => true,
                 'tagline' => 'Ultra-low distortion studio sound with hybrid active noise cancellation.',
-                'description' => 'Engineered for acoustic purists, the Atelier Studio Headphones combine bespoke 40mm beryllium drivers with advanced adaptive hybrid noise cancellation. Crafted with lightweight aircraft-grade aluminum and ultra-soft protein leather ear cushions, they deliver up to 45 hours of high-resolution playback on a single charge.',
+                'description' => 'Engineered for acoustic purists, these studio headphones combine bespoke 40mm beryllium drivers with advanced adaptive hybrid noise cancellation. Crafted with lightweight aircraft-grade aluminum and ultra-soft protein leather ear cushions, they deliver up to 45 hours of high-resolution playback on a single charge.',
                 'highlights' => [
                     'Custom 40mm Beryllium acoustic drivers',
                     'Adaptive Hybrid Active Noise Cancellation (ANC)',
@@ -378,7 +378,7 @@ class CatalogSeeder extends Seeder
                 'tagline' => 'A considered essential designed for everyday use.',
                 'description' => 'Thoughtfully designed with durable materials, refined details, and a long service life in mind.',
                 'highlights' => ['Purposeful design', 'Durable premium materials', 'Designed for everyday use'],
-                'specs' => [['label' => 'Collection', 'value' => 'Atelier Essentials']],
+                'specs' => [['label' => 'Collection', 'value' => 'Store Essentials']],
                 'rating' => 4.80,
                 'reviews_count' => 0,
                 'images' => [],

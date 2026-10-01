@@ -19,8 +19,11 @@ class WelcomeEmail extends Mailable
 
     public function envelope(): Envelope
     {
+        $store = \App\Models\Setting::get('general', []);
+        $storeName = !empty($store['storeName']) ? $store['storeName'] : 'Store';
+
         return new Envelope(
-            subject: 'Welcome to Atelier — Exclusive Luxury Essentials',
+            subject: 'Welcome to ' . $storeName . ' — Exclusive Luxury Essentials',
         );
     }
 
@@ -28,6 +31,7 @@ class WelcomeEmail extends Mailable
     {
         return new Content(
             view: 'emails.welcome',
+            with: ['store' => \App\Models\Setting::get('general', [])],
         );
     }
 
