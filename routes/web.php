@@ -62,6 +62,8 @@ use App\Http\Controllers\NewsletterController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/shop', [ShopController::class, 'index'])->name('shop');
+Route::get('/api/products/{slug}/reviews', [ProductController::class, 'reviews'])->name('products.reviews');
+Route::post('/api/products/{slug}/reviews', [ProductController::class, 'submitReview'])->middleware(['auth', 'throttle:uploads'])->name('products.reviews.store');
 Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product-detail');
 
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist');

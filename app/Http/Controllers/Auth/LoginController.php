@@ -3,19 +3,31 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Services\RecaptchaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
-use App\Services\RecaptchaService;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class LoginController extends Controller
 {
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('auth/login');
+        $redirect = $request->query('redirect');
+        if (
+            is_string($redirect)
+            && str_starts_with($redirect, '/')
+            && ! str_starts_with($redirect, '//')
+            && ! str_contains($redirect, '\\')
+        ) {
+            $request->session()->put('url.intended', url($redirect));
+        }
+
+        return Inertia::render('auth/login', [
+            'email' => $request->session()->pull('checkout.login_email', ''),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -28,7 +40,7 @@ class LoginController extends Controller
 
         $remember = $request->boolean('remember');
 
-        if (!Auth::attempt($credentials, $remember)) {
+        if (! Auth::attempt($credentials, $remember)) {
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
@@ -42,6 +54,6 @@ class LoginController extends Controller
             return redirect()->intended('/admin')->with('success', 'Signed in as Administrator.');
         }
 
-        return redirect()->intended('/')->with('success', 'Welcome back, ' . $user->name . '!');
+        return redirect()->intended('/')->with('success', 'Welcome back, '.$user->name.'!');
     }
 }

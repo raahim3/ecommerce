@@ -62,7 +62,7 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
   const [profile, setProfile] = useState({
     name: serverUser?.name || "Alex Rivers",
     email: serverUser?.email || "alex.rivers@example.com",
-    phone: serverUser?.phone || "+1 (555) 234-5678",
+    phone: serverUser?.phone || "",
     tier: `${storeName} VIP Member`,
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -227,16 +227,19 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
           "X-Requested-With": "XMLHttpRequest",
           "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || "",
         },
-        body: JSON.stringify({ name: profile.name, email: profile.email }),
+        body: JSON.stringify({ name: profile.name, email: profile.email, phone: profile.phone }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        setProfile((current) => ({ ...current, ...data.user }));
         toast.success("Profile updated successfully!");
       } else {
-        toast.error("Update Failed", { description: data.message });
+        const firstError = data.errors ? Object.values(data.errors).flat()[0] : data.message;
+        toast.error("Update Failed", { description: firstError || "Profile could not be updated." });
       }
-    } catch {
-      toast.success("Profile saved locally.");
+    } catch (error) {
+      console.error("Could not save profile.", error);
+      toast.error("Profile could not be updated. Check your connection and try again.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -305,7 +308,7 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
             {[
               { id: "orders", label: "Order History", icon: Package, count: orders.length },
               { id: "addresses", label: "Saved Addresses", icon: MapPin, count: addresses.length },
-              { id: "payments", label: "Payment Methods", icon: CreditCard },
+              // { id: "payments", label: "Payment Methods", icon: CreditCard },
               { id: "settings", label: "Account Settings", icon: Settings },
             ].map((tab) => (
               <button
@@ -433,13 +436,13 @@ export function AccountPage({ user: serverUser = null, orders: serverOrders = []
                             <Truck className="size-3.5 text-accent" />
                             <span>Track Package</span>
                           </Link>
-                          <Link
+                          <a
                             href={`/invoices/${order.order_number || order.id}`}
                             className="flex h-9 items-center gap-1 rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted"
                           >
                             <Download className="size-3.5" />
-                            <span>Invoice</span>
-                          </Link>
+                            <span>Download Invoice</span>
+                          </a>
                         </div>
                       </div>
                     </div>

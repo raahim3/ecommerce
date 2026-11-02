@@ -288,6 +288,7 @@ class SettingsController extends Controller
         }
 
         Setting::set($request->group, $data);
+        Setting::clearCache($request->group);
 
         // Sync with shipping_methods table if saving shipping settings
         if ($request->group === 'shipping') {

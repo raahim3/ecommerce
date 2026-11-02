@@ -4,6 +4,7 @@ import { ArrowRight, Star } from "lucide-react";
 import heroImageFallback from "@/assets/hero.jpg";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
+import { productImageSrcSet } from "@/lib/product-images";
 
 export function Hero() {
   const { app_settings: appSettings = {}, heroProduct = null } = usePage().props;
@@ -115,10 +116,14 @@ export function Hero() {
           >
             <img
               src={heroImage}
+              srcSet={productImageSrcSet(heroImage)}
+              sizes="(min-width: 1024px) 42vw, 75vw"
               alt={settings.heroImageAlt || "Model wearing an off-white oversized wool coat against a soft concrete wall"}
               width={1200}
               height={1504}
+              loading="eager"
               fetchPriority="high"
+              decoding="async"
               className={cn(
                 "aspect-4/5 w-[75%] object-cover transition-all duration-[1400ms] [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] lg:aspect-4/5",
                 ready ? "scale-100 opacity-100 blur-0" : "scale-105 opacity-0 blur-md",

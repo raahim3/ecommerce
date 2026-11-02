@@ -2,148 +2,239 @@
 
 namespace App\Services;
 
-use App\Models\Product;
 use App\Models\ProductImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Intervention\Image\Encoders\WebpEncoder;
+use Intervention\Image\Laravel\Facades\Image;
+use InvalidArgumentException;
 
 class ProductImageService
 {
+    private const RASTER_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
+    public static function optimize(UploadedFile $file, string $directory = 'products/temp'): string
+    {
+        $relativePath = trim($directory, '/').'/'.Str::uuid().'.webp';
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        File::ensureDirectoryExists(dirname($absolutePath));
+
+        Image::decodePath($file->getRealPath())
+            ->scaleDown(width: 800, height: 800)
+            ->encode(new WebpEncoder(quality: 80))
+            ->save($absolutePath);
+        self::optimizeThumbnailPath($absolutePath, self::thumbnailPath($absolutePath));
+
+        return '/storage/'.$relativePath;
+    }
+
+    public static function optimizeAsset(UploadedFile $file, string $directory): string
+    {
+        $relativePath = trim($directory, '/').'/'.Str::uuid().'.webp';
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        File::ensureDirectoryExists(dirname($absolutePath));
+
+        Image::decodePath($file->getRealPath())
+            ->scaleDown(width: 1920, height: 1920)
+            ->encode(new WebpEncoder(quality: 82))
+            ->save($absolutePath);
+
+        return '/storage/'.$relativePath;
+    }
+
+    public static function optimizePath(string $sourcePath, string $destinationPath): void
+    {
+        File::ensureDirectoryExists(dirname($destinationPath));
+
+        Image::decodePath($sourcePath)
+            ->scaleDown(width: 800, height: 800)
+            ->encode(new WebpEncoder(quality: 80))
+            ->save($destinationPath);
+    }
+
+    public static function optimizeAssetPath(string $sourcePath, string $destinationPath): void
+    {
+        File::ensureDirectoryExists(dirname($destinationPath));
+
+        Image::decodePath($sourcePath)
+            ->scaleDown(width: 1920, height: 1920)
+            ->encode(new WebpEncoder(quality: 82))
+            ->save($destinationPath);
+    }
+
+    public static function optimizeThumbnailPath(string $sourcePath, string $destinationPath): void
+    {
+        File::ensureDirectoryExists(dirname($destinationPath));
+
+        Image::decodePath($sourcePath)
+            ->scaleDown(width: 400, height: 400)
+            ->encode(new WebpEncoder(quality: 80))
+            ->save($destinationPath);
+    }
+
+    public static function thumbnailPath(string $webpPath): string
+    {
+        return (string) preg_replace('/\.webp$/i', '-400w.webp', $webpPath);
+    }
+
     /**
-     * Process and sync product images into product_images table and dedicated product storage directory.
-     * Storage structure: storage/app/public/products/{productId}/
-     * Public URL: /storage/products/{productId}/{filename}
+     * Sync uploaded, temporary, and existing image URLs into a product's image records.
      *
-     * @param int $productId
-     * @param array $images Array of UploadedFile instances, base64 strings, or existing URLs
-     * @return array ['primary' => string|null, 'gallery' => array]
+     * @param  array<int, UploadedFile|string>  $images
+     * @return array{primary: string|null, gallery: array<int, string>, all: array<int, string>}
      */
     public static function syncImages(int $productId, array $images): array
     {
-        if (empty($images)) {
-            ProductImage::where('product_id', $productId)->delete();
-            return ['primary' => null, 'gallery' => []];
-        }
-
-        // Ensure directory exists: storage/app/public/products/{productId}
-        $relativeDir = "products/{$productId}";
-        $fullDirPath = storage_path("app/public/{$relativeDir}");
-        if (!File::exists($fullDirPath)) {
-            File::makeDirectory($fullDirPath, 0755, true);
-        }
-
+        $relativeDirectory = "products/{$productId}";
         $processedUrls = [];
 
-        foreach ($images as $index => $item) {
+        foreach ($images as $item) {
             if (empty($item)) {
                 continue;
             }
 
-            $cleanUrl = null;
-
-            // Case 1: UploadedFile instance
             if ($item instanceof UploadedFile) {
-                $ext = $item->getClientOriginalExtension() ?: 'jpg';
-                $filename = time() . '_' . Str::random(8) . '.' . $ext;
-                $item->move($fullDirPath, $filename);
-                $cleanUrl = "/storage/{$relativeDir}/{$filename}";
-            }
-            // Case 2: Base64 data string (e.g. data:image/jpeg;base64,...)
-            elseif (is_string($item) && str_starts_with($item, 'data:image')) {
-                $cleanUrl = self::saveBase64Image($item, $fullDirPath, $relativeDir);
-            }
-            // Case 3: Temporary uploaded file that needs to be moved to product directory
-            elseif (is_string($item) && (str_contains($item, '/storage/products/temp/') || str_contains($item, '/uploads/products/'))) {
-                $cleanUrl = self::moveTempImageToProductDir($item, $fullDirPath, $relativeDir);
-            }
-            // Case 4: Already in the product's directory or external URL (e.g., Unsplash, CDN)
-            elseif (is_string($item)) {
-                $cleanUrl = $item;
+                $processedUrls[] = self::optimize($item, $relativeDirectory);
+
+                continue;
             }
 
-            if ($cleanUrl) {
-                $processedUrls[] = $cleanUrl;
+            if (! is_string($item)) {
+                continue;
             }
+
+            if (str_starts_with($item, 'data:image')) {
+                $processedUrls[] = self::saveBase64Image($item, $relativeDirectory);
+
+                continue;
+            }
+
+            if (self::isTemporaryProductImage($item)) {
+                $processedUrl = self::moveTempImageToProductDir($item, $relativeDirectory);
+                if ($processedUrl !== null) {
+                    $processedUrls[] = $processedUrl;
+                }
+
+                continue;
+            }
+
+            $processedUrls[] = $item;
         }
 
-        // Refresh product_images table
         ProductImage::where('product_id', $productId)->delete();
 
         foreach ($processedUrls as $sortOrder => $url) {
             ProductImage::create([
                 'product_id' => $productId,
                 'image_url' => $url,
-                'is_primary' => ($sortOrder === 0),
+                'is_primary' => $sortOrder === 0,
                 'sort_order' => $sortOrder,
             ]);
         }
 
-        $primary = $processedUrls[0] ?? null;
-        $gallery = array_slice($processedUrls, 1);
-
         return [
-            'primary' => $primary,
-            'gallery' => $gallery,
+            'primary' => $processedUrls[0] ?? null,
+            'gallery' => array_slice($processedUrls, 1),
             'all' => $processedUrls,
         ];
     }
 
-    /**
-     * Decode and save base64 image data to the product folder.
-     */
-    protected static function saveBase64Image(string $base64String, string $fullDirPath, string $relativeDir): ?string
+    private static function saveBase64Image(string $base64String, string $relativeDirectory): string
     {
-        try {
-            if (preg_match('/^data:image\/(\w+);base64,/', $base64String, $matches)) {
-                $extension = strtolower($matches[1]);
-                if ($extension === 'jpeg') {
-                    $extension = 'jpg';
-                }
-                $data = substr($base64String, strpos($base64String, ',') + 1);
-                $decoded = base64_decode($data);
-
-                if ($decoded !== false) {
-                    $filename = time() . '_' . Str::random(8) . '.' . $extension;
-                    $targetPath = $fullDirPath . DIRECTORY_SEPARATOR . $filename;
-                    File::put($targetPath, $decoded);
-                    return "/storage/{$relativeDir}/{$filename}";
-                }
-            }
-        } catch (\Throwable $e) {
-            // Log if needed
+        if (! preg_match('/^data:image\/(?:jpeg|jpg|png|webp);base64,/', $base64String, $matches)) {
+            throw new InvalidArgumentException('Product images must be valid JPEG, PNG, or WebP data.');
         }
-        return null;
+
+        $encodedData = substr($base64String, strlen($matches[0]));
+        $decoded = base64_decode($encodedData, true);
+        if ($decoded === false) {
+            throw new InvalidArgumentException('The product image data could not be decoded.');
+        }
+
+        $relativePath = trim($relativeDirectory, '/').'/'.Str::uuid().'.webp';
+        $absolutePath = Storage::disk('public')->path($relativePath);
+        File::ensureDirectoryExists(dirname($absolutePath));
+
+        Image::decodeBinary($decoded)
+            ->scaleDown(width: 800, height: 800)
+            ->encode(new WebpEncoder(quality: 80))
+            ->save($absolutePath);
+        self::optimizeThumbnailPath($absolutePath, self::thumbnailPath($absolutePath));
+
+        return '/storage/'.$relativePath;
     }
 
-    /**
-     * Move a temp file from public/uploads or storage/temp into the specific product's folder.
-     */
-    protected static function moveTempImageToProductDir(string $sourceUrl, string $fullDirPath, string $relativeDir): string
+    private static function isTemporaryProductImage(string $url): bool
     {
-        // Try locating the file in public_path or storage_path
-        $relativeSource = ltrim($sourceUrl, '/');
-        $publicSource = public_path($relativeSource);
-        $storageSource = storage_path("app/public/" . preg_replace('#^storage/#', '', $relativeSource));
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
 
-        $actualSource = null;
-        if (File::exists($publicSource)) {
-            $actualSource = $publicSource;
-        } elseif (File::exists($storageSource)) {
-            $actualSource = $storageSource;
+        return str_contains($path, '/storage/products/temp/')
+            || str_contains($path, '/uploads/products/');
+    }
+
+    private static function moveTempImageToProductDir(string $sourceUrl, string $relativeDirectory): ?string
+    {
+        $sourcePath = parse_url($sourceUrl, PHP_URL_PATH) ?: $sourceUrl;
+        $sourcePath = ltrim(rawurldecode($sourcePath), '/');
+
+        if (str_contains($sourcePath, 'storage/products/')) {
+            $sourcePath = 'products/'.Str::after($sourcePath, 'storage/products/');
+        } elseif (str_contains($sourcePath, 'uploads/products/')) {
+            $sourcePath = 'uploads/products/'.Str::after($sourcePath, 'uploads/products/');
+        } elseif (str_starts_with($sourcePath, 'storage/')) {
+            $sourcePath = substr($sourcePath, strlen('storage/'));
         }
 
-        if ($actualSource && !File::isDirectory($actualSource)) {
-            $filename = basename($actualSource);
-            $targetPath = $fullDirPath . DIRECTORY_SEPARATOR . $filename;
-            
-            if ($actualSource !== $targetPath) {
-                File::copy($actualSource, $targetPath);
+        $copyFromPublicPath = false;
+        if (str_starts_with($sourcePath, 'products/')) {
+            $absoluteSource = Storage::disk('public')->path($sourcePath);
+        } elseif (str_starts_with($sourcePath, 'uploads/products/')) {
+            $absoluteSource = public_path($sourcePath);
+            $copyFromPublicPath = true;
+        } else {
+            return $sourceUrl;
+        }
+
+        if (! File::exists($absoluteSource) || File::isDirectory($absoluteSource)) {
+            return $sourceUrl;
+        }
+
+        $extension = strtolower(pathinfo($absoluteSource, PATHINFO_EXTENSION));
+        if ($extension === 'webp' && str_starts_with($sourcePath, 'products/temp/')) {
+            $filename = Str::uuid().'.webp';
+            $relativePath = trim($relativeDirectory, '/').'/'.$filename;
+            $destinationPath = Storage::disk('public')->path($relativePath);
+            File::ensureDirectoryExists(dirname($destinationPath));
+            File::copy($absoluteSource, $destinationPath);
+            $sourceThumbnail = self::thumbnailPath($absoluteSource);
+            if (File::exists($sourceThumbnail)) {
+                File::copy($sourceThumbnail, self::thumbnailPath($destinationPath));
+            } else {
+                self::optimizeThumbnailPath($destinationPath, self::thumbnailPath($destinationPath));
             }
-            return "/storage/{$relativeDir}/{$filename}";
+
+            return '/storage/'.$relativePath;
         }
 
-        return $sourceUrl;
+        if (in_array($extension, self::RASTER_EXTENSIONS, true)) {
+            return self::optimize(
+                new UploadedFile($absoluteSource, basename($absoluteSource), null, null, true),
+                $relativeDirectory
+            );
+        }
+
+        $filename = Str::uuid().'.'.$extension;
+        $relativePath = trim($relativeDirectory, '/').'/'.$filename;
+        $destinationPath = Storage::disk('public')->path($relativePath);
+        File::ensureDirectoryExists(dirname($destinationPath));
+        if ($copyFromPublicPath) {
+            File::copy($absoluteSource, $destinationPath);
+        } else {
+            Storage::disk('public')->copy($sourcePath, $relativePath);
+        }
+
+        return '/storage/'.$relativePath;
     }
 }

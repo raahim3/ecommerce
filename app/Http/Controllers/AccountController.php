@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Address;
 use App\Models\Order;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -43,11 +41,13 @@ class AccountController extends Controller
 
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
+            'phone' => ['nullable', 'string', 'max:30'],
         ]);
 
         $user->name = $request->name;
         $user->email = $request->email;
+        $user->phone = $request->input('phone');
         $user->save();
 
         return response()->json([

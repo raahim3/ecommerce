@@ -15,83 +15,33 @@ class HomeController extends Controller
     public function index(): Response
     {
         $categories = Category::where('is_active', true)
+            ->select(['id', 'name', 'slug', 'image', 'parent_id', 'sort_order'])
             ->orderBy('sort_order')
+            ->get();
+
+        $categoryProductCounts = Product::where('is_active', true)
+            ->selectRaw('category_id, subcategory_id, COUNT(*) as products_count')
+            ->whereNotNull('category_id')
+            ->groupBy('category_id', 'subcategory_id')
             ->get()
-            ->map(function ($cat) {
-                $childIds = Category::where('parent_id', $cat->id)->pluck('id');
+            ->reduce(function ($totals, $row) {
+                $totals[$row->category_id] = ($totals[$row->category_id] ?? 0) + (int) $row->products_count;
+                if (! is_null($row->subcategory_id)) {
+                    $totals[$row->subcategory_id] = ($totals[$row->subcategory_id] ?? 0) + (int) $row->products_count;
+                }
 
-                $cat->products_count = Product::where('is_active', true)
-                    ->where(function ($query) use ($cat, $childIds) {
-                        $query->where('category_id', $cat->id)
-                            ->orWhere('subcategory_id', $cat->id);
+                return $totals;
+            }, []);
 
-                        if ($childIds->isNotEmpty()) {
-                            $query->orWhere(function ($childQuery) use ($childIds) {
-                                $childQuery->whereIn('category_id', $childIds)
-                                    ->orWhereIn('subcategory_id', $childIds);
-                            });
-                        }
-                    })
-                    ->count();
-
-                return $cat;
-            });
+        $categories->each(function ($cat) use ($categoryProductCounts) {
+            $cat->products_count = (int) ($categoryProductCounts[$cat->id] ?? 0);
+        });
 
         $homepage = Setting::get('homepage', []);
         $trendingIds = collect($homepage['trendingProductIds'] ?? [])
             ->filter(fn ($id) => is_numeric($id))
             ->map(fn ($id) => (int) $id)
             ->values();
-
-        $productRelations = ['category', 'images', 'variants', 'reviews'];
-        if (($homepage['trendingMode'] ?? 'automatic') === 'manual' && $trendingIds->isNotEmpty()) {
-            $trendingProducts = Product::active()
-                ->with($productRelations)
-                ->withCount('reviews')
-                ->whereIn('id', $trendingIds)
-                ->get()
-                ->sortBy(fn ($product) => $trendingIds->search($product->id))
-                ->values()
-                ->take(8);
-        } else {
-            $trendingSales = DB::table('order_items')
-                ->join('orders', function ($join) {
-                    $join->on('orders.id', '=', 'order_items.order_id')
-                        ->where('orders.payment_status', 'paid');
-                })
-                ->select(
-                    'order_items.product_id',
-                    DB::raw('SUM(order_items.quantity) as total_sold')
-                )
-                ->groupBy('order_items.product_id');
-
-            $trendingProducts = Product::active()
-                ->leftJoinSub($trendingSales, 'trending_sales', function ($join) {
-                    $join->on('trending_sales.product_id', '=', 'products.id');
-                })
-                ->select('products.*')
-                ->with($productRelations)
-                ->withCount('reviews')
-                ->orderByDesc(DB::raw('COALESCE(trending_sales.total_sold, 0)'))
-                ->orderByDesc('products.created_at')
-                ->take(8)
-                ->get();
-        }
-
-        $flashSaleProducts = Product::active()
-            ->onSale()
-            ->with(['category', 'images', 'variants'])
-            ->withCount('reviews')
-            ->take(6)
-            ->get();
-
-        $bestSellerCategoryIds = collect($homepage['bestSellerCategoryIds'] ?? [])
-            ->filter(fn ($id) => is_numeric($id))
-            ->map(fn ($id) => (int) $id)
-            ->values();
-        $bestSellerCategories = $bestSellerCategoryIds->isNotEmpty()
-            ? $categories->filter(fn ($category) => $bestSellerCategoryIds->contains($category->id))->values()
-            : $categories;
 
         $bestSellerSales = DB::table('order_items')
             ->join('orders', function ($join) {
@@ -104,20 +54,52 @@ class HomeController extends Controller
             )
             ->groupBy('order_items.product_id');
 
+        if (($homepage['trendingMode'] ?? 'automatic') === 'manual' && $trendingIds->isNotEmpty()) {
+            $trendingProducts = Product::active()
+                ->forCards()
+                ->whereIn('id', $trendingIds)
+                ->get()
+                ->sortBy(fn ($product) => $trendingIds->search($product->id))
+                ->values()
+                ->take(8);
+        } else {
+            $trendingProducts = Product::active()
+                ->forCards()
+                ->leftJoinSub($bestSellerSales, 'best_seller_sales', function ($join) {
+                    $join->on('best_seller_sales.product_id', '=', 'products.id');
+                })
+                ->orderByDesc(DB::raw('COALESCE(best_seller_sales.total_sold, 0)'))
+                ->orderByDesc('products.created_at')
+                ->take(8)
+                ->get();
+        }
+
+        $flashSaleProducts = Product::active()
+            ->onSale()
+            ->forCards()
+            ->take(6)
+            ->get();
+
+        $bestSellerCategoryIds = collect($homepage['bestSellerCategoryIds'] ?? [])
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->values();
+        $bestSellerCategories = $bestSellerCategoryIds->isNotEmpty()
+            ? $categories->filter(fn ($category) => $bestSellerCategoryIds->contains($category->id))->values()
+            : $categories;
+
         $bestSellers = Product::active()
+            ->forCards()
             ->leftJoinSub($bestSellerSales, 'best_seller_sales', function ($join) {
                 $join->on('best_seller_sales.product_id', '=', 'products.id');
             })
-            ->select('products.*')
-            ->with(['category', 'images', 'variants'])
-            ->withCount('reviews')
             ->orderByDesc(DB::raw('COALESCE(best_seller_sales.total_sold, 0)'))
             ->orderByDesc('products.created_at')
             ->take(20)
             ->get();
 
         $originalReviews = Review::where('status', 'approved')
-            ->with('product')
+            ->with('product:id,name')
             ->latest()
             ->take(6)
             ->get()
@@ -132,8 +114,8 @@ class HomeController extends Controller
             ? collect($homepage['manualReviews'] ?? [])->take(6)->values()
             : $originalReviews;
 
-        $heroProductQuery = Product::active()->with(['category', 'images', 'variants']);
-        $heroProduct = !empty($homepage['heroProductId'])
+        $heroProductQuery = Product::active()->forCards();
+        $heroProduct = ! empty($homepage['heroProductId'])
             ? (clone $heroProductQuery)->find($homepage['heroProductId'])
             : null;
         $heroProduct ??= $heroProductQuery->latest()->first();
@@ -148,10 +130,10 @@ class HomeController extends Controller
             $seo['ogTitle'] = preg_replace('/^ATELIER\\b/', $storeName, $seo['ogTitle']);
         }
         $requestRoot = rtrim(request()->root(), '/');
-        $canonicalUrl = $requestRoot . route('home', [], false);
+        $canonicalUrl = $requestRoot.route('home', [], false);
         $ogImage = $seo['ogImage'] ?? ($general['logoLight'] ?? asset('build/assets/hero.jpg'));
-        if (!filter_var($ogImage, FILTER_VALIDATE_URL)) {
-            $ogImage = str_starts_with($ogImage, '//') ? 'https:' . $ogImage : (str_starts_with($ogImage, '/') ? $requestRoot . $ogImage : url($ogImage));
+        if (! filter_var($ogImage, FILTER_VALIDATE_URL)) {
+            $ogImage = str_starts_with($ogImage, '//') ? 'https:'.$ogImage : (str_starts_with($ogImage, '/') ? $requestRoot.$ogImage : url($ogImage));
         }
         $ogImage = filter_var($ogImage, FILTER_VALIDATE_URL) ? $ogImage : asset('build/assets/hero.jpg');
 
@@ -182,8 +164,8 @@ class HomeController extends Controller
                 '@context' => 'https://schema.org',
                 '@type' => 'Organization',
                 'name' => $storeName,
-                'url' => $requestRoot . '/',
-                'logo' => $general['logoLight'] ? (str_starts_with($general['logoLight'], '/') ? $requestRoot . $general['logoLight'] : url($general['logoLight'])) : null,
+                'url' => $requestRoot.'/',
+                'logo' => $general['logoLight'] ? (str_starts_with($general['logoLight'], '/') ? $requestRoot.$general['logoLight'] : url($general['logoLight'])) : null,
                 'description' => $seo['metaDescription'] ?? 'Curated essentials for conscious modern living.',
             ],
         ]);

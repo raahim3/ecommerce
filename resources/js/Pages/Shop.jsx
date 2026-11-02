@@ -496,7 +496,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   );
 
   return (
-    <main className="min-h-screen pb-20 pt-28 lg:pt-36">
+    <main className="min-h-screen pb-20 pt-28 lg:pt-36 md:mt-0 mt-4">
       {/* Quick View Modal */}
       <QuickViewModal
         product={quickViewProduct}
@@ -506,21 +506,21 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
 
       <div className="shell">
         {/* Breadcrumb navigation */}
-        <nav aria-label="Breadcrumb" className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+        <nav aria-label="Breadcrumb" className="md:mb-4 mb-2 flex items-center gap-2 text-xs text-muted-foreground">
           <Link href="/" className="transition-colors hover:text-foreground">
             Home
           </Link>
           <span>/</span>
-          <span className="font-semibold text-foreground">
+          <span className="font-semibold text-foreground capitalize">
             {selectedCategory === "All" ? "Shop All" : selectedCategory}
           </span>
         </nav>
 
         {/* Header Hero Section */}
-        <div className="flex flex-col gap-3 border-b border-border/80 pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-border/80 md:pb-6 pb-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="eyebrow">{storeName} Catalog</span>
-            <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+            <h1 className="md:mt-1 mt-0 text-3xl font-extrabold tracking-tight capitalize sm:text-4xl text-foreground">
               {selectedCategory === "All" ? "Everyday Essentials" : `${selectedCategory} Collection`}
             </h1>
             <p className="mt-1 max-w-xl text-xs text-muted-foreground sm:text-sm">
@@ -538,7 +538,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
         </div>
 
         {/* Main Two-Column Layout: Left Sidebar + Right Product Grid */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="md:mt-8 mt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* ================= DESKTOP LEFT SIDEBAR ================= */}
           <aside className="hidden lg:block lg:col-span-3 sticky top-28 rounded-3xl border border-border/80 bg-surface p-5 shadow-xs">
             <FilterContent />

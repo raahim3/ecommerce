@@ -10,11 +10,12 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
   const { props } = usePage();
+  const checkoutEmail = props?.email || "";
   const recaptcha = props?.app_settings?.recaptcha || {};
   const googleAuth = props?.app_settings?.googleAuth || {};
 
   const { data, setData, post, processing, errors, reset } = useForm({
-    email: "",
+    email: checkoutEmail,
     password: "",
     remember: true,
     recaptcha_token: "",

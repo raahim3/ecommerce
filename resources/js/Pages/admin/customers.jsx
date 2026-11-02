@@ -70,7 +70,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
         id: c.id,
         name: c.name,
         email: c.email,
-        phone: c.phone || "—",
+        phone: c.phone || "",
         orders_count: c.orders_count ?? 0,
         total_spent: c.total_spent ? parseFloat(c.total_spent) : 0,
         created_at: c.created_at,
@@ -87,7 +87,7 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", password_confirmation: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", password_confirmation: "" });
 
   useEffect(() => {
     setCustomers(initialCustomers);
@@ -97,13 +97,13 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
 
   const openCreate = () => {
     setEditingCustomer(null);
-    setForm({ name: "", email: "", password: "", password_confirmation: "" });
+    setForm({ name: "", email: "", phone: "", password: "", password_confirmation: "" });
     setFormOpen(true);
   };
 
   const openEdit = (customer) => {
     setEditingCustomer(customer);
-    setForm({ name: customer.name, email: customer.email, password: "", password_confirmation: "" });
+    setForm({ name: customer.name, email: customer.email, phone: customer.phone || "", password: "", password_confirmation: "" });
     setFormOpen(true);
   };
 
@@ -311,6 +311,9 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
                             <Mail className="size-3" />
                             {customer.email}
                           </p>
+                          {customer.phone && (
+                            <p className="text-[11px] text-slate-400 mt-0.5">{customer.phone}</p>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -471,10 +474,10 @@ export function AdminCustomersPage({ customers: serverCustomers = { data: [] }, 
               <button type="button" onClick={() => setFormOpen(false)} className="grid size-8 place-items-center rounded-xl text-slate-400 hover:bg-slate-100"><X className="size-4" /></button>
             </div>
             <div className="space-y-4">
-              {[["name", "Full Name", "text"], ["email", "Email Address", "email"]].map(([field, label, type]) => (
+              {[["name", "Full Name", "text", true], ["email", "Email Address", "email", true], ["phone", "Phone Number", "tel", false]].map(([field, label, type, required]) => (
                 <div key={field}>
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label} *</label>
-                  <input required type={type} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:border-slate-900 focus:bg-white focus:outline-none" />
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}{required ? " *" : ""}</label>
+                  <input required={required} maxLength={field === "phone" ? 30 : undefined} type={type} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })} className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:border-slate-900 focus:bg-white focus:outline-none" />
                 </div>
               ))}
               <div>

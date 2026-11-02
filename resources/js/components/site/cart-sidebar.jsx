@@ -196,6 +196,8 @@ export function CartSidebar() {
                     <img
                       src={item.image}
                       alt={item.name}
+                      loading="lazy"
+                      decoding="async"
                       className="size-full object-cover"
                     />
                   </div>

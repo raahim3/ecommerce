@@ -113,6 +113,26 @@ To run the test suite:
 composer test
 ```
 
+## Product image optimization
+
+New JPEG, PNG, and WebP product uploads are resized to fit within 800 × 800 pixels and saved as WebP at 80% quality. A 400-pixel WebP thumbnail is also created for responsive image delivery. To optimize existing referenced images and generate missing thumbnails, first check what will be processed, then run the command with the application connected to the correct database:
+
+```bash
+php artisan products:optimize-images --dry-run
+php artisan products:optimize-images
+```
+
+The conversion updates product, variant, order, and review image references before removing original files. Back up the database and image files before running it in production.
+
+JPEG, PNG, and WebP uploads from the admin dashboard are also resized to fit within 1920 × 1920 pixels and saved as WebP at 82% quality. Existing non-product images in public storage and `public/uploads` can be converted, with category, setting, review, order, and expense references updated, using:
+
+```bash
+php artisan images:optimize-existing --dry-run
+php artisan images:optimize-existing
+```
+
+Animated GIFs, SVGs, and PDFs keep their original format. Back up the database and image files before converting existing assets in production.
+
 ## Configuration
 
 At minimum, configure the following values in `.env`:

@@ -7,7 +7,7 @@ import {
   Package,
   Clock,
   MapPin,
-  ExternalLink,
+  Download,
   ShieldCheck,
   HelpCircle,
   ArrowRight,
@@ -216,12 +216,10 @@ export function OrderTrackingPage({ initialOrder = null, initialTimeline = [], s
                   <h3 className="text-base font-bold text-foreground">Package Contents</h3>
                   <a
                     href={`/invoices/${activeOrder.order_number}${activeOrder.customer_email ? `?email=${encodeURIComponent(activeOrder.customer_email)}` : ''}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
                   >
-                    <ExternalLink className="size-3" />
-                    View Invoice
+                    <Download className="size-3" />
+                    Download Invoice
                   </a>
                 </div>
 

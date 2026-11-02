@@ -4,6 +4,7 @@ import { Heart, Star, X, ShoppingBag, Check, ArrowRight, ShieldCheck, Truck } fr
 import { cn } from "@/lib/utils";
 import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { formatPrice } from "@/lib/shop-data";
+import { productImageSrcSet } from "@/lib/product-images";
 import { useCart } from "./cart";
 
 const stripHtml = (html) => {
@@ -58,15 +59,30 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
     : (Number(product.reviews_count ?? 0) || 0);
   const averageRating = loadedReviews.length > 0
     ? loadedReviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / loadedReviews.length
-    : ((Number(product.reviews_count ?? 0) > 0 && Number(product.rating || 0) === 5) ? 0 : (Number(product.rating) > 0 ? Number(product.rating) : 0));
+    : (Number(product.rating) > 0 ? Number(product.rating) : 0);
+  const variantColors = product.variants?.map((variant) => ({
+    name: variant.color_name,
+    hex: variant.color_hex,
+    image: variant.image_url,
+  })) || [];
+  const productColors = product.colors?.length
+    ? product.colors
+    : (product.available_colors?.length ? product.available_colors : variantColors);
+  const productSizes = product.sizes?.length
+    ? product.sizes
+    : (product.available_sizes?.length
+        ? product.available_sizes
+        : [...new Set(product.variants?.map((variant) => variant.size).filter(Boolean) || [])]);
+  const compareAt = Number(product.compareAt || product.compare_at_price || 0);
   const rawImages = product.images && product.images.length > 0 ? product.images : [product.image, product.hover];
   const images = rawImages.map(img => typeof img === "object" ? img.image_url : img).filter(Boolean);
   const activeImage = images[selectedImgIdx] || images[0] || "/resources/js/assets/p-headphones.jpg";
 
   const handleAddToCart = () => {
     setIsAdding(true);
-    const chosenColor = product.colors && product.colors[selectedColor] ? product.colors[selectedColor].name : undefined;
-    const chosenSize = product.sizes && product.sizes[selectedSize] ? product.sizes[selectedSize] : undefined;
+    const selectedColorValue = productColors[selectedColor];
+    const chosenColor = typeof selectedColorValue === "string" ? selectedColorValue : selectedColorValue?.name;
+    const chosenSize = productSizes[selectedSize];
 
     addItem(
       {
@@ -115,7 +131,12 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
             <div className="relative aspect-4/5 w-full overflow-hidden rounded-2xl bg-muted">
               <img
                 src={activeImage}
+                srcSet={productImageSrcSet(activeImage)}
+                sizes="(min-width: 768px) 50vw, 100vw"
                 alt={product.name}
+                width={800}
+                height={1000}
+                decoding="async"
                 className="h-full w-full object-cover transition-all duration-500"
               />
               {product.badge && (
@@ -160,7 +181,17 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
                         : "border-transparent opacity-70 hover:opacity-100",
                     )}
                   >
-                    <img src={img} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={img}
+                      srcSet={productImageSrcSet(img)}
+                      sizes="4rem"
+                      alt=""
+                      width={256}
+                      height={256}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -196,13 +227,13 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
                 <span className="text-2xl font-extrabold text-foreground">
                   {formatPrice(product.price)}
                 </span>
-                {product.compareAt && (
+                {compareAt > Number(product.price) && (
                   <>
                     <span className="text-lg font-medium text-subtle line-through">
-                      {formatPrice(product.compareAt)}
+                      {formatPrice(compareAt)}
                     </span>
                     <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-bold text-accent">
-                      Save {formatPrice(product.compareAt - product.price)}
+                      Save {formatPrice(compareAt - product.price)}
                     </span>
                   </>
                 )}
@@ -214,48 +245,51 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
               </p>
 
               {/* Color Selector */}
-              {product.colors && product.colors.length > 0 && (
+              {productColors.length > 0 && (
                 <div className="mt-5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Color: <span className="text-foreground">{product.colors[selectedColor]?.name}</span>
+                    Color: <span className="text-foreground">{productColors[selectedColor]?.name || productColors[selectedColor]}</span>
                   </label>
                   <div className="mt-2 flex gap-2.5">
-                    {product.colors.map((c, idx) => (
-                      <button
-                        key={c.name}
-                        type="button"
-                        onClick={() => {
-                          setSelectedColor(idx);
-                          if (c.image && images.includes(c.image)) {
-                            setSelectedImgIdx(images.indexOf(c.image));
-                          }
-                        }}
-                        title={c.name}
-                        className={cn(
-                          "relative grid size-8 place-items-center rounded-full transition-all",
-                          selectedColor === idx
-                            ? "ring-2 ring-foreground ring-offset-2 ring-offset-surface scale-110"
-                            : "hover:scale-105 opacity-80 hover:opacity-100",
-                        )}
-                        style={{ backgroundColor: c.hex }}
-                      >
-                        {selectedColor === idx && (
-                          <Check className={cn("size-3.5", c.hex === "#fafafa" || c.hex === "#eae4d9" || c.hex === "#ede8df" ? "text-ink" : "text-white")} />
-                        )}
-                      </button>
-                    ))}
+                    {productColors.map((color, idx) => {
+                      const normalizedColor = typeof color === "string" ? { name: color } : color;
+                      return (
+                        <button
+                          key={normalizedColor.name || idx}
+                          type="button"
+                          onClick={() => {
+                            setSelectedColor(idx);
+                            if (normalizedColor.image && images.includes(normalizedColor.image)) {
+                              setSelectedImgIdx(images.indexOf(normalizedColor.image));
+                            }
+                          }}
+                          title={normalizedColor.name}
+                          className={cn(
+                            "relative grid size-8 place-items-center rounded-full transition-all",
+                            selectedColor === idx
+                              ? "ring-2 ring-foreground ring-offset-2 ring-offset-surface scale-110"
+                              : "hover:scale-105 opacity-80 hover:opacity-100",
+                          )}
+                          style={{ backgroundColor: normalizedColor.hex }}
+                        >
+                          {selectedColor === idx && (
+                            <Check className={cn("size-3.5", ["#fafafa", "#eae4d9", "#ede8df"].includes(normalizedColor.hex) ? "text-ink" : "text-white")} />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Size Selector */}
-              {product.sizes && product.sizes.length > 1 && (
+              {productSizes.length > 1 && (
                 <div className="mt-5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Size: <span className="text-foreground">{product.sizes[selectedSize]}</span>
+                    Size: <span className="text-foreground">{productSizes[selectedSize]}</span>
                   </label>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {product.sizes.map((s, idx) => (
+                    {productSizes.map((s, idx) => (
                       <button
                         key={s}
                         type="button"

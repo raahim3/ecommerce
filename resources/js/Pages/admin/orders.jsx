@@ -628,7 +628,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   };
 
   const handleDownloadInvoice = () => {
-    window.open(`/invoices/${selectedOrder.id}`, "_blank", "noopener,noreferrer");
+    window.location.href = `/invoices/${selectedOrder.id}`;
   };
 
   const countForTab = (tab) => {

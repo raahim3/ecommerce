@@ -113,6 +113,38 @@ class Product extends Model
         return $query->where('is_active', true);
     }
 
+    public function scopeForCards(Builder $query): Builder
+    {
+        return $query
+            ->select([
+                'id',
+                'category_id',
+                'subcategory_id',
+                'name',
+                'slug',
+                'sku',
+                'price',
+                'compare_at_price',
+                'stock_quantity',
+                'is_featured',
+                'is_on_sale',
+                'tagline',
+                'description',
+                'image',
+                'available_colors',
+                'available_sizes',
+                'rating',
+                'reviews_count',
+            ])
+            ->with([
+                'category:id,name,slug',
+                'subcategory:id,name,slug',
+                'images:id,product_id,image_url,alt_text,sort_order',
+                'variants:id,product_id,color_name,color_hex,size,sku,additional_price,stock_quantity,image_url',
+            ])
+            ->withCount('reviews');
+    }
+
     public function scopeFeatured(Builder $query): Builder
     {
         return $query->where('is_featured', true);

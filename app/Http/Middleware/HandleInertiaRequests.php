@@ -333,6 +333,7 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
                     'role' => is_object($user->role) ? [
                         'id' => $user->role->id,
                         'name' => $user->role->name,

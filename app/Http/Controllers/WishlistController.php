@@ -18,7 +18,7 @@ class WishlistController extends Controller
 
         if (Auth::check()) {
             $wishlistItems = Wishlist::where('user_id', Auth::id())
-                ->with(['product.category', 'product.images', 'product.variants'])
+                ->with(['product' => fn ($query) => $query->forCards()])
                 ->latest()
                 ->get();
 
@@ -26,8 +26,7 @@ class WishlistController extends Controller
         }
 
         $recommendedProducts = Product::active()
-            ->with(['category', 'images', 'variants', 'reviews'])
-            ->withCount('reviews')
+            ->forCards()
             ->latest()
             ->take(4)
             ->get();
@@ -40,7 +39,7 @@ class WishlistController extends Controller
 
     public function toggle(Request $request): JsonResponse
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return response()->json([
                 'authenticated' => false,
                 'message' => 'Please sign in to save items to your permanent wishlist.',
@@ -78,11 +77,12 @@ class WishlistController extends Controller
 
     public function getWishlistIds(): JsonResponse
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return response()->json(['ids' => []]);
         }
 
         $ids = Wishlist::where('user_id', Auth::id())->pluck('product_id')->toArray();
+
         return response()->json(['ids' => $ids]);
     }
 }

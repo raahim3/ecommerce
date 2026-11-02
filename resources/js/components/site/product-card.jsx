@@ -4,6 +4,7 @@ import { Heart, Star, Eye, ShoppingBag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { formatPrice } from "@/lib/shop-data";
+import { productImageSrcSet } from "@/lib/product-images";
 import { useCart } from "./cart";
 
 const stripHtml = (html) => {
@@ -21,6 +22,8 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
   // Dynamic Image and Attribute Resolvers
   const mainImage = product.image || product.images?.[0]?.image_url || product.image_url || "/resources/js/assets/p-headphones.jpg";
   const hoverImage = product.hover || product.images?.[1]?.image_url || mainImage;
+  const mainImageSrcSet = productImageSrcSet(mainImage);
+  const hoverImageSrcSet = productImageSrcSet(hoverImage);
   const productUrl = `/product/${product.slug || product.id}`;
   const subcategoryName = typeof product.subcategory === "object" ? product.subcategory?.name : (product.subcategory || "");
   const categoryName = subcategoryName || (typeof product.category === "object" ? product.category?.name : (product.category || "Collection"));
@@ -33,10 +36,14 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
     : (Number(product.reviews_count ?? 0) || 0);
   const averageRating = loadedReviews.length > 0
     ? loadedReviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0) / loadedReviews.length
-    : ((Number(product.reviews_count ?? 0) > 0 && Number(product.rating || 0) === 5) ? 0 : (Number(product.rating) > 0 ? Number(product.rating) : 0));
+    : (Number(product.rating) > 0 ? Number(product.rating) : 0);
   const displayRating = averageRating > 0 ? averageRating.toFixed(1) : "0.0";
   const badgeText = product.badge || (product.is_on_sale ? "Sale" : (product.is_featured ? "Featured" : null));
-  const colorsList = product.colors || product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex })) || [];
+  const colorsList = product.colors?.length
+    ? product.colors
+    : (product.available_colors?.length
+        ? product.available_colors
+        : product.variants?.map(v => ({ name: v.color_name, hex: v.color_hex })) || []);
 
   if (layout === "list") {
     return (
@@ -51,7 +58,13 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
           <Link href={productUrl} className="block h-full w-full">
             <img
               src={mainImage}
+              srcSet={mainImageSrcSet}
+              sizes="(min-width: 640px) 12rem, 100vw"
               alt={product.alt || product.name}
+              width={800}
+              height={1000}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
             />
           </Link>
@@ -111,14 +124,17 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
                   {colorsList.length} Colors:
                 </span>
                 <div className="flex gap-1">
-                  {colorsList.map((c, i) => (
+                  {colorsList.map((color, i) => {
+                    const c = typeof color === "string" ? { name: color } : color;
+                    return (
                     <span
                       key={c.name || i}
                       title={c.name}
                       className="size-3 rounded-full border border-border/80"
                       style={{ backgroundColor: c.hex }}
                     />
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -175,19 +191,25 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
         <Link href={productUrl} className="block relative aspect-4/5 w-full">
           <img
             src={mainImage}
+            srcSet={mainImageSrcSet}
+            sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 50vw"
             alt={product.alt || product.name}
             width={900}
             height={1100}
             loading="lazy"
+            decoding="async"
             className="aspect-4/5 w-full object-cover transition-all duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04] group-hover:opacity-0"
           />
           <img
             src={hoverImage}
+            srcSet={hoverImageSrcSet}
+            sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 50vw"
             alt=""
             aria-hidden="true"
             width={900}
             height={1100}
             loading="lazy"
+            decoding="async"
             className="absolute inset-0 aspect-4/5 w-full scale-[1.04] object-cover opacity-0 transition-all duration-700 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-100 group-hover:opacity-100"
           />
         </Link>
@@ -282,14 +304,17 @@ export function ProductCard({ product: productData, layout = "grid", onQuickView
 
           {colorsList.length > 0 && (
             <div className="flex items-center -space-x-1">
-              {colorsList.slice(0, 3).map((c, i) => (
-                <span
-                  key={c.name || i}
-                  title={c.name}
-                  className="size-3 rounded-full border border-surface shadow-xs"
-                  style={{ backgroundColor: c.hex }}
-                />
-              ))}
+              {colorsList.slice(0, 3).map((color, i) => {
+                const c = typeof color === "string" ? { name: color } : color;
+                return (
+                  <span
+                    key={c.name || i}
+                    title={c.name}
+                    className="size-3 rounded-full border border-surface shadow-xs"
+                    style={{ backgroundColor: c.hex }}
+                  />
+                );
+              })}
               {colorsList.length > 3 && (
                 <span className="text-[10px] text-muted-foreground pl-1.5 font-medium">
                   +{colorsList.length - 3}

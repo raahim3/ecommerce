@@ -13,16 +13,14 @@ class ShopController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Product::active()
-            ->with(['category', 'subcategory', 'images', 'variants', 'reviews'])
-            ->withCount('reviews');
+        $query = Product::active()->forCards();
 
         // Search by name or description
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('tagline', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%")
+                    ->orWhere('tagline', 'like', "%{$search}%");
             });
         }
 
@@ -33,13 +31,13 @@ class ShopController extends Controller
                     // Direct category match
                     $q->whereHas('category', function ($cq) use ($categorySlug) {
                         $cq->where('slug', strtolower($categorySlug))
-                           ->orWhere('name', 'like', "%{$categorySlug}%");
+                            ->orWhere('name', 'like', "%{$categorySlug}%");
                     })
                     // OR subcategory match
-                    ->orWhereHas('subcategory', function ($cq) use ($categorySlug) {
-                        $cq->where('slug', strtolower($categorySlug))
-                           ->orWhere('name', 'like', "%{$categorySlug}%");
-                    });
+                        ->orWhereHas('subcategory', function ($cq) use ($categorySlug) {
+                            $cq->where('slug', strtolower($categorySlug))
+                                ->orWhere('name', 'like', "%{$categorySlug}%");
+                        });
                 });
             }
         }
@@ -85,27 +83,27 @@ class ShopController extends Controller
         $products = $query->paginate(12)->withQueryString();
 
         $categories = Category::where('is_active', true)
+            ->select(['id', 'name', 'slug', 'image', 'parent_id', 'sort_order'])
             ->orderBy('sort_order')
+            ->get();
+
+        $categoryProductCounts = Product::where('is_active', true)
+            ->selectRaw('category_id, subcategory_id, COUNT(*) as products_count')
+            ->whereNotNull('category_id')
+            ->groupBy('category_id', 'subcategory_id')
             ->get()
-            ->map(function ($cat) {
-                $childIds = Category::where('parent_id', $cat->id)->pluck('id');
+            ->reduce(function ($totals, $row) {
+                $totals[$row->category_id] = ($totals[$row->category_id] ?? 0) + (int) $row->products_count;
+                if (! is_null($row->subcategory_id)) {
+                    $totals[$row->subcategory_id] = ($totals[$row->subcategory_id] ?? 0) + (int) $row->products_count;
+                }
 
-                $cat->products_count = Product::where('is_active', true)
-                    ->where(function ($query) use ($cat, $childIds) {
-                        $query->where('category_id', $cat->id)
-                            ->orWhere('subcategory_id', $cat->id);
+                return $totals;
+            }, []);
 
-                        if ($childIds->isNotEmpty()) {
-                            $query->orWhere(function ($childQuery) use ($childIds) {
-                                $childQuery->whereIn('category_id', $childIds)
-                                    ->orWhereIn('subcategory_id', $childIds);
-                            });
-                        }
-                    })
-                    ->count();
-
-                return $cat;
-            });
+        $categories->each(function ($cat) use ($categoryProductCounts) {
+            $cat->products_count = (int) ($categoryProductCounts[$cat->id] ?? 0);
+        });
 
         $general = Setting::get('general', []);
         $storeName = $general['storeName'] ?? '';
@@ -125,19 +123,19 @@ class ShopController extends Controller
                 'in_stock' => $request->boolean('in_stock'),
             ],
         ])->withViewData([
-            'metaTitle' => 'Shop Curated Essentials | ' . $storeName,
-            'metaDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials, from precision timepieces and audio to fashion and home goods.',
+            'metaTitle' => 'Shop Curated Essentials | '.$storeName,
+            'metaDescription' => 'Explore '.$storeName.'\'s curated collection of modern essentials, from precision timepieces and audio to fashion and home goods.',
             'metaRobots' => 'index,follow',
             'canonicalUrl' => $canonicalUrl,
             'ogType' => 'website',
-            'ogTitle' => 'Shop Curated Essentials | ' . $storeName,
-            'ogDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials.',
+            'ogTitle' => 'Shop Curated Essentials | '.$storeName,
+            'ogDescription' => 'Explore '.$storeName.'\'s curated collection of modern essentials.',
             'ogImage' => $general['logoLight'] ?? asset('build/assets/hero.jpg'),
             'ogUrl' => $canonicalUrl,
             'ogSiteName' => $storeName,
             'twitterCard' => 'summary_large_image',
-            'twitterTitle' => 'Shop Curated Essentials | ' . $storeName,
-            'twitterDescription' => 'Explore ' . $storeName . '\'s curated collection of modern essentials.',
+            'twitterTitle' => 'Shop Curated Essentials | '.$storeName,
+            'twitterDescription' => 'Explore '.$storeName.'\'s curated collection of modern essentials.',
         ]);
     }
 }

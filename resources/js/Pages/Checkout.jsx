@@ -20,8 +20,9 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { loadStripe } from "@stripe/stripe-js";
 import { useCart } from "@/components/site/cart";
+
+const loadStripe = () => import("@stripe/stripe-js").then((mod) => mod.loadStripe);
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { SiteLayout } from "@/layouts/site-layout";
@@ -175,6 +176,47 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       cardName: user?.name || "",
     };
   });
+
+  useEffect(() => {
+    try {
+      const storedDraft = sessionStorage.getItem("checkoutDraft");
+      if (!storedDraft || !user?.email) return;
+
+      const draft = JSON.parse(storedDraft);
+      sessionStorage.removeItem("checkoutDraft");
+      if (draft.email?.toLowerCase() !== user.email.toLowerCase()) {
+        toast.error("You signed in with a different email. Re-enter your shipping details to continue.");
+        return;
+      }
+
+      setFormData((current) => ({
+        ...current,
+        ...draft.formData,
+        email: user.email,
+        cardNumber: "",
+        cardExp: "",
+        cardCvc: "",
+      }));
+      if (draft.shippingMethod) {
+        setSelectedShippingMethod(draft.shippingMethod);
+        setShippingMethod(draft.shippingMethod);
+      }
+      if (typeof draft.saveAddressForNextTime === "boolean") {
+        setSaveAddressForNextTime(draft.saveAddressForNextTime);
+      }
+      if (draft.selectedPaymentMethod) {
+        setSelectedPaymentMethod(draft.selectedPaymentMethod);
+      }
+      if (draft.receiptUrl) {
+        setReceiptUrl(draft.receiptUrl);
+      }
+      toast.info("Your checkout details have been restored.");
+    } catch (error) {
+      sessionStorage.removeItem("checkoutDraft");
+      console.error("Could not restore checkout details.", error);
+      toast.error("Your checkout details could not be restored. Please enter them again.");
+    }
+  }, [user?.email, setShippingMethod]);
 
   const [availableStates, setAvailableStates] = useState([]);
   const [isLoadingStates, setIsLoadingStates] = useState(false);
@@ -455,6 +497,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
       status: selectedPaymentMethod === "bank_transfer" ? "Payment Verification" : "Processing",
       paymentMethod: selectedPaymentMethod,
       paymentReceiptUrl: receiptUrl || null,
+      accountCreated: Boolean(data.account_created),
       shippingAddress: `${formData.address}, ${formData.city}, ${formData.state} ${formData.zipCode}`,
       trackingNumber: data.order?.tracking_number || `TRK-${Math.floor(10000000 + Math.random() * 90000000)}`,
       estimatedDelivery: `In ${deliveryDaysText}`,
@@ -471,6 +514,9 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
     clearCart();
     setStep(3);
     toast.success("Order Placed Successfully!");
+    if (data.account_created) {
+      router.reload({ only: ["auth"], preserveScroll: true });
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -548,6 +594,29 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
 
       const data = await res.json();
 
+      if (res.status === 409 && data.account_exists) {
+        try {
+          sessionStorage.setItem("checkoutDraft", JSON.stringify({
+            email: formData.email,
+            formData: {
+              ...formData,
+              cardNumber: "",
+              cardExp: "",
+              cardCvc: "",
+            },
+            shippingMethod: selectedShippingMethod,
+            selectedPaymentMethod,
+            receiptUrl,
+            saveAddressForNextTime,
+          }));
+        } catch (error) {
+          console.error("Could not save checkout details.", error);
+          toast.error("Please sign in to continue. You may need to re-enter your shipping details.");
+        }
+        router.visit(data.login_url);
+        return;
+      }
+
       if (res.ok && data.success) {
         if (selectedPaymentMethod === "card") {
           const intentRes = await fetch("/api/payment/intent", {
@@ -620,6 +689,15 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
             We've sent a confirmation email with full receipt and tracking details to{" "}
             <strong className="text-foreground">{formData.email}</strong>.
           </p>
+          {completedOrder.accountCreated && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              We created your customer account and signed you in. To set a password for future sign-ins, use{" "}
+              <Link href="/forgot-password" className="font-semibold text-accent hover:underline">
+                Forgot Password
+              </Link>
+              .
+            </p>
+          )}
 
           <div className="mt-8 rounded-2xl bg-muted/40 p-5 text-left text-xs sm:text-sm border border-border/70 space-y-2.5">
             <div className="flex justify-between">

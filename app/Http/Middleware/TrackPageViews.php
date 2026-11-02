@@ -16,7 +16,7 @@ class TrackPageViews
         $route = $request->route();
         $routeName = $route?->getName();
 
-        if (!$request->isMethod('GET') || !$routeName || $response->getStatusCode() >= 400) {
+        if (! $request->isMethod('GET') || ! $routeName || $response->getStatusCode() >= 400) {
             return $response;
         }
 
@@ -44,18 +44,24 @@ class TrackPageViews
         ];
         $pageName = $pageNames[$routeName] ?? Str::headline(str_replace('.', ' ', $routeName));
 
-        DB::table('page_views')->insertOrIgnore([
-            'page_key' => $routeName,
-            'page_name' => $pageName,
-            'views' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        DB::table('page_views')->where('page_key', $routeName)->increment('views', 1, [
-            'page_name' => $pageName,
-            'last_viewed_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $now = now();
+        DB::table('page_views')->upsert(
+            [[
+                'page_key' => $routeName,
+                'page_name' => $pageName,
+                'views' => 1,
+                'last_viewed_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]],
+            ['page_key'],
+            [
+                'page_name',
+                'last_viewed_at',
+                'updated_at',
+                'views' => DB::raw('page_views.views + 1'),
+            ],
+        );
 
         return $response;
     }

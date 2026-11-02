@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Order;
-use App\Models\User;
 use App\Models\Role;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -19,9 +18,9 @@ class CustomersController extends Controller
     {
         $customers = User::customers()
             ->withCount('orders')
-            ->when($request->filled('search'), fn($q) => $q->where(function ($searchQuery) use ($request) {
-                $searchQuery->where('name', 'like', '%' . $request->search . '%')
-                    ->orWhere('email', 'like', '%' . $request->search . '%');
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($searchQuery) use ($request) {
+                $searchQuery->where('name', 'like', '%'.$request->search.'%')
+                    ->orWhere('email', 'like', '%'.$request->search.'%');
             })
             )
             ->latest()
@@ -50,6 +49,7 @@ class CustomersController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
@@ -57,6 +57,7 @@ class CustomersController extends Controller
         $customer = User::create([
             'name' => $validated['name'],
             'email' => strtolower($validated['email']),
+            'phone' => $validated['phone'] ?? null,
             'password' => Hash::make($validated['password']),
             'role_id' => $customerRole->id,
         ]);
@@ -74,12 +75,14 @@ class CustomersController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($customer->id)],
+            'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['nullable', 'string', 'min:8', 'confirmed'],
         ]);
 
         $customer->name = $validated['name'];
         $customer->email = strtolower($validated['email']);
-        if (!empty($validated['password'])) {
+        $customer->phone = $validated['phone'] ?? null;
+        if (! empty($validated['password'])) {
             $customer->password = Hash::make($validated['password']);
         }
         $customer->save();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Head, Link, router, usePage } from "@inertiajs/react";
 import {
   Star,
@@ -32,13 +32,37 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
+import { productImageSrcSet } from "@/lib/product-images";
 import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { useCart } from "@/components/site/cart";
 import { ProductCard } from "@/components/site/product-card";
 import { SiteLayout } from "@/layouts/site-layout";
 
-export function ProductDetailPage({ product: serverProduct, relatedProducts: serverRelatedProducts }) {
-  const { id, app_settings: appSettings = {} } = usePage().props;
+const normalizeReview = (review) => ({
+  id: review.id,
+  author: review.author_name || review.author || review.user?.name || "Verified Customer",
+  rating: Number(review.rating) || 5,
+  title: review.title || "Exceptional Quality",
+  content: review.comment || review.content || "",
+  attachments: Array.isArray(review.attachments) ? review.attachments : [],
+  date: review.created_at ? new Date(review.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : (review.date || "Recently"),
+  verified: review.is_verified_buyer ?? true,
+  helpful: review.helpful || 0,
+});
+
+export function ProductDetailPage({
+  product: serverProduct,
+  relatedProducts: serverRelatedProducts,
+  reviews: initialReviews = [],
+  reviewRatingCounts = {},
+  reviewAverage = 0,
+  reviewPage: initialReviewPage = 1,
+  reviewLastPage: initialReviewLastPage = 1,
+  reviewTotal = 0,
+  canReview = false,
+  hasReviewed: initialHasReviewed = false,
+}) {
+  const { id, app_settings: appSettings = {}, auth = {} } = usePage().props;
   const storeName = appSettings.general?.storeName || "Store";
   const navigate = (href) => router.visit(href);
   const { addItem, wishlist, toggleWish } = useCart();
@@ -150,24 +174,23 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   const [bundleChecked, setBundleChecked] = useState([true, true, true]); // [main, acc1, acc2]
 
   // Reviews state & new review submission
-  const [reviewsList, setReviewsList] = useState([]);
-  const reviewsCount = useMemo(() => {
-    if (reviewsList.length > 0) return reviewsList.length;
-    return product?.reviews_count ?? (Array.isArray(product?.reviews) ? product.reviews.length : (Number(product?.reviews) || 0));
-  }, [product?.reviews, product?.reviews_count, reviewsList.length]);
+  const [reviewsList, setReviewsList] = useState(() => initialReviews.map(normalizeReview));
+  const [reviewPage, setReviewPage] = useState(initialReviewPage);
+  const [reviewLastPage, setReviewLastPage] = useState(initialReviewLastPage);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(initialHasReviewed);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const reviewsCount = Number(reviewTotal);
   const effectiveRating = useMemo(() => {
-    if (reviewsList.length > 0) {
-      const total = reviewsList.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
-      return total / reviewsList.length;
-    }
-    if (Number(product?.rating) > 0) return Number(product.rating);
-    return 0;
-  }, [product?.rating, reviewsList]);
+    if (Number(reviewTotal) > 0) return Number(reviewAverage);
+    return Number(product?.rating) || 0;
+  }, [product?.rating, reviewAverage, reviewTotal]);
   const [reviewFilterRating, setReviewFilterRating] = useState(0);
   const [reviewSearchQuery, setReviewSearchQuery] = useState("");
+  const reviewRequestController = useRef(null);
+  const initialReviewQuery = useRef(true);
   const [isWriteReviewOpen, setIsWriteReviewOpen] = useState(false);
   const [newReviewForm, setNewReviewForm] = useState({
-    author: "",
     rating: 5,
     title: "",
     content: "",
@@ -191,31 +214,29 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
       setReviewFilterRating(0);
       setReviewSearchQuery("");
 
-      // Normalize and load reviews from server or local storage fallback
-      const normalizeReview = (r) => ({
-        id: r.id,
-        author: r.author_name || r.author || r.user?.name || "Verified Customer",
-        rating: Number(r.rating) || 5,
-        title: r.title || "Exceptional Quality",
-        content: r.comment || r.content || "",
-        attachments: Array.isArray(r.attachments) ? r.attachments : [],
-        date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : (r.date || "Recently"),
-        verified: r.is_verified_buyer ?? true,
-        helpful: r.helpful || 0,
-      });
-
-      const serverRev = Array.isArray(product.reviews) ? product.reviews : (product.reviewsList || []);
       const savedReviews = localStorage.getItem(`atelier_reviews_${product.id}`);
+      let savedReviewData = [];
       if (savedReviews) {
         try {
           const parsed = JSON.parse(savedReviews);
-          setReviewsList(parsed.map(normalizeReview));
+          if (Array.isArray(parsed)) savedReviewData = parsed;
         } catch {
-          setReviewsList(serverRev.map(normalizeReview));
+          savedReviewData = [];
         }
-      } else {
-        setReviewsList(serverRev.map(normalizeReview));
       }
+
+      const savedHelpfulness = new Map(
+        savedReviewData
+          .filter((review) => review && typeof review === "object" && review.id != null && !String(review.id).startsWith("custom-") && Number(review.helpful) > 0)
+          .map((review) => [review.id, Number(review.helpful)]),
+      );
+      setReviewsList(initialReviews.map((review) => normalizeReview({
+        ...review,
+        helpful: savedHelpfulness.get(review.id) || 0,
+      })));
+      setReviewPage(initialReviewPage);
+      setReviewLastPage(initialReviewLastPage);
+      setHasReviewed(initialHasReviewed);
 
       // Record recently viewed
       try {
@@ -227,7 +248,65 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
         console.error("Failed to store recently viewed", e);
       }
     }
-  }, [product]);
+  }, [product, initialReviews, initialReviewPage, initialReviewLastPage, initialHasReviewed]);
+
+  const loadReviews = useCallback(async (page, append = false) => {
+    if (!product?.slug && !product?.id) return;
+
+    reviewRequestController.current?.abort();
+    const controller = new AbortController();
+    reviewRequestController.current = controller;
+    setIsLoadingReviews(true);
+
+    const params = new URLSearchParams({ page: String(page) });
+    if (reviewFilterRating > 0) params.set("rating", String(reviewFilterRating));
+    if (reviewSearchQuery.trim()) params.set("q", reviewSearchQuery.trim());
+
+    try {
+      const response = await fetch(`/api/products/${encodeURIComponent(product.slug || product.id)}/reviews?${params}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Review request failed with status ${response.status}`);
+
+      const payload = await response.json();
+      if (
+        !Array.isArray(payload.reviews)
+        || !Number.isInteger(payload.page)
+        || !Number.isInteger(payload.lastPage)
+      ) {
+        throw new Error("Review response did not contain a valid page of reviews");
+      }
+
+      const nextReviews = payload.reviews.map(normalizeReview);
+      setReviewsList((current) => append ? [...current, ...nextReviews] : nextReviews);
+      setReviewPage(payload.page);
+      setReviewLastPage(payload.lastPage);
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        console.error("Failed to load product reviews", error);
+        toast.error("Unable to load reviews. Please try again.");
+      }
+    } finally {
+      if (reviewRequestController.current === controller) {
+        reviewRequestController.current = null;
+        setIsLoadingReviews(false);
+      }
+    }
+  }, [product?.slug, product?.id, reviewFilterRating, reviewSearchQuery]);
+
+  useEffect(() => {
+    if (initialReviewQuery.current) {
+      initialReviewQuery.current = false;
+      return;
+    }
+
+    const timeout = setTimeout(() => loadReviews(1), 300);
+    return () => {
+      clearTimeout(timeout);
+      reviewRequestController.current?.abort();
+    };
+  }, [loadReviews]);
 
   // Scroll listener for sticky bar
   useEffect(() => {
@@ -370,69 +449,86 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   const handleReviewAttachmentUpload = async (event) => {
     const files = Array.from(event.target.files || []);
-    if (!files.length) return;
+    const allowedFiles = files.filter((file) => {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        toast.error(`${file.name} is not an image.`);
+        return false;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(`${file.name} exceeds the 5 MB limit.`);
+        return false;
+      }
+      return true;
+    });
 
-    const uploadedImages = await Promise.all(
-      files.map((file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
-        reader.readAsDataURL(file);
-      }))
-    );
-
-    setNewReviewForm((prev) => ({
-      ...prev,
-      attachments: [...(prev.attachments || []), ...uploadedImages],
+    const availableSlots = Math.max(0, 3 - newReviewForm.attachments.length);
+    if (allowedFiles.length > availableSlots) toast.error("You can attach up to 3 photos.");
+    const newAttachments = allowedFiles.slice(0, availableSlots).map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
     }));
-
+    setNewReviewForm((prev) => ({ ...prev, attachments: [...prev.attachments, ...newAttachments] }));
     event.target.value = "";
   };
 
-  // Submit new review
-  const handleReviewSubmit = (e) => {
+  const closeReviewModal = () => {
+    newReviewForm.attachments.forEach(({ preview }) => URL.revokeObjectURL(preview));
+    setNewReviewForm({ rating: 5, title: "", content: "", attachments: [] });
+    setIsWriteReviewOpen(false);
+  };
+
+  const handleReviewSubmit = async (e) => {
     e.preventDefault();
-    if (!newReviewForm.author.trim() || !newReviewForm.content.trim()) {
-      toast.error("Please provide your name and review details");
+    if (!newReviewForm.content.trim()) {
+      toast.error("Please provide your review details.");
       return;
     }
 
-    const newReview = {
-      id: `custom-${Date.now()}`,
-      author: newReviewForm.author,
-      rating: Number(newReviewForm.rating),
-      date: "Just now",
-      verified: true,
-      title: newReviewForm.title || "Exceptional Quality",
-      content: newReviewForm.content,
-      attachments: newReviewForm.attachments || [],
-      helpful: 1,
-    };
-
-    const updated = [newReview, ...reviewsList];
-    setReviewsList(updated);
     try {
-      localStorage.setItem(`atelier_reviews_${product.id}`, JSON.stringify(updated));
-    } catch (err) {
-      console.error(err);
+      setIsSubmittingReview(true);
+      const formData = new FormData();
+      formData.append("rating", String(newReviewForm.rating));
+      formData.append("title", newReviewForm.title);
+      formData.append("comment", newReviewForm.content);
+      newReviewForm.attachments.forEach(({ file }) => formData.append("attachments[]", file));
+
+      const response = await fetch(`/api/products/${encodeURIComponent(product.slug || product.id)}/reviews`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.content || "",
+        },
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Unable to submit your review. Please try again.");
+      }
+
+      setHasReviewed(true);
+      toast.success(result.message || "Your verified purchase review was submitted.");
+      closeReviewModal();
+    } catch (error) {
+      console.error("Failed to submit verified product review", error);
+      toast.error(error.message || "Unable to submit your review. Please try again.");
+    } finally {
+      setIsSubmittingReview(false);
     }
-
-    toast.success("Review submitted!", {
-      description: `Thank you for sharing your feedback with the ${storeName} community.`,
-    });
-
-    setIsWriteReviewOpen(false);
-    setNewReviewForm({ author: "", rating: 5, title: "", content: "", attachments: [] });
   };
 
   // Upvote review
   const handleUpvoteReview = (reviewId) => {
-    const updated = reviewsList.map((r) =>
+    const updatedServerReviews = reviewsList.map((r) =>
       r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1 } : r,
     );
-    setReviewsList(updated);
+    setReviewsList(updatedServerReviews);
     try {
-      localStorage.setItem(`atelier_reviews_${product.id}`, JSON.stringify(updated));
+      localStorage.setItem(
+        `atelier_reviews_${product.id}`,
+        JSON.stringify([
+          ...updatedServerReviews.filter((review) => review.helpful > 0),
+        ]),
+      );
     } catch (err) {
       console.error(err);
     }
@@ -455,25 +551,24 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
   // Rating summary & distribution breakdown stats
   const reviewStats = useMemo(() => {
-    const totalCount = reviewsList.length;
+    const totalCount = Number(reviewTotal);
     const avg = totalCount > 0
-      ? reviewsList.reduce((sum, r) => sum + (Number(r.rating) || 5), 0) / totalCount
+      ? Number(reviewAverage)
       : Number(product?.rating || 5);
 
-    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    reviewsList.forEach((r) => {
-      const star = Math.round(Number(r.rating) || 5);
-      if (counts[star] !== undefined) counts[star]++;
-      else if (star >= 5) counts[5]++;
-      else if (star <= 1) counts[1]++;
-    });
-
+    const counts = {
+      5: Number(reviewRatingCounts[5] || 0),
+      4: Number(reviewRatingCounts[4] || 0),
+      3: Number(reviewRatingCounts[3] || 0),
+      2: Number(reviewRatingCounts[2] || 0),
+      1: Number(reviewRatingCounts[1] || 0),
+    };
     return {
       avg: Math.min(5, Math.max(0, avg)),
       totalCount,
       counts,
     };
-  }, [reviewsList, product?.rating]);
+  }, [product?.rating, reviewAverage, reviewRatingCounts, reviewTotal]);
 
   // Related products
   const relatedProducts = serverRelatedProducts || [];
@@ -517,7 +612,7 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
   } : null;
 
   return (
-    <main className="min-h-screen pb-20 pt-28 lg:pt-36">
+    <main className="min-h-screen pb-20 pt-28 md:mt-0 mt-4 lg:pt-36">
       <Head>
         <title head-key="title">{product?.seo_title || (product?.name ? `${product.name} | ${storeName}` : `Product | ${storeName}`)}</title>
         <meta
@@ -565,38 +660,46 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
 
       {/* Write a Review Modal */}
       {isWriteReviewOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-3 sm:p-4">
           <div
             className="fixed inset-0 bg-ink/60 backdrop-blur-xs transition-opacity animate-in fade-in"
-            onClick={() => setIsWriteReviewOpen(false)}
+            onClick={() => {
+              if (!isSubmittingReview) closeReviewModal();
+            }}
           />
-          <div className="relative z-10 w-full max-w-lg rounded-3xl bg-surface p-6 sm:p-8 shadow-2xl border border-border">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <h3 className="text-lg font-bold">Write a Customer Review</h3>
+          <div className="relative z-10 my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-border bg-surface p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-5">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface pb-3">
+              <div>
+                <h3 className="text-base font-bold">Write a Customer Review</h3>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Verified purchase · {product.name}</p>
+              </div>
               <button
                 type="button"
-                onClick={() => setIsWriteReviewOpen(false)}
-                className="grid size-8 place-items-center rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
+                onClick={closeReviewModal}
+                disabled={isSubmittingReview}
+                aria-label="Close review form"
+                className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="size-4" />
               </button>
             </div>
-            <form onSubmit={handleReviewSubmit} className="mt-5 space-y-4">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Overall Rating
+            <form onSubmit={handleReviewSubmit} className="mt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Overall rating
                 </label>
-                <div className="mt-1.5 flex gap-2">
+                <div className="flex gap-1.5">
                   {[1, 2, 3, 4, 5].map((val) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => setNewReviewForm((f) => ({ ...f, rating: val }))}
-                      className="grid size-9 place-items-center rounded-xl border border-border hover:border-accent transition-colors"
+                      aria-label={`${val} star${val === 1 ? "" : "s"}`}
+                      className="grid size-8 place-items-center rounded-lg border border-border transition-colors hover:border-accent"
                     >
                       <Star
                         className={cn(
-                          "size-5",
+                          "size-4",
                           val <= newReviewForm.rating
                             ? "fill-[#f5a623] text-[#f5a623]"
                             : "fill-[#e5e7eb] text-[#e5e7eb] dark:fill-slate-700 dark:text-slate-700",
@@ -609,79 +712,69 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Your Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Jordan Hayes"
-                  value={newReviewForm.author}
-                  onChange={(e) => setNewReviewForm((f) => ({ ...f, author: e.target.value }))}
-                  className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Review Headline
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Incredible craftsmanship and feel"
+                  maxLength={150}
+                  placeholder="What stood out?"
                   value={newReviewForm.title}
                   onChange={(e) => setNewReviewForm((f) => ({ ...f, title: e.target.value }))}
-                  className="mt-1 h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm focus:border-accent focus:outline-none"
+                  className="mt-1 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm focus:border-accent focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Detailed Comments
                 </label>
                 <textarea
-                  rows={4}
+                  rows={3}
                   required
-                  placeholder="Share your thoughts on build quality, fit, and materials…"
+                  maxLength={5000}
+                  placeholder="Share your thoughts about this product..."
                   value={newReviewForm.content}
                   onChange={(e) => setNewReviewForm((f) => ({ ...f, content: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-border bg-background p-3.5 text-sm focus:border-accent focus:outline-none"
+                  className="mt-1 max-h-40 min-h-20 w-full resize-y rounded-lg border border-border bg-background p-3 text-sm focus:border-accent focus:outline-none"
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Attachments
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Photos <span className="font-normal normal-case">(optional, up to 3)</span>
                 </label>
-                <div className="mt-1 flex items-center gap-3">
-                  <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border bg-background px-3 text-xs font-bold text-muted-foreground hover:border-accent hover:text-accent">
-                    <Plus className="mr-2 size-4" />
-                    Add Photos
+                <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-lg border border-dashed border-border bg-background px-3 text-xs font-bold text-muted-foreground hover:border-accent hover:text-accent">
+                    <Plus className="mr-1.5 size-3.5" />
+                    Add photos
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       multiple
                       className="hidden"
+                      disabled={newReviewForm.attachments.length >= 3}
                       onChange={handleReviewAttachmentUpload}
                     />
-                  </label>
-                </div>
+                </label>
 
                 {newReviewForm.attachments?.length > 0 && (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="grid w-full grid-cols-3 gap-2">
                     {newReviewForm.attachments.map((attachment, index) => (
-                      <div key={`${attachment}-${index}`} className="group relative overflow-hidden rounded-xl border border-border bg-muted">
-                        <img src={attachment} alt={`Review attachment ${index + 1}`} className="aspect-square w-full object-cover" />
+                      <div key={`${attachment.file.name}-${index}`} className="group relative overflow-hidden rounded-lg border border-border bg-muted">
+                        <img src={attachment.preview} alt={`Review photo ${index + 1}`} className="aspect-square w-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setNewReviewForm((prev) => ({
-                            ...prev,
-                            attachments: (prev.attachments || []).filter((item) => item !== attachment),
-                          }))}
-                          className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full bg-slate-900/80 text-white"
-                          aria-label="Remove attachment"
+                          onClick={() => {
+                            URL.revokeObjectURL(attachment.preview);
+                            setNewReviewForm((prev) => ({
+                              ...prev,
+                              attachments: prev.attachments.filter((item) => item !== attachment),
+                            }));
+                          }}
+                          className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-slate-900/80 text-white"
+                          aria-label={`Remove review photo ${index + 1}`}
                         >
-                          <X className="size-3.5" />
+                          <X className="size-3" />
                         </button>
                       </div>
                     ))}
@@ -689,12 +782,13 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                 )}
               </div>
 
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="submit"
-                  className="h-12 w-full rounded-full bg-primary text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-sm"
+                  disabled={isSubmittingReview}
+                  className="h-10 w-full rounded-full bg-primary text-xs font-bold text-primary-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-wait disabled:opacity-60"
                 >
-                  Submit Verified Review
+                  {isSubmittingReview ? "Submitting..." : "Submit verified review"}
                 </button>
               </div>
             </form>
@@ -743,7 +837,17 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                         : "border-transparent opacity-65 hover:opacity-100",
                     )}
                   >
-                    <img src={img} alt="" className="h-full w-full object-cover" />
+                    <img
+                      src={img}
+                      srcSet={productImageSrcSet(img)}
+                      sizes="5rem"
+                      alt=""
+                      width={320}
+                      height={320}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -758,7 +862,14 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
             >
               <img
                 src={activeImage}
+                srcSet={productImageSrcSet(activeImage)}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 alt={product.name}
+                width={800}
+                height={800}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
                 className={cn(
                   "h-full w-full object-contain p-2 sm:p-4 transition-transform duration-300",
                   isZoomed && "scale-150",
@@ -1108,7 +1219,13 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                     />
                     <img
                       src={item.image}
+                      srcSet={productImageSrcSet(item.image)}
+                      sizes="3.5rem"
                       alt={item.name}
+                      width={224}
+                      height={224}
+                      loading="lazy"
+                      decoding="async"
                       className="size-14 rounded-xl object-cover border border-border/60 shrink-0"
                     />
                     <div className="min-w-0 pr-1">
@@ -1249,14 +1366,32 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">Real feedback from the {storeName} community.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsWriteReviewOpen(true)}
-              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-5 text-xs font-bold text-primary-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-xs self-start sm:self-auto"
-            >
-              <MessageSquarePlus className="size-3.5" />
-              <span>Write a Review</span>
-            </button>
+            {hasReviewed ? (
+              <span className="inline-flex h-9 items-center rounded-full border border-emerald-600/20 bg-emerald-600/10 px-4 text-xs font-semibold text-emerald-700">
+                Review submitted
+              </span>
+            ) : canReview ? (
+              <button
+                type="button"
+                onClick={() => setIsWriteReviewOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 self-start rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground sm:self-auto"
+              >
+                <MessageSquarePlus className="size-3.5" />
+                <span>Write a Review</span>
+              </button>
+            ) : !auth.user ? (
+              <Link
+                href={`/login?redirect=${encodeURIComponent(`/product/${product.slug || product.id}`)}`}
+                className="inline-flex h-9 items-center gap-1.5 self-start rounded-full bg-primary px-4 text-xs font-bold text-primary-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground sm:self-auto"
+              >
+                <MessageSquarePlus className="size-3.5" />
+                Sign in to review
+              </Link>
+            ) : (
+              <span className="max-w-48 text-right text-xs text-muted-foreground">
+                Reviews are available to verified buyers after delivery.
+              </span>
+            )}
           </div>
 
           {/* Rating Summary + Distribution (Redesigned per Image 2) */}
@@ -1438,7 +1573,13 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
                             rel="noreferrer"
                             className="overflow-hidden rounded-xl border border-border bg-muted"
                           >
-                            <img src={attachment} alt={`Review attachment ${index + 1}`} className="aspect-square w-full object-cover" />
+                            <img
+                              src={attachment}
+                              alt={`Review attachment ${index + 1}`}
+                              loading="lazy"
+                              decoding="async"
+                              className="aspect-square w-full object-cover"
+                            />
                           </a>
                         ))}
                       </div>
@@ -1464,6 +1605,18 @@ export function ProductDetailPage({ product: serverProduct, relatedProducts: ser
               <p className="col-span-2 py-6 text-center text-xs text-muted-foreground">
                 No reviews match your search filter.
               </p>
+            )}
+            {reviewPage < reviewLastPage && (
+              <div className="col-span-1 flex justify-center pt-2 md:col-span-2">
+                <button
+                  type="button"
+                  disabled={isLoadingReviews}
+                  onClick={() => loadReviews(reviewPage + 1, true)}
+                  className="rounded-full border border-border px-5 py-2 text-xs font-semibold transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+                >
+                  {isLoadingReviews ? "Loading reviews..." : "Load more reviews"}
+                </button>
+              </div>
             )}
           </div>
         </section>

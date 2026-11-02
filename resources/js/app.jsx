@@ -24,17 +24,22 @@ router.on('navigate', (event) => {
 });
 
 createInertiaApp({
-    resolve: name => {
-        const pages = import.meta.glob('./Pages/**/*.jsx', { eager: true });
+    resolve: async (name) => {
+        const pages = import.meta.glob('./Pages/**/*.jsx');
         const exact = pages[`./Pages/${name}.jsx`];
-        if (exact) return exact.default || exact;
+        if (exact) {
+            const module = await exact();
+            return module.default || module;
+        }
 
         const normalizedName = `./pages/${name.toLowerCase()}.jsx`;
         for (const path in pages) {
             if (path.toLowerCase() === normalizedName) {
-                return pages[path].default || pages[path];
+                const module = await pages[path]();
+                return module.default || module;
             }
         }
+
         throw new Error(`Page not found: ${name}`);
     },
     setup({ el, App, props }) {

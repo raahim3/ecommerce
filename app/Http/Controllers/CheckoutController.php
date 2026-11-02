@@ -7,21 +7,24 @@ use App\Models\Address;
 use App\Models\CartItem;
 use App\Models\Coupon;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Role;
 use App\Models\Setting;
+use App\Models\User;
 use App\Services\AdminNotifier;
+use App\Services\ProductImageService;
+use App\Services\RecaptchaService;
 use App\Services\ShippingRateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Services\RecaptchaService;
 
 class CheckoutController extends Controller
 {
@@ -46,6 +49,9 @@ class CheckoutController extends Controller
     public function store(Request $request): JsonResponse
     {
         RecaptchaService::verifyOrFail($request);
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
         $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -91,20 +97,40 @@ class CheckoutController extends Controller
                 'message' => 'Bank Transfer is currently disabled by the store.',
             ], 422);
         }
-        if (($selectedMethod === 'stripe' || $selectedMethod === 'card') && isset($paymentSettings['stripeEnabled']) && !$paymentSettings['stripeEnabled']) {
+        if (($selectedMethod === 'stripe' || $selectedMethod === 'card') && isset($paymentSettings['stripeEnabled']) && ! $paymentSettings['stripeEnabled']) {
             return response()->json([
                 'success' => false,
                 'message' => 'Card payments are currently disabled.',
             ], 422);
         }
-        if ($selectedMethod === 'paypal' && isset($paymentSettings['paypalEnabled']) && !$paymentSettings['paypalEnabled']) {
+        if ($selectedMethod === 'paypal' && isset($paymentSettings['paypalEnabled']) && ! $paymentSettings['paypalEnabled']) {
             return response()->json([
                 'success' => false,
                 'message' => 'PayPal payments are currently disabled.',
             ], 422);
         }
 
-        return DB::transaction(function () use ($request) {
+        $checkoutResult = DB::transaction(function () use ($request) {
+            $customer = Auth::user();
+            $createdCustomer = null;
+
+            if (! $customer) {
+                $customer = User::where('email', $request->email)->lockForUpdate()->first();
+                if ($customer) {
+                    return ['account_exists' => true];
+                }
+
+                $customerRole = Role::firstOrCreate(['slug' => 'customer'], ['name' => 'Customer']);
+                $customer = User::create([
+                    'role_id' => $customerRole->id,
+                    'name' => trim($request->first_name.' '.$request->last_name),
+                    'email' => $request->email,
+                    'phone' => $request->phone,
+                    'password' => Str::random(64),
+                ]);
+                $createdCustomer = $customer;
+            }
+
             $items = $request->items;
             $subtotal = 0.00;
             $orderItemsData = [];
@@ -169,7 +195,7 @@ class CheckoutController extends Controller
             // 3. Calculate Tax & Shipping — read from admin Settings (with safe fallbacks)
             $shippingSettings = Setting::get('shipping', [
                 'zones' => [['name' => 'Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free']],
-                'tax'   => ['flatRate' => '8.0', 'automated' => true, 'taxIncluded' => false],
+                'tax' => ['flatRate' => '8.0', 'automated' => true, 'taxIncluded' => false],
             ]);
 
             $taxConfig = $shippingSettings['tax'] ?? [];
@@ -194,8 +220,8 @@ class CheckoutController extends Controller
                 }
             }
 
-            $taxAmount      = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
-            $totalAmount    = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
+            $taxAmount = $taxIncluded ? 0.00 : round(($subtotal - $discountAmount) * ($taxRate / 100), 2);
+            $totalAmount = max(0.00, round($subtotal - $discountAmount + $shippingAmount + $taxAmount, 2));
 
             // 4. Shipping Address object
             $shippingAddress = [
@@ -215,7 +241,7 @@ class CheckoutController extends Controller
             $order = Order::create([
                 'order_number' => Order::generateOrderNumber(),
                 'tracking_token' => Str::random(48),
-                'user_id' => Auth::id(),
+                'user_id' => $customer->id,
                 'customer_email' => $request->email,
                 'customer_name' => trim("{$request->first_name} {$request->last_name}"),
                 'customer_phone' => $request->phone,
@@ -253,23 +279,23 @@ class CheckoutController extends Controller
             }
 
             // 8. Save Address for logged-in user if requested
-            if (Auth::check() && $request->boolean('save_address')) {
+            if ($request->boolean('save_address')) {
                 Address::firstOrCreate(
                     [
-                        'user_id' => Auth::id(),
+                        'user_id' => $customer->id,
                         'address_line1' => $request->address_line1,
                         'postal_code' => $request->postal_code,
                     ],
                     array_merge($shippingAddress, [
-                        'user_id' => Auth::id(),
+                        'user_id' => $customer->id,
                         'type' => 'shipping',
-                        'is_default' => Address::where('user_id', Auth::id())->count() === 0,
+                        'is_default' => Address::where('user_id', $customer->id)->count() === 0,
                     ])
                 );
             }
             // 9. Clear user's active cart
-            if (Auth::check()) {
-                CartItem::where('user_id', Auth::id())->delete();
+            if (! is_null(Auth::id())) {
+                CartItem::where('user_id', $customer->id)->delete();
             } else {
                 CartItem::where('session_id', $request->session()->getId())->delete();
             }
@@ -281,15 +307,38 @@ class CheckoutController extends Controller
                 report($e);
             }
 
-            return response()->json([
-                'success' => true,
-                'order_number' => $order->order_number,
-                'tracking_token' => $order->tracking_token,
-                'order' => $order->load('items'),
-                'redirect_url' => url('/order-tracking?order=' . $order->order_number . '&email=' . urlencode($order->customer_email)),
-                'message' => 'Order placed successfully!',
-            ]);
+            return [
+                'account_exists' => false,
+                'created_customer' => $createdCustomer,
+                'response' => response()->json([
+                    'success' => true,
+                    'account_created' => (bool) $createdCustomer,
+                    'order_number' => $order->order_number,
+                    'tracking_token' => $order->tracking_token,
+                    'order' => $order->load('items'),
+                    'redirect_url' => url('/order-tracking?order='.$order->order_number.'&email='.urlencode($order->customer_email)),
+                    'message' => 'Order placed successfully!',
+                ]),
+            ];
         });
+
+        if ($checkoutResult['account_exists']) {
+            $request->session()->put('checkout.login_email', $request->email);
+
+            return response()->json([
+                'success' => false,
+                'account_exists' => true,
+                'message' => 'An account already exists for this email. Sign in to continue checkout.',
+                'login_url' => url('/login?redirect='.urlencode('/checkout')),
+            ], 409);
+        }
+
+        if ($checkoutResult['created_customer']) {
+            Auth::login($checkoutResult['created_customer']);
+            $request->session()->regenerate();
+        }
+
+        return $checkoutResult['response'];
     }
 
     public function uploadReceipt(Request $request): JsonResponse
@@ -300,16 +349,29 @@ class CheckoutController extends Controller
         ]);
 
         $file = $request->file('receipt') ?? $request->file('file');
-        if (!$file) {
+        if (! $file) {
             return response()->json(['success' => false, 'message' => 'No receipt file uploaded.'], 422);
         }
 
-        $destinationPath = storage_path("app/public/receipts");
-        if (!file_exists($destinationPath)) {
+        if (in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            $originalSize = $file->getSize();
+            $url = ProductImageService::optimizeAsset($file, 'receipts');
+
+            return response()->json([
+                'success' => true,
+                'url' => $url,
+                'filename' => basename($url),
+                'size' => Storage::disk('public')->size(substr($url, strlen('/storage/'))),
+                'original_size' => $originalSize,
+            ]);
+        }
+
+        $destinationPath = storage_path('app/public/receipts');
+        if (! file_exists($destinationPath)) {
             mkdir($destinationPath, 0755, true);
         }
 
-        $filename = 'receipt_' . time() . '_' . Str::random(8) . '.' . $file->extension();
+        $filename = 'receipt_'.time().'_'.Str::random(8).'.'.$file->extension();
         $file->move($destinationPath, $filename);
 
         return response()->json([

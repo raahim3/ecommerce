@@ -1,4 +1,3 @@
-import { useState, useRef, useMemo, useEffect } from "react";
 import {
   Settings,
   Upload,
@@ -37,9 +36,16 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/shop-data";
 import { AdminLayout } from "@/layouts/admin-layout";
-import { RichTextEditor } from "@/components/admin/RichTextEditor";
-import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, isSupported } from "firebase/messaging";
+import { Suspense, lazy, useState, useRef, useMemo, useEffect } from "react";
+
+const loadRichTextEditor = () => import("@/components/admin/RichTextEditor");
+const loadFirebase = () => import("firebase/app").then((mod) => mod.initializeApp);
+const loadFirebaseMessaging = () => import("firebase/messaging").then((mod) => ({
+  getMessaging: mod.getMessaging,
+  getToken: mod.getToken,
+  isSupported: mod.isSupported,
+}));
+const LazyRichTextEditor = lazy(loadRichTextEditor);
 
 const TABS = [
   { id: "general", label: "General & Branding", icon: Globe },
@@ -441,6 +447,11 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
 
     setPushStatus("working");
     try {
+      const [{ isSupported }, { initializeApp }, { getMessaging, getToken }] = await Promise.all([
+        loadFirebaseMessaging(),
+        loadFirebase(),
+      ]);
+
       if (!(await isSupported())) throw new Error("This browser does not support web push.");
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw new Error("Notification permission was not granted.");
@@ -1209,7 +1220,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                         <input value={data.intro || ""} onChange={(e) => setLegal({ ...legal, [activeTab]: { ...data, intro: e.target.value } })} placeholder="Introduction paragraph" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs sm:col-span-2" />
                       </div>
                       <div className="overflow-hidden rounded-xl border border-slate-200">
-                        <RichTextEditor
+                        <LazyRichTextEditor
                           value={data.body || ""}
                           onChange={(body) => setLegal({ ...legal, [activeTab]: { ...data, body } })}
                           placeholder={`Write ${label} content here...`}

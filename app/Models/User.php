@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use App\Notifications\ResetPasswordNotification;
 
 class User extends Authenticatable
 {
@@ -19,6 +19,7 @@ class User extends Authenticatable
         'role_id',
         'name',
         'email',
+        'phone',
         'password',
         'google_id',
     ];
@@ -68,8 +69,8 @@ class User extends Authenticatable
 
     public function scopeCustomers($query)
     {
-        return $query->whereHas('role', fn($q) => $q->where('slug', 'customer'))
-                     ->orWhereNull('role_id');
+        return $query->whereHas('role', fn ($q) => $q->where('slug', 'customer'))
+            ->orWhereNull('role_id');
     }
 
     public function sendPasswordResetNotification($token): void
@@ -77,4 +78,3 @@ class User extends Authenticatable
         $this->notify(new ResetPasswordNotification($token));
     }
 }
-
