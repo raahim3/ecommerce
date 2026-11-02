@@ -94,6 +94,7 @@ class OrderController extends Controller
             'country' => ['required', 'string', 'max:50'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:100'],
             'items.*.selected_color' => ['nullable', 'string', 'max:100'],
             'items.*.selected_size' => ['nullable', 'string', 'max:100'],
@@ -132,25 +133,53 @@ class OrderController extends Controller
 
             foreach ($validated['items'] as $item) {
                 $product = Product::with('images')->whereKey($item['product_id'])->where('is_active', true)->lockForUpdate()->firstOrFail();
+                $product->loadMissing('variants');
                 $quantity = (int) $item['quantity'];
+                $variant = null;
+                if (!empty($item['variant_id'])) {
+                    $variant = ProductVariant::whereKey($item['variant_id'])
+                        ->where('product_id', $product->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if (!$variant
+                        || ($variant->size && $variant->size !== ($item['selected_size'] ?? null))
+                        || ($variant->color_name && $variant->color_name !== ($item['selected_color'] ?? null))) {
+                        throw ValidationException::withMessages(['items' => "The selected size or color is unavailable for {$product->name}."]);
+                    }
+                } elseif ($product->variants->isNotEmpty()) {
+                    $variant = $product->variants->first(fn ($candidate) =>
+                        $candidate->size === ($item['selected_size'] ?? null)
+                        && $candidate->color_name === ($item['selected_color'] ?? null)
+                    );
+                    if (!$variant) {
+                        throw ValidationException::withMessages(['items' => "Select an available size and color for {$product->name}."]);
+                    }
+                    $variant = ProductVariant::whereKey($variant->id)->lockForUpdate()->first();
+                }
+
                 if ($product->stock_quantity < $quantity) {
                     throw ValidationException::withMessages(['items' => "{$product->name} does not have enough stock."]);
                 }
+                if ($variant && $variant->stock_quantity < $quantity) {
+                    throw ValidationException::withMessages(['items' => "The selected size of {$product->name} does not have enough stock."]);
+                }
 
-                $price = (float) $product->price;
+                $price = (float) $product->price + (float) ($variant?->additional_price ?? 0);
                 $itemTotal = round($price * $quantity, 2);
                 $subtotal += $itemTotal;
                 $weight += (float) $product->weight_kg * $quantity;
                 $product->decrement('stock_quantity', $quantity);
+                $variant?->decrement('stock_quantity', $quantity);
                 if ($product->fresh()->stock_quantity <= 5) $lowStockProducts[] = $product->fresh();
 
                 $orderItems[] = [
                     'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
                     'product_name' => $product->name,
                     'product_sku' => $product->sku,
                     'product_image' => $product->images->first()?->image_url ?? $product->image,
-                    'selected_color' => $item['selected_color'] ?? null,
-                    'selected_size' => $item['selected_size'] ?? null,
+                    'selected_color' => $variant?->color_name ?? ($item['selected_color'] ?? null),
+                    'selected_size' => $variant?->size ?? ($item['selected_size'] ?? null),
                     'price' => $price,
                     'quantity' => $quantity,
                     'total' => $itemTotal,

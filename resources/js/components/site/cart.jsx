@@ -85,10 +85,11 @@ export function CartProvider({ children, checkoutSettings = {} }) {
   const closeCart = useCallback(() => setIsCartOpen(false), []);
   const toggleCart = useCallback(() => setIsCartOpen((prev) => !prev), []);
 
-  const addItem = useCallback(async (product, quantity = 1, openSidebar = false) => {
-    // Build a composite key: product id + selected color + selected size
-    const cartKey = `${product.id}__${product.selectedColor || ''}__${product.selectedSize || ''}`;
+  const addItem = useCallback(async (product, quantity = 1, openSidebar = false, showToast = true) => {
+    const variantId = product.variant_id || product.variantId || null;
+    const cartKey = `${product.id}__${variantId || ''}__${product.selectedColor || ''}__${product.selectedSize || ''}`;
     const requestedQty = Math.max(1, Number(quantity) || 1);
+    let result = {};
 
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
@@ -105,10 +106,10 @@ export function CartProvider({ children, checkoutSettings = {} }) {
           quantity: requestedQty,
           selected_color: product.selectedColor || null,
           selected_size: product.selectedSize || null,
-          variant_id: product.variant_id || product.variantId || null,
+          variant_id: variantId,
         }),
       });
-      const result = await response.json().catch(() => ({}));
+      result = await response.json().catch(() => ({}));
 
       if (!response.ok || !result.success) {
         toast.error(result.message || "Could not add this product to your bag.");
@@ -119,6 +120,13 @@ export function CartProvider({ children, checkoutSettings = {} }) {
       return false;
     }
 
+    const cartProduct = {
+      ...product,
+      price: Number(result.item?.price ?? (Number(product.price) + Number(product.additional_price || 0))),
+      variant_id: result.item?.variant_id ?? variantId,
+      variant_stock_quantity: result.item?.variant?.stock_quantity ?? null,
+    };
+
     setItems((prev) => {
       const existing = prev.find((i) => i._cartKey === cartKey);
       const existingQty = existing ? Number(existing.qty || 0) : 0;
@@ -126,21 +134,23 @@ export function CartProvider({ children, checkoutSettings = {} }) {
 
       if (existing) {
         return prev.map((i) =>
-          i._cartKey === cartKey ? { ...i, qty: totalQty } : i,
+          i._cartKey === cartKey ? { ...i, ...cartProduct, qty: totalQty } : i,
         );
       }
 
-      return [...prev, { ...product, qty: requestedQty, _cartKey: cartKey }];
+      return [...prev, { ...cartProduct, qty: requestedQty, _cartKey: cartKey }];
     });
     setPulse((n) => n + 1);
     const variantLabel = [product.selectedColor, product.selectedSize].filter(Boolean).join(' / ');
-    toast.success("Added to bag", {
-      description: `${product.name}${variantLabel ? ` • ${variantLabel}` : ''} (x${quantity})`,
-      action: {
-        label: "View Bag",
-        onClick: () => setIsCartOpen(true),
-      },
-    });
+    if (showToast) {
+      toast.success("Added to bag", {
+        description: `${product.name}${variantLabel ? ` • ${variantLabel}` : ''} (x${quantity})`,
+        action: {
+          label: "View Bag",
+          onClick: () => setIsCartOpen(true),
+        },
+      });
+    }
     if (openSidebar) {
       setIsCartOpen(true);
     }
@@ -164,20 +174,32 @@ export function CartProvider({ children, checkoutSettings = {} }) {
     }
 
     setItems((prev) => {
-      const target = prev.find((i) => i._cartKey === cartKey || i.id === cartKey);
+      const target = prev.find((i) => i._cartKey === cartKey || (!i._cartKey && i.id === cartKey));
       if (!target) return prev;
 
       const availableStock = Number(target.stock_quantity ?? target.stockCount ?? 0);
-      const safeQty = availableStock > 0 ? Math.min(qty, availableStock) : 0;
+      const otherProductQuantity = prev
+        .filter((item) => item.id === target.id && item._cartKey !== target._cartKey)
+        .reduce((sum, item) => sum + Number(item.qty || 0), 0);
+      const variantStock = Number(target.variant_stock_quantity);
+      const otherVariantQuantity = target.variant_id
+        ? prev.filter((item) => Number(item.variant_id) === Number(target.variant_id) && item._cartKey !== target._cartKey)
+          .reduce((sum, item) => sum + Number(item.qty || 0), 0)
+        : 0;
+      const productLimit = Math.max(0, availableStock - otherProductQuantity);
+      const variantLimit = Number.isFinite(variantStock) && variantStock > 0
+        ? Math.max(0, variantStock - otherVariantQuantity)
+        : productLimit;
+      const safeQty = Math.min(qty, productLimit, variantLimit);
 
-      if (availableStock > 0 && safeQty !== qty) {
+      if (safeQty !== qty) {
         toast.error("Stock limit reached", {
-          description: `Only ${availableStock} item(s) available in stock for ${target.name}.`,
+          description: `The selected size has only ${Math.min(productLimit, variantLimit)} item(s) available for ${target.name}.`,
         });
       }
 
       return prev.map((i) =>
-        i._cartKey === cartKey || i.id === cartKey ? { ...i, qty: safeQty || 0 } : i,
+        i._cartKey === cartKey || (!i._cartKey && i.id === cartKey) ? { ...i, qty: safeQty } : i,
       );
     });
   }, []);

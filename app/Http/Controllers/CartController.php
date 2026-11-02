@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CartItem;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +49,38 @@ class CartController extends Controller
         ]);
 
         $product = Product::findOrFail($request->product_id);
+        $variant = null;
+        if ($request->filled('variant_id')) {
+            $variant = ProductVariant::whereKey($request->variant_id)
+                ->where('product_id', $product->id)
+                ->first();
+
+            if (! $variant
+                || ($variant->size && $variant->size !== $request->selected_size)
+                || ($variant->color_name && $variant->color_name !== $request->selected_color)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected curtain size or color is unavailable.',
+                ], 422);
+            }
+        } elseif ($product->variants()->exists()) {
+            $variantQuery = ProductVariant::where('product_id', $product->id);
+            $request->filled('selected_size')
+                ? $variantQuery->where('size', $request->selected_size)
+                : $variantQuery->whereNull('size');
+            $request->filled('selected_color')
+                ? $variantQuery->where('color_name', $request->selected_color)
+                : $variantQuery->whereNull('color_name');
+            $variant = $variantQuery->first();
+
+            if (! $variant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Select an available curtain size and color.',
+                ], 422);
+            }
+        }
+
         $quantity = max(1, (int) ($request->quantity ?? 1));
         $availableStock = max(0, (int) $product->stock_quantity);
 
@@ -63,6 +96,7 @@ class CartController extends Controller
 
         $matchAttributes = [
             'product_id' => $product->id,
+            'variant_id' => $variant?->id,
             'selected_color' => $request->selected_color,
             'selected_size' => $request->selected_size,
         ];
@@ -75,12 +109,27 @@ class CartController extends Controller
 
         $cartItem = CartItem::where($matchAttributes)->first();
         $newQuantity = $cartItem ? ($cartItem->quantity + $quantity) : $quantity;
+        $currentProductQuantity = $this->getCartQuery($request)
+            ->where('product_id', $product->id)
+            ->sum('quantity');
 
-        if ($newQuantity > $availableStock) {
+        if ($currentProductQuantity + $quantity > $availableStock) {
             return response()->json([
                 'success' => false,
                 'message' => "Only {$availableStock} item(s) available in stock.",
             ], 422);
+        }
+
+        if ($variant) {
+            $currentVariantQuantity = $this->getCartQuery($request)
+                ->where('variant_id', $variant->id)
+                ->sum('quantity');
+            if ($currentVariantQuantity + $quantity > $variant->stock_quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Only {$variant->stock_quantity} item(s) of size {$variant->size} available in stock.",
+                ], 422);
+            }
         }
 
         if ($cartItem) {
@@ -88,9 +137,9 @@ class CartController extends Controller
             $cartItem->save();
         } else {
             $cartItem = CartItem::create(array_merge($matchAttributes, [
-                'variant_id' => $request->variant_id,
+                'variant_id' => $variant?->id,
                 'quantity' => $quantity,
-                'price' => $product->price,
+                'price' => (float) $product->price + (float) ($variant?->additional_price ?? 0),
             ]));
         }
 
@@ -118,11 +167,29 @@ class CartController extends Controller
         }
 
         $availableStock = max(0, (int) ($item->product?->stock_quantity ?? $item->product()->value('stock_quantity') ?? 0));
-        if ($request->quantity > $availableStock && $availableStock > 0) {
+        $otherProductQuantity = $this->getCartQuery($request)
+            ->where('product_id', $item->product_id)
+            ->whereKeyNot($item->id)
+            ->sum('quantity');
+        if ($otherProductQuantity + $request->quantity > $availableStock) {
             return response()->json([
                 'success' => false,
                 'message' => "Only {$availableStock} item(s) available in stock.",
             ], 422);
+        }
+
+        if ($item->variant_id) {
+            $variant = ProductVariant::find($item->variant_id);
+            $otherVariantQuantity = $this->getCartQuery($request)
+                ->where('variant_id', $item->variant_id)
+                ->whereKeyNot($item->id)
+                ->sum('quantity');
+            if (! $variant || $otherVariantQuantity + $request->quantity > $variant->stock_quantity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The selected curtain size does not have enough stock.',
+                ], 422);
+            }
         }
 
         if ($availableStock <= 0) {
@@ -173,9 +240,11 @@ class CartController extends Controller
             $selectedSize = $item['selectedSize'] ?? $item['selected_size'] ?? null;
             $qty = (int) ($item['quantity'] ?? 1);
 
+            $variantId = $item['variant_id'] ?? null;
             $existing = CartItem::where([
                 'user_id' => $userId,
                 'product_id' => $product->id,
+                'variant_id' => $variantId,
                 'selected_color' => $selectedColor,
                 'selected_size' => $selectedSize,
             ])->first();
@@ -187,10 +256,11 @@ class CartController extends Controller
                 CartItem::create([
                     'user_id' => $userId,
                     'product_id' => $product->id,
+                    'variant_id' => $variantId,
                     'selected_color' => $selectedColor,
                     'selected_size' => $selectedSize,
                     'quantity' => $qty,
-                    'price' => $product->price,
+                    'price' => (float) $product->price + (float) ProductVariant::find($variantId)?->additional_price,
                 ]);
             }
         }

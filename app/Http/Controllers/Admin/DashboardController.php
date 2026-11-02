@@ -101,6 +101,11 @@ class DashboardController extends Controller
             'payment_status' => $o->payment_status,
             'placed_at' => $o->placed_at,
             'items_count' => $o->items->count(),
+            'items' => $o->items->map(fn ($item) => [
+                'product_name' => $item->product_name,
+                'selected_size' => $item->selected_size,
+                'quantity' => $item->quantity,
+            ]),
         ]);
 
         // Aggregate results are also paginated server-side.

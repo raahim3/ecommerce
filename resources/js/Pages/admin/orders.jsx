@@ -258,7 +258,13 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
 
   const createOrderSubtotal = useMemo(() => newOrder.items.reduce((sum, item) => {
     const product = orderProducts.find((candidate) => String(candidate.id) === String(item.product_id));
-    return sum + (product ? Number(product.price) * Number(item.quantity || 0) : 0);
+    const variant = product?.variants?.find((candidate) =>
+      (candidate.size || "") === item.selected_size
+      && (candidate.color_name || "") === item.selected_color
+    );
+    return sum + (product
+      ? (Number(product.price) + Number(variant?.additional_price || 0)) * Number(item.quantity || 0)
+      : 0);
   }, 0), [newOrder.items, orderProducts]);
 
   const openCreateOrder = () => {
@@ -315,7 +321,14 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     }
   };
   const updateOrderItem = (index, field, value) => {
-    setNewOrder((current) => ({ ...current, items: current.items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+    setNewOrder((current) => ({
+      ...current,
+      items: current.items.map((item, itemIndex) => itemIndex === index
+        ? field === "product_id"
+          ? { ...item, product_id: value, selected_color: "", selected_size: "" }
+          : { ...item, [field]: value }
+        : item),
+    }));
     setCouponState({ status: "idle", discount: 0, message: "" });
   };
   const addOrderItem = () => {
@@ -747,7 +760,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                     <p className="text-[11px] text-slate-400">{order.customer.email}</p>
                   </td>
                   <td className="p-4 hidden md:table-cell max-w-[200px] truncate text-slate-600">
-                    {order.items.map((i) => i.name).join(", ")}
+                    {order.items.map((i) => `${i.name}${i.size ? ` — ${i.size}` : ""} × ${i.qty}`).join(", ")}
                   </td>
                   <td className="p-4 hidden sm:table-cell text-slate-500 whitespace-nowrap">{order.date}</td>
                   <td className="p-4">

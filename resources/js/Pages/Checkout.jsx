@@ -1393,7 +1393,7 @@ export function CheckoutPage({ user, savedAddresses = [] }) {
             {/* Cart Items List */}
             <div className="max-h-72 overflow-y-auto space-y-3 pr-1 divide-y divide-border/60 no-scrollbar">
               {items.map((item) => (
-                <div key={`${item.id}-${item.selectedColor}-${item.selectedSize}`} className="flex items-center gap-3 pt-3 first:pt-0">
+                <div key={item._cartKey || `${item.id}-${item.selectedColor}-${item.selectedSize}`} className="flex items-center gap-3 pt-3 first:pt-0">
                   <img
                     src={item.image}
                     alt={item.name}

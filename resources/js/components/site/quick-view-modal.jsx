@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, usePage } from "@inertiajs/react";
 import { Heart, Star, X, ShoppingBag, Check, ArrowRight, ShieldCheck, Truck } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { replaceStoreNameInContent } from "@/lib/store-branding";
 import { formatPrice } from "@/lib/shop-data";
@@ -15,10 +16,10 @@ const stripHtml = (html) => {
 export function QuickViewModal({ product: productData, isOpen, onClose }) {
   const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
   const product = replaceStoreNameInContent(productData, storeName);
-  const { addItem, wishlist, toggleWish } = useCart();
+  const { addItem, items: cartItems, openCart, wishlist, toggleWish } = useCart();
   const [selectedImgIdx, setSelectedImgIdx] = useState(0);
   const [selectedColor, setSelectedColor] = useState(0);
-  const [selectedSize, setSelectedSize] = useState(0);
+  const [sizeQuantities, setSizeQuantities] = useState({});
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -26,7 +27,7 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
     if (product) {
       setSelectedImgIdx(0);
       setSelectedColor(0);
-      setSelectedSize(0);
+      setSizeQuantities({});
       setQuantity(1);
       setIsAdding(false);
     }
@@ -68,36 +69,92 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
   const productColors = product.colors?.length
     ? product.colors
     : (product.available_colors?.length ? product.available_colors : variantColors);
-  const productSizes = product.sizes?.length
-    ? product.sizes
-    : (product.available_sizes?.length
-        ? product.available_sizes
-        : [...new Set(product.variants?.map((variant) => variant.size).filter(Boolean) || [])]);
+  const productSizes = [...new Set([
+    ...(product.sizes || []),
+    ...(product.available_sizes || []),
+    ...(product.variants?.map((variant) => variant.size).filter(Boolean) || []),
+  ])];
+  const chosenColorValue = productColors[selectedColor];
+  const chosenColorName = typeof chosenColorValue === "string" ? chosenColorValue : chosenColorValue?.name;
+  const availableStock = Number(product.stock_quantity ?? product.stockCount ?? 0);
+  const cartProductQuantity = cartItems
+    .filter((item) => Number(item.id) === Number(product.id))
+    .reduce((sum, item) => sum + Number(item.qty || 0), 0);
+  const getVariantForSize = (size) => {
+    const matches = (product.variants || []).filter((variant) => variant.size === size);
+    return matches.find((variant) => variant.color_name === chosenColorName)
+      || matches.find((variant) => !variant.color_name)
+      || (matches.length === 1 ? matches[0] : null);
+  };
+  const getMaxSizeQuantity = (size) => {
+    const selectedTotal = productSizes.reduce((sum, value) => sum + (Number(sizeQuantities[value]) || 0), 0);
+    const currentQuantity = Number(sizeQuantities[size]) || 0;
+    const variant = getVariantForSize(size);
+    const sizeVariants = (product.variants || []).filter((entry) => entry.size === size);
+    if (sizeVariants.length > 0 && !variant) return 0;
+    const cartVariantQuantity = variant
+      ? cartItems.filter((item) => Number(item.variant_id) === Number(variant.id)).reduce((sum, item) => sum + Number(item.qty || 0), 0)
+      : 0;
+    const productRemaining = Math.max(0, availableStock - cartProductQuantity);
+    const variantRemaining = variant ? Math.max(0, Number(variant.stock_quantity || 0) - cartVariantQuantity) : productRemaining;
+    return Math.max(0, Math.min(
+      productRemaining,
+      variantRemaining,
+      availableStock - cartProductQuantity - (selectedTotal - currentQuantity),
+    ));
+  };
+  const selectedSizeTotal = productSizes.reduce((sum, size) => sum + (Number(sizeQuantities[size]) || 0), 0);
+  const selectedAmount = productSizes.length
+    ? productSizes.reduce((sum, size) => {
+      const variant = getVariantForSize(size);
+      return sum + (Number(product.price) + Number(variant?.additional_price || 0)) * (Number(sizeQuantities[size]) || 0);
+    }, 0)
+    : Number(product.price) * quantity;
   const compareAt = Number(product.compareAt || product.compare_at_price || 0);
   const rawImages = product.images && product.images.length > 0 ? product.images : [product.image, product.hover];
   const images = rawImages.map(img => typeof img === "object" ? img.image_url : img).filter(Boolean);
   const activeImage = images[selectedImgIdx] || images[0] || "/resources/js/assets/p-headphones.jpg";
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     setIsAdding(true);
-    const selectedColorValue = productColors[selectedColor];
-    const chosenColor = typeof selectedColorValue === "string" ? selectedColorValue : selectedColorValue?.name;
-    const chosenSize = productSizes[selectedSize];
+    const selections = productSizes.length
+      ? productSizes.filter((size) => Number(sizeQuantities[size]) > 0).map((size) => {
+        const variant = getVariantForSize(size);
+        return {
+          product: {
+            ...product,
+            selectedColor: chosenColorName,
+            selectedSize: size,
+            variant_id: variant?.id || null,
+            additional_price: variant?.additional_price || 0,
+          },
+          quantity: Number(sizeQuantities[size]),
+        };
+      })
+      : [{
+        product: { ...product, selectedColor: chosenColorName, selectedSize: null },
+        quantity,
+      }];
 
-    addItem(
-      {
-        ...product,
-        selectedColor: chosenColor,
-        selectedSize: chosenSize,
-      },
-      quantity,
-      true, // open cart drawer
-    );
-
-    setTimeout(() => {
+    if (productSizes.length && selections.length === 0) {
+      toast.error("Choose a quantity for at least one curtain size.");
       setIsAdding(false);
-      onClose();
-    }, 400);
+      return;
+    }
+
+    for (const selection of selections) {
+      const added = await addItem(selection.product, selection.quantity, false, false);
+      if (!added) {
+        setIsAdding(false);
+        openCart();
+        return;
+      }
+    }
+
+    setIsAdding(false);
+    toast.success("Selected curtain sizes added to your bag.");
+    openCart();
+    onClose();
   };
 
   return (
@@ -283,33 +340,37 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
               )}
 
               {/* Size Selector */}
-              {productSizes.length > 1 && (
+              {productSizes.length > 0 && (
                 <div className="mt-5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Size: <span className="text-foreground">{productSizes[selectedSize]}</span>
+                    Choose quantity by size
                   </label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {productSizes.map((s, idx) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSelectedSize(idx)}
-                        className={cn(
-                          "min-w-11 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
-                          selectedSize === idx
-                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                            : "border-border text-foreground hover:border-foreground/30 bg-surface",
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                  <div className="mt-2 divide-y divide-border rounded-xl border border-border px-3">
+                    {productSizes.map((size) => {
+                      const count = Number(sizeQuantities[size]) || 0;
+                      const max = getMaxSizeQuantity(size);
+                      return (
+                        <div key={size} className="flex items-center justify-between gap-3 py-2">
+                          <div>
+                            <p className="text-xs font-semibold">{size}</p>
+                            <p className="text-[10px] text-muted-foreground">{max > 0 ? `${max} available` : "Out of stock"}</p>
+                          </div>
+                          <div className="flex items-center rounded-full border border-border p-0.5">
+                            <button type="button" aria-label={`Decrease ${size} quantity`} disabled={count <= 0} onClick={() => setSizeQuantities((current) => ({ ...current, [size]: Math.max(0, count - 1) }))} className="grid size-7 place-items-center rounded-full hover:bg-muted disabled:opacity-30">-</button>
+                            <span className="w-7 text-center text-xs font-bold">{count}</span>
+                            <button type="button" aria-label={`Increase ${size} quantity`} disabled={count >= max} onClick={() => setSizeQuantities((current) => ({ ...current, [size]: Math.min(max, count + 1) }))} className="grid size-7 place-items-center rounded-full hover:bg-muted disabled:opacity-30">+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">{selectedSizeTotal} curtain(s) selected</p>
                 </div>
               )}
 
               {/* Quantity Stepper & Stock */}
-              <div className="mt-6 flex items-center gap-4">
+              {!productSizes.length && (
+                <div className="mt-6 flex items-center gap-4">
                 <div className="flex items-center rounded-full border border-border bg-surface p-1">
                   <button
                     type="button"
@@ -333,7 +394,8 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span>In Stock • Ready to ship</span>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Actions */}
@@ -341,11 +403,11 @@ export function QuickViewModal({ product: productData, isOpen, onClose }) {
               <button
                 type="button"
                 onClick={handleAddToCart}
-                disabled={isAdding}
+                disabled={isAdding || availableStock <= 0 || (productSizes.length > 0 && (selectedSizeTotal === 0 || productSizes.some((size) => (Number(sizeQuantities[size]) || 0) > getMaxSizeQuantity(size))))}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-lg transition-all duration-300 hover:bg-accent hover:text-accent-foreground hover:shadow-accent/25 active:scale-[0.99]"
               >
                 <ShoppingBag className="size-4" />
-                {isAdding ? "Adding..." : `Add to Bag • ${formatPrice(product.price * quantity)}`}
+                {isAdding ? "Adding..." : `Add to Bag • ${formatPrice(selectedAmount)}`}
               </button>
 
               <div className="flex items-center justify-between pt-1">

@@ -65,7 +65,7 @@ export function ProductDetailPage({
   const { id, app_settings: appSettings = {}, auth = {} } = usePage().props;
   const storeName = appSettings.general?.storeName || "Store";
   const navigate = (href) => router.visit(href);
-  const { addItem, wishlist, toggleWish } = useCart();
+  const { addItem, items: cartItems, openCart, wishlist, toggleWish } = useCart();
 
   // Resolve product only from persisted server data.
   const product = useMemo(() => {
@@ -107,12 +107,17 @@ export function ProductDetailPage({
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   // Variant selection
-  const [selectedSizeIdx, setSelectedSizeIdx] = useState(0);
+  const [sizeQuantities, setSizeQuantities] = useState({});
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
   const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   // Description expand/collapse
   const [descExpanded, setDescExpanded] = useState(false);
+
+  useEffect(() => {
+    setSizeQuantities({});
+    setQuantity(1);
+  }, [product?.id]);
 
   // Formatted specifications & FAQs
   const formattedSpecs = useMemo(() => {
@@ -206,7 +211,6 @@ export function ProductDetailPage({
     if (product) {
       setSelectedImgIdx(0);
       setSelectedColorIdx(0);
-      setSelectedSizeIdx(0);
       setQuantity(1);
       setIsAdding(false);
       setActiveTab(formattedSpecs.length > 0 ? "specs" : "story");
@@ -359,40 +363,113 @@ export function ProductDetailPage({
 
   // Resolve sizes: supports string array (from available_sizes DB field)
   const productSizes = useMemo(() => {
-    return product.sizes || product.available_sizes || [];
+    return [...new Set([
+      ...(product.sizes || product.available_sizes || []),
+      ...(product.variants || []).map((variant) => variant.size).filter(Boolean),
+    ])];
   }, [product]);
 
   const chosenColor = productColors[selectedColorIdx] || productColors[0] || null;
-  const chosenSize = productSizes[selectedSizeIdx] || null;
+  const selectedSizeTotal = productSizes.reduce((sum, size) => sum + (Number(sizeQuantities[size]) || 0), 0);
+  const cartProductQuantity = cartItems
+    .filter((item) => Number(item.id) === Number(product.id))
+    .reduce((sum, item) => sum + Number(item.qty || 0), 0);
+
+  const getSizeVariant = (size) => {
+    const matches = (product.variants || []).filter((variant) => variant.size === size);
+    return matches.find((variant) => variant.color_name === chosenColor?.name)
+      || matches.find((variant) => !variant.color_name)
+      || (matches.length === 1 ? matches[0] : null);
+  };
+
+  const getSizeStock = (size) => {
+    const sizeVariants = (product.variants || []).filter((variant) => variant.size === size);
+    const variant = getSizeVariant(size);
+    if (sizeVariants.length > 0 && !variant) return 0;
+    const cartVariantQuantity = variant
+      ? cartItems.filter((item) => Number(item.variant_id) === Number(variant.id)).reduce((sum, item) => sum + Number(item.qty || 0), 0)
+      : 0;
+    const productRemaining = Math.max(0, availableStock - cartProductQuantity);
+    return variant
+      ? Math.max(0, Math.min(productRemaining, Number(variant.stock_quantity || 0) - cartVariantQuantity))
+      : productRemaining;
+  };
+
+  const maxSizeQuantity = (size) => {
+    const currentQuantity = Number(sizeQuantities[size]) || 0;
+    const otherSelectedQuantity = selectedSizeTotal - currentQuantity;
+    return Math.max(0, Math.min(
+      getSizeStock(size),
+      availableStock - cartProductQuantity - otherSelectedQuantity,
+    ));
+  };
+
+  const updateSizeQuantity = (size, requestedQuantity) => {
+    const safeQuantity = Math.max(0, Math.min(maxSizeQuantity(size), requestedQuantity));
+    setSizeQuantities((current) => ({ ...current, [size]: safeQuantity }));
+  };
+
+  const canAddSelectedSizes = selectedSizeTotal > 0
+    && productSizes.every((size) => (Number(sizeQuantities[size]) || 0) <= maxSizeQuantity(size));
+
+  const selectedAmount = productSizes.length
+    ? productSizes.reduce((sum, size) => {
+      const variant = getSizeVariant(size);
+      return sum + (Number(product.price) + Number(variant?.additional_price || 0)) * (Number(sizeQuantities[size]) || 0);
+    }, 0)
+    : Number(product.price) * quantity;
 
   // Add to cart handler
-  const handleAddToCart = () => {
+  const addSelectedToCart = async (openSidebar) => {
+    const selections = productSizes.length
+      ? productSizes.filter((size) => Number(sizeQuantities[size]) > 0).map((size) => {
+        const variant = getSizeVariant(size);
+        return {
+          product: {
+            ...product,
+            selectedColor: chosenColor?.name,
+            selectedSize: size,
+            variant_id: variant?.id || null,
+            additional_price: variant?.additional_price || 0,
+          },
+          quantity: Number(sizeQuantities[size]),
+        };
+      })
+      : [{
+        product: { ...product, selectedColor: chosenColor?.name, selectedSize: null },
+        quantity,
+      }];
+
+    if (productSizes.length && selections.length === 0) {
+      toast.error("Choose a quantity for at least one curtain size.");
+      return false;
+    }
+
     setIsAdding(true);
-    addItem(
-      {
-        ...product,
-        selectedColor: chosenColor?.name,
-        selectedSize: chosenSize,
-      },
-      quantity,
-      true, // open cart drawer
-    );
-    setTimeout(() => {
-      setIsAdding(false);
-    }, 400);
+    for (const selection of selections) {
+      const added = await addItem(selection.product, selection.quantity, false, false);
+      if (!added) {
+        setIsAdding(false);
+        if (openSidebar) openCart();
+        return false;
+      }
+    }
+    setIsAdding(false);
+    if (openSidebar) {
+      openCart();
+    } else {
+      toast.success("Selected curtain sizes added to your bag.");
+    }
+    return true;
+  };
+
+  const handleAddToCart = async () => {
+    await addSelectedToCart(true);
   };
 
   // Buy now direct handler
   const handleBuyNow = async () => {
-    const added = await addItem(
-      {
-        ...product,
-        selectedColor: chosenColor?.name,
-        selectedSize: chosenSize,
-      },
-      quantity,
-      false,
-    );
+    const added = await addSelectedToCart(false);
     if (added) navigate("/checkout");
   };
 
@@ -411,9 +488,10 @@ export function ProductDetailPage({
       ``,
       `*Product:* ${product.name}`,
       chosenColor?.name ? `*Color:* ${chosenColor.name}` : null,
-      chosenSize ? `*Size:* ${chosenSize}` : null,
-      `*Qty:* ${quantity}`,
-      `*Price:* ${formatPrice(product.price * quantity)}`,
+      ...(productSizes.length
+        ? productSizes.filter((size) => Number(sizeQuantities[size]) > 0).map((size) => `*Size ${size}:* Qty ${sizeQuantities[size]}`)
+        : [`*Qty:* ${quantity}`]),
+      `*Price:* ${formatPrice(selectedAmount)}`,
       ``,
       `🔗 ${window.location.href}`,
     ].filter((l) => l !== null).join("\n");
@@ -1059,28 +1137,49 @@ export function ProductDetailPage({
               )}
 
               {productSizes.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between text-xs">
-                    <label className="font-bold uppercase tracking-wider text-muted-foreground">
-                      Size: <span className="text-foreground font-semibold">{chosenSize || "Select a size"}</span>
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Choose a quantity for each size
                     </label>
+                    <span className="text-[11px] text-muted-foreground">{selectedSizeTotal} selected</span>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {productSizes.map((s, idx) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setSelectedSizeIdx(idx)}
-                        className={cn(
-                          "min-w-11 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all",
-                          selectedSizeIdx === idx
-                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
-                            : "border-border text-foreground hover:border-foreground/40 bg-surface",
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                  <div className="divide-y divide-border rounded-2xl border border-border bg-surface px-3">
+                    {productSizes.map((size) => {
+                      const sizeQuantity = Number(sizeQuantities[size]) || 0;
+                      const maxQuantity = maxSizeQuantity(size);
+                      return (
+                        <div key={size} className="flex items-center justify-between gap-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-foreground">{size}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {maxQuantity > 0 ? `${maxQuantity} available` : "Out of stock"}
+                            </p>
+                          </div>
+                          <div className="flex items-center rounded-full border border-border bg-background p-0.5">
+                            <button
+                              type="button"
+                              aria-label={`Decrease ${size} quantity`}
+                              onClick={() => updateSizeQuantity(size, sizeQuantity - 1)}
+                              disabled={sizeQuantity === 0}
+                              className="grid size-7 place-items-center rounded-full text-foreground hover:bg-muted disabled:opacity-30"
+                            >
+                              <Minus className="size-3" />
+                            </button>
+                            <span className="w-7 text-center text-xs font-extrabold">{sizeQuantity}</span>
+                            <button
+                              type="button"
+                              aria-label={`Increase ${size} quantity`}
+                              onClick={() => updateSizeQuantity(size, sizeQuantity + 1)}
+                              disabled={sizeQuantity >= maxQuantity}
+                              className="grid size-7 place-items-center rounded-full text-foreground hover:bg-muted disabled:opacity-30"
+                            >
+                              <Plus className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1103,7 +1202,7 @@ export function ProductDetailPage({
               {/* Quantity Stepper and Add to Bag */}
               <div ref={mainBuyBtnRef} className="flex flex-col gap-2.5">
                 <div className="flex gap-2.5">
-                  <div className="flex items-center rounded-full border border-border bg-surface p-1 shadow-2xs">
+                  {!productSizes.length && <div className="flex items-center rounded-full border border-border bg-surface p-1 shadow-2xs">
                     <button
                       type="button"
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -1121,22 +1220,22 @@ export function ProductDetailPage({
                     >
                       <Plus className="size-3.5" />
                     </button>
-                  </div>
+                  </div>}
 
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    disabled={isAdding || availableStock <= 0}
+                    disabled={isAdding || availableStock <= 0 || (productSizes.length > 0 && !canAddSelectedSizes)}
                     className="flex-1 h-11 rounded-full bg-primary text-xs font-bold text-primary-foreground shadow-sm transition-all duration-300 hover:bg-accent hover:text-accent-foreground active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {availableStock <= 0 ? "Out of Stock" : (isAdding ? "Adding to Bag..." : `Add to Bag • ${formatPrice(product.price * quantity)}`)}
+                    {availableStock <= 0 ? "Out of Stock" : (isAdding ? "Adding to Bag..." : `Add to Bag • ${formatPrice(selectedAmount)}`)}
                   </button>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  disabled={availableStock <= 0}
+                  disabled={availableStock <= 0 || (productSizes.length > 0 && !canAddSelectedSizes)}
                   className="h-11 w-full rounded-full border border-primary bg-transparent text-xs font-bold text-foreground transition-all duration-300 hover:bg-foreground hover:text-background active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {availableStock <= 0 ? "Out of Stock" : "Buy with Express Checkout"}
@@ -1682,7 +1781,7 @@ export function ProductDetailPage({
               onClick={handleAddToCart}
               className="flex h-10 items-center justify-center rounded-full bg-primary px-5 text-xs font-bold text-primary-foreground shadow-sm hover:bg-accent hover:text-accent-foreground transition-colors whitespace-nowrap"
             >
-              Add to Bag • {formatPrice(product.price * quantity)}
+              Add to Bag • {formatPrice(selectedAmount)}
             </button>
           </div>
         </div>

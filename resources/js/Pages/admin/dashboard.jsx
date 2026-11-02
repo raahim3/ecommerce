@@ -234,6 +234,7 @@ export function AdminDashboardPage({
         fulfillmentStatus: o.status === "delivered" ? "Fulfilled" : o.status === "shipped" ? "In Transit" : "Unfulfilled",
         date: new Date(o.placed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
         itemsCount: o.items_count || 0,
+        items: (o.items || []).map((item) => `${item.product_name}${item.selected_size ? ` — ${item.selected_size}` : ""} × ${item.quantity}`).join(", "),
       }));
 
   // Show persisted KPI values, including zero when the store is empty.

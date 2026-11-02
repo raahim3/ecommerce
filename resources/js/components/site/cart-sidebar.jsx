@@ -189,7 +189,7 @@ export function CartSidebar() {
             <ul className="divide-y divide-border">
               {items.map((item) => (
                 <li
-                  key={`${item.id}-${item.selectedColor}-${item.selectedSize}`}
+                  key={item._cartKey || `${item.id}-${item.selectedColor}-${item.selectedSize}`}
                   className="flex gap-4 py-4.5 transition-colors"
                 >
                   <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-muted border border-border/50">

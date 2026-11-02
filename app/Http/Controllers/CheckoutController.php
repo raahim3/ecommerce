@@ -8,6 +8,7 @@ use App\Models\CartItem;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
@@ -66,6 +67,7 @@ class CheckoutController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.id' => ['nullable', 'integer', 'exists:products,id'],
             'items.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'items.*.variant_id' => ['nullable', 'integer', 'exists:product_variants,id'],
             'items.*.qty' => ['nullable', 'integer', 'min:1', 'max:100'],
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:100'],
             'payment_method' => ['required', 'string', 'in:card,stripe,paypal,cod,bank_transfer'],
@@ -150,13 +152,54 @@ class CheckoutController extends Controller
                         'items' => "{$product->name} does not have enough stock.",
                     ]);
                 }
-                $price = (float) $product->price;
+
+                $variant = null;
+                if (! empty($item['variant_id'])) {
+                    $variant = ProductVariant::whereKey($item['variant_id'])
+                        ->where('product_id', $product->id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $variant
+                        || ($variant->size && $variant->size !== ($item['selectedSize'] ?? $item['selected_size'] ?? null))
+                        || ($variant->color_name && $variant->color_name !== ($item['selectedColor'] ?? $item['selected_color'] ?? null))) {
+                        throw ValidationException::withMessages([
+                            'items' => "The selected curtain size or color for {$product->name} is unavailable.",
+                        ]);
+                    }
+                } elseif ($product->variants()->exists()) {
+                    $variantQuery = ProductVariant::where('product_id', $product->id);
+                    $selectedSize = $item['selectedSize'] ?? $item['selected_size'] ?? null;
+                    $selectedColor = $item['selectedColor'] ?? $item['selected_color'] ?? null;
+                    $selectedSize !== null
+                        ? $variantQuery->where('size', $selectedSize)
+                        : $variantQuery->whereNull('size');
+                    $selectedColor !== null
+                        ? $variantQuery->where('color_name', $selectedColor)
+                        : $variantQuery->whereNull('color_name');
+                    $variant = $variantQuery->lockForUpdate()->first();
+
+                    if (! $variant) {
+                        throw ValidationException::withMessages([
+                            'items' => "The selected curtain size or color for {$product->name} is unavailable.",
+                        ]);
+                    }
+
+                    if ($variant->stock_quantity < $qty) {
+                        throw ValidationException::withMessages([
+                            'items' => "{$product->name} does not have enough stock in size {$variant->size}.",
+                        ]);
+                    }
+                }
+
+                $price = (float) $product->price + (float) ($variant?->additional_price ?? 0);
                 $totalWeight += (float) $product->weight_kg * $qty;
                 $itemTotal = round($price * $qty, 2);
                 $subtotal += $itemTotal;
 
                 // Decrement stock
                 $product->decrement('stock_quantity', $qty);
+                $variant?->decrement('stock_quantity', $qty);
                 $freshProduct = $product->fresh();
                 if ($freshProduct->stock_quantity <= 5) {
                     $lowStockProducts[] = $freshProduct;
@@ -164,11 +207,12 @@ class CheckoutController extends Controller
 
                 $orderItemsData[] = [
                     'product_id' => $product->id,
+                    'variant_id' => $variant?->id,
                     'product_name' => $product->name,
-                    'product_sku' => $product->sku,
+                    'product_sku' => $variant?->sku ?: $product->sku,
                     'product_image' => $product->images->first()?->image_url ?? $product->image,
-                    'selected_color' => $item['selectedColor'] ?? $item['selected_color'] ?? null,
-                    'selected_size' => $item['selectedSize'] ?? $item['selected_size'] ?? null,
+                    'selected_color' => $variant?->color_name ?? ($item['selectedColor'] ?? $item['selected_color'] ?? null),
+                    'selected_size' => $variant?->size ?? ($item['selectedSize'] ?? $item['selected_size'] ?? null),
                     'price' => $price,
                     'quantity' => $qty,
                     'total' => $itemTotal,
