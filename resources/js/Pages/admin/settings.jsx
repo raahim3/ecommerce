@@ -81,6 +81,7 @@ const EMPTY_COUPON = {
   expires_at: "",
   is_active: true,
 };
+const DEFAULT_CARRIERS = ["DHL Express", "FedEx Priority", "UPS Worldwide", "USPS First Class", "Royal Mail"];
 
 export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {}, allCountries: initialCountries = [], shippingMethods: serverShippingMethods = [], coupons: serverCoupons = [], products = [], categories = [] }) {
   const [activeTab, setActiveTab] = useState("general");
@@ -387,6 +388,7 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
   const [shipping, setShipping] = useState({
     freeShippingThresholdEnabled: true,
     freeShippingThreshold: 100,
+    carriers: DEFAULT_CARRIERS,
     zones: [
       { id: 1, name: "Domestic Free Shipping", condition: `Orders > ${formatPrice(100)}`, rate: "Free", active: true },
       { id: 2, name: "Priority Express (US)", condition: "All US orders", rate: formatPrice(15), active: true },
@@ -397,6 +399,8 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
   });
   const [shippingMethods, setShippingMethods] = useState(serverShippingMethods);
   const [shippingMethodForm, setShippingMethodForm] = useState(null);
+  const [carrierInput, setCarrierInput] = useState("");
+  const [editingCarrier, setEditingCarrier] = useState(null);
 
   // 6. Coupons & Promo Codes
   const [coupons, setCoupons] = useState(serverCoupons || []);
@@ -428,13 +432,57 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
         if (group === "pusher") {
           window.location.reload();
         }
+        return true;
       } else {
         toast.error(result.message || "Failed to save settings. Please try again.");
+        return false;
       }
     } catch {
       toast.error("Network error — settings could not be saved. Check your connection.");
+      return false;
     } finally {
       setSavingGroup(null);
+    }
+  };
+
+  const saveCarrier = async () => {
+    const name = carrierInput.trim();
+    if (!name) {
+      toast.error("Enter a carrier name.");
+      return;
+    }
+
+    const carriers = Array.isArray(shipping.carriers) ? shipping.carriers : DEFAULT_CARRIERS;
+    if (carriers.some((carrier) => carrier.toLowerCase() === name.toLowerCase() && carrier !== editingCarrier)) {
+      toast.error("That carrier already exists.");
+      return;
+    }
+
+    const nextCarriers = editingCarrier
+      ? carriers.map((carrier) => carrier === editingCarrier ? name : carrier)
+      : [...carriers, name];
+    const nextShipping = { ...shipping, carriers: nextCarriers };
+    if (await handleSaveSettings("shipping", nextShipping)) {
+      setShipping(nextShipping);
+      setCarrierInput("");
+      setEditingCarrier(null);
+    }
+  };
+
+  const deleteCarrier = async (carrierToDelete) => {
+    if (!window.confirm(`Delete ${carrierToDelete}?`)) return;
+
+    const nextShipping = {
+      ...shipping,
+      carriers: (Array.isArray(shipping.carriers) ? shipping.carriers : DEFAULT_CARRIERS)
+        .filter((carrier) => carrier !== carrierToDelete),
+    };
+    if (await handleSaveSettings("shipping", nextShipping)) {
+      setShipping(nextShipping);
+      if (editingCarrier === carrierToDelete) {
+        setEditingCarrier(null);
+        setCarrierInput("");
+      }
     }
   };
 
@@ -2503,6 +2551,62 @@ export function AdminSettingsPage({ settings = {}, app_settings: appSettings = {
                     <Save className="size-3.5" />
                     <span>{savingGroup === "shipping" ? "Saving..." : "Save Shipping"}</span>
                   </button>
+                </div>
+
+                <div className="space-y-3 border-t border-slate-100 pt-5">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Shipping Carriers</h3>
+                    <p className="mt-1 text-[11px] text-slate-500">Manage the courier options shown when dispatching an order.</p>
+                  </div>
+                  <div className="space-y-2">
+                    {(Array.isArray(shipping.carriers) ? shipping.carriers : DEFAULT_CARRIERS).map((carrier) => (
+                      <div key={carrier} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        {editingCarrier === carrier ? (
+                          <input
+                            autoFocus
+                            value={carrierInput}
+                            onChange={(event) => setCarrierInput(event.target.value)}
+                            onKeyDown={(event) => event.key === "Enter" && saveCarrier()}
+                            aria-label="Carrier name"
+                            className="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs focus:border-slate-900 focus:outline-none"
+                          />
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800">{carrier}</span>
+                        )}
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {editingCarrier === carrier ? (
+                            <>
+                              <button type="button" onClick={saveCarrier} disabled={savingGroup === "shipping"} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-50">Save</button>
+                              <button type="button" onClick={() => { setEditingCarrier(null); setCarrierInput(""); }} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-600">Cancel</button>
+                            </>
+                          ) : (
+                            <>
+                              <button type="button" onClick={() => { setEditingCarrier(carrier); setCarrierInput(carrier); }} aria-label={`Edit ${carrier}`} className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900"><Edit2 className="size-3.5" /></button>
+                              <button type="button" onClick={() => deleteCarrier(carrier)} disabled={savingGroup === "shipping"} aria-label={`Delete ${carrier}`} className="grid size-8 place-items-center rounded-lg border border-red-100 bg-white text-red-500 hover:bg-red-50 disabled:opacity-50"><Trash2 className="size-3.5" /></button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {(Array.isArray(shipping.carriers) ? shipping.carriers : DEFAULT_CARRIERS).length === 0 && (
+                      <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">No carriers configured yet.</p>
+                    )}
+                  </div>
+                  {editingCarrier === null && (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={carrierInput}
+                        onChange={(event) => setCarrierInput(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && saveCarrier()}
+                        placeholder="e.g. TCS Express"
+                        aria-label="New carrier name"
+                        className="h-9 min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs focus:border-slate-900 focus:outline-none"
+                      />
+                      <button type="button" onClick={saveCarrier} disabled={savingGroup === "shipping"} className="flex h-9 items-center justify-center gap-1 rounded-lg bg-slate-900 px-3 text-[11px] font-bold text-white hover:bg-slate-800 disabled:opacity-50">
+                        <Plus className="size-3.5" /> Add Carrier
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Free Shipping Progress Bar & Threshold Configuration */}

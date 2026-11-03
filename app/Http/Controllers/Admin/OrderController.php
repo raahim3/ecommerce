@@ -59,6 +59,16 @@ class OrderController extends Controller
         if (!empty($paymentSettings['bankTransferEnabled'])) {
             $orderPaymentMethods[] = ['id' => 'bank_transfer', 'label' => 'Bank Transfer'];
         }
+        $shippingCarriers = data_get(Setting::get('shipping', []), 'carriers', [
+            'DHL Express',
+            'FedEx Priority',
+            'UPS Worldwide',
+            'USPS First Class',
+            'Royal Mail',
+        ]);
+        if (!is_array($shippingCarriers)) {
+            $shippingCarriers = [];
+        }
 
         return Inertia::render('Admin/orders', [
             'orders' => $orders,
@@ -66,6 +76,7 @@ class OrderController extends Controller
             'orderProducts' => Product::active()->with(['images', 'variants'])->orderBy('name')->get(),
             'orderCustomers' => User::customers()->orderBy('name')->get(['id', 'name', 'email']),
             'orderShippingMethods' => \App\Models\ShippingMethod::active()->get(),
+            'orderCarriers' => $shippingCarriers,
             'orderCountries' => Setting::get('general', [])['storeCountries'] ?? ['Pakistan'],
             'orderPaymentMethods' => $orderPaymentMethods,
             'orderStatuses' => [
@@ -468,12 +479,12 @@ class OrderController extends Controller
     {
         $request->validate([
             'tracking_number' => ['required', 'string'],
-            'carrier' => ['nullable', 'string'],
+            'carrier' => ['required', 'string', 'max:120'],
         ]);
 
         $order = Order::findOrFail($id);
         $order->tracking_number = $request->tracking_number;
-        $order->carrier = $request->carrier ?? $order->carrier ?? 'DHL Express';
+        $order->carrier = $request->carrier;
         $order->status = 'shipped';
         $order->save();
 

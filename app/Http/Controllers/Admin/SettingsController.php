@@ -223,6 +223,7 @@ class SettingsController extends Controller
                 $shippingDefaults = [
                     'freeShippingThresholdEnabled' => true,
                     'freeShippingThreshold' => 100,
+                    'carriers' => ['DHL Express', 'FedEx Priority', 'UPS Worldwide', 'USPS First Class', 'Royal Mail'],
                     'zones' => [
                         ['id' => 1, 'name' => 'Domestic Free Shipping', 'condition' => 'Orders > $100', 'rate' => 'Free', 'active' => true],
                         ['id' => 2, 'name' => 'Priority Express (US)', 'condition' => 'All US orders', 'rate' => '$15.00', 'active' => true],
@@ -231,6 +232,7 @@ class SettingsController extends Controller
                     'tax' => ['automated' => true, 'flatRate' => '8.0', 'taxIncluded' => false],
                 ];
                 $current = Setting::get('shipping', $shippingDefaults);
+                $current['carriers'] = $current['carriers'] ?? $shippingDefaults['carriers'];
                 if (!isset($current['freeShippingThresholdEnabled'])) {
                     $freeMethod = ShippingMethod::where('pricing_type', 'free_threshold')->first();
                     $current['freeShippingThresholdEnabled'] = $freeMethod ? (bool) $freeMethod->active : true;
@@ -278,6 +280,17 @@ class SettingsController extends Controller
         ]);
 
         $data = $validated['data'];
+        if ($request->group === 'shipping' && array_key_exists('carriers', $data)) {
+            $request->validate([
+                'data.carriers' => ['array', 'max:50'],
+                'data.carriers.*' => ['required', 'string', 'max:120'],
+            ]);
+            $data['carriers'] = array_values(array_unique(array_filter(
+                array_map('trim', $data['carriers']),
+                static fn ($carrier) => $carrier !== ''
+            )));
+        }
+
         if (in_array($request->group, ['smtp', 'payments', 'pusher', 'security'], true)) {
             $existing = Setting::get($request->group, []);
             foreach (['password', 'stripeSecret', 'paypalSecret', 'secret', 'recaptchaSecretKey', 'googleClientSecret'] as $secretKey) {

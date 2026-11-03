@@ -30,8 +30,8 @@ import { formatPrice } from "@/lib/shop-data";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/export-csv";
 import { AdminLayout } from "@/layouts/admin-layout";
+import { AwbLabelModal } from "@/components/admin/awb-label-modal";
 
-const CARRIERS = ["DHL Express", "FedEx Priority", "UPS Worldwide", "USPS First Class", "Royal Mail"];
 const REFUND_REASONS = ["Customer Request", "Product Damaged", "Wrong Item Shipped", "Order Error", "Goodwill Gesture"];
 
 const MOCK_ORDERS = [
@@ -118,7 +118,7 @@ const getOrderSubtotal = (order) => {
   }, 0);
 };
 
-export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }, filters = {}, orderProducts = [], orderCustomers = [], orderShippingMethods = [], orderCountries = ["Pakistan"], orderPaymentMethods = [], orderStatuses = [] }) {
+export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }, filters = {}, orderProducts = [], orderCustomers = [], orderShippingMethods = [], orderCarriers = [], orderCountries = ["Pakistan"], orderPaymentMethods = [], orderStatuses = [] }) {
   // Use only persisted orders.
   const serverData = serverOrders?.data ?? [];
   const [orders, setOrders] = useState(serverData.length > 0 ? serverData.map((o) => ({
@@ -126,7 +126,12 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     _serverId: o.id,
     date: new Date(o.placed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }),
     customer: { name: o.customer_name, email: o.customer_email, phone: o.customer_phone ?? "" },
-    shippingAddress: o.shipping_address ? `${o.shipping_address.address_line1}, ${o.shipping_address.city}, ${o.shipping_address.state} ${o.shipping_address.postal_code}` : "",
+    shippingAddress: o.shipping_address ? [
+      o.shipping_address.address_line1,
+      o.shipping_address.address_line2,
+      [o.shipping_address.city, o.shipping_address.state, o.shipping_address.postal_code].filter(Boolean).join(", "),
+      o.shipping_address.country,
+    ].filter(Boolean).join(", ") : "",
     shippingAddressData: o.shipping_address ?? {},
     status: o.status,
     paymentStatusValue: o.payment_status,
@@ -178,14 +183,16 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
     items: [{ product_id: "", variant_id: "", quantity: 1, selected_color: "", selected_size: "" }],
   });
   const [fulfillModalOpen, setFulfillModalOpen] = useState(false);
+  const [awbModalOpen, setAwbModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
-  const [fulfillData, setFulfillData] = useState({ carrier: CARRIERS[0], trackingNumber: "" });
+  const [fulfillData, setFulfillData] = useState({ carrier: orderCarriers[0] || "", trackingNumber: "" });
   const [refundData, setRefundData] = useState({ amount: "", reason: REFUND_REASONS[0] });
   const [newNote, setNewNote] = useState("");
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const { props } = usePage();
   const paymentSettings = props?.app_settings?.payments || {};
+  const generalSettings = props?.app_settings?.general || {};
   const availablePaymentMethods = orderPaymentMethods.length > 0 ? orderPaymentMethods : [
     ...(paymentSettings.stripeEnabled !== false ? [{ id: "card", label: "Credit / Debit Card" }] : []),
     ...(paymentSettings.paypalEnabled !== false ? [{ id: "paypal", label: "PayPal" }] : []),
@@ -411,6 +418,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
 
   const handleFulfill = async () => {
     if (!fulfillData.trackingNumber.trim()) { toast.error("Tracking number is required to mark as fulfilled."); return; }
+    if (!fulfillData.carrier) { toast.error("Add a shipping carrier in Store Settings before dispatching."); return; }
     const serverId = selectedOrder._serverId;
     if (serverId) {
       try {
@@ -1117,6 +1125,20 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  if (!selectedOrder.trackingNumber) {
+                    toast.error("Add a tracking number before generating the AWB label.");
+                    return;
+                  }
+                  setAwbModalOpen(true);
+                }}
+                title={!selectedOrder.trackingNumber ? "Add a tracking number before generating the AWB label." : "Download the AWB shipping label as a PNG"}
+                className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                <Download className="size-3.5" /> Download AWB PNG
+              </button>
+              <button
+                type="button"
                 onClick={handleDownloadInvoice}
                 className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
@@ -1147,7 +1169,8 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                 onChange={(e) => setFulfillData((f) => ({ ...f, carrier: e.target.value }))}
                 className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold focus:border-slate-900 focus:outline-none"
               >
-                {CARRIERS.map((c) => <option key={c}>{c}</option>)}
+                {orderCarriers.map((carrier) => <option key={carrier} value={carrier}>{carrier}</option>)}
+                {orderCarriers.length === 0 && <option value="" disabled>No carriers configured in Shipping & Taxes</option>}
               </select>
             </div>
             <div>
@@ -1162,7 +1185,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
             </div>
             <div className="flex gap-3">
               <button type="button" onClick={() => setFulfillModalOpen(false)} className="flex-1 h-10 rounded-xl border border-slate-200 text-xs font-bold text-slate-600">Cancel</button>
-              <button type="button" onClick={handleFulfill} className="flex-1 h-10 rounded-xl bg-slate-900 text-xs font-bold text-white hover:bg-slate-800">Mark as Dispatched</button>
+              <button type="button" onClick={handleFulfill} disabled={!orderCarriers.length} className="flex-1 h-10 rounded-xl bg-slate-900 text-xs font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Mark as Dispatched</button>
             </div>
           </div>
         </div>
@@ -1224,6 +1247,18 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
             </div>
           </div>
         </div>
+      )}
+      {awbModalOpen && selectedOrder && (
+        <AwbLabelModal
+          order={selectedOrder}
+          brand={{
+            name: generalSettings.storeName || "Store",
+            logo: generalSettings.logoDark || generalSettings.logoLight || "",
+            phone: generalSettings.phone || "",
+            email: generalSettings.supportEmail || "",
+          }}
+          onClose={() => setAwbModalOpen(false)}
+        />
       )}
 
       {editOrderOpen && (
