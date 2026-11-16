@@ -55,6 +55,7 @@ Route::post('/logout', [LogoutController::class, 'destroy'])->middleware('auth')
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\OrderReviewController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\WishlistController;
@@ -65,6 +66,10 @@ Route::get('/shop', [ShopController::class, 'index'])->name('shop');
 Route::get('/api/products/{slug}/reviews', [ProductController::class, 'reviews'])->name('products.reviews');
 Route::post('/api/products/{slug}/reviews', [ProductController::class, 'submitReview'])->middleware(['auth', 'throttle:uploads'])->name('products.reviews.store');
 Route::get('/product/{slug}', [ProductController::class, 'show'])->name('product-detail');
+Route::get('/order-review/{token}', [OrderReviewController::class, 'show'])->name('order-review.show');
+Route::post('/order-review/{token}/reviews', [OrderReviewController::class, 'store'])
+    ->middleware('throttle:uploads')
+    ->name('order-review.reviews.store');
 
 Route::get('/wishlist', [WishlistController::class, 'index'])->name('wishlist');
 Route::post('/api/wishlist/toggle', [WishlistController::class, 'toggle']);

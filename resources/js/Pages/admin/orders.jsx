@@ -4,6 +4,7 @@ import {
   Search,
   Download,
   Eye,
+  Copy,
   Truck,
   RotateCcw,
   Mail,
@@ -161,6 +162,7 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const [activeTab, setActiveTab] = useState("All Orders");
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isCopyingReviewLink, setIsCopyingReviewLink] = useState(false);
   const [editOrderOpen, setEditOrderOpen] = useState(false);
   const [editOrderForm, setEditOrderForm] = useState({
     first_name: "",
@@ -480,8 +482,31 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const handleMarkFulfilled = async () => {
     const updated = await updateOrder("status", { status: "delivered" }, `Order #${selectedOrder.id} marked as fulfilled.`);
     if (!updated) return;
-    setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, fulfillmentStatus: "Fulfilled" } : o));
-    setSelectedOrder((prev) => ({ ...prev, fulfillmentStatus: "Fulfilled" }));
+    setOrders((prev) => prev.map((o) => o.id === selectedOrder.id ? { ...o, status: "delivered", fulfillmentStatus: "Fulfilled" } : o));
+    setSelectedOrder((prev) => ({ ...prev, status: "delivered", fulfillmentStatus: "Fulfilled" }));
+  };
+
+  const handleCopyReviewLink = async () => {
+    if (!selectedOrder?._serverId) return;
+    setIsCopyingReviewLink(true);
+
+    try {
+      const response = await fetch(`/admin/orders/${selectedOrder._serverId}/review-link`, {
+        method: "POST",
+        headers: { Accept: "application/json", "X-CSRF-TOKEN": csrfToken() },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) {
+        throw new Error(result.message || "Unable to create the review link.");
+      }
+
+      await navigator.clipboard.writeText(result.url);
+      toast.success("Review URL copied. You can send it to the customer.");
+    } catch (error) {
+      toast.error(error.message || "Could not copy the review URL.");
+    } finally {
+      setIsCopyingReviewLink(false);
+    }
   };
 
   const handleCancel = async () => {
@@ -1050,6 +1075,17 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
 
             {/* Action Footer */}
             <div className="sticky bottom-0 border-t border-slate-200 bg-white px-8 py-4 flex flex-wrap items-center gap-2">
+              {selectedOrder.status === "delivered" && selectedOrder._serverId && (
+                <button
+                  type="button"
+                  onClick={handleCopyReviewLink}
+                  disabled={isCopyingReviewLink}
+                  className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-300 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isCopyingReviewLink ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />}
+                  {isCopyingReviewLink ? "Preparing link..." : "Copy Review URL"}
+                </button>
+              )}
               {selectedOrder.fulfillmentStatus === "Unfulfilled" && (
                 <button
                   type="button"

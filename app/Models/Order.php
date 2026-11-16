@@ -16,6 +16,7 @@ class Order extends Model
     protected $fillable = [
         'order_number',
         'tracking_token',
+        'review_token',
         'user_id',
         'customer_email',
         'customer_name',
@@ -63,6 +64,11 @@ class Order extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 
     public static function generateOrderNumber(): string

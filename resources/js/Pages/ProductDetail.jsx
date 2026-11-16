@@ -65,7 +65,17 @@ export function ProductDetailPage({
   const { id, app_settings: appSettings = {}, auth = {} } = usePage().props;
   const storeName = appSettings.general?.storeName || "Store";
   const navigate = (href) => router.visit(href);
-  const { addItem, items: cartItems, openCart, wishlist, toggleWish } = useCart();
+  const {
+    addItem,
+    items: cartItems,
+    openCart,
+    wishlist,
+    toggleWish,
+    shippingMethod,
+    shippingMethods,
+    freeShippingThresholdEnabled,
+    freeShippingThreshold,
+  } = useCart();
 
   // Resolve product only from persisted server data.
   const product = useMemo(() => {
@@ -418,6 +428,19 @@ export function ProductDetailPage({
       return sum + (Number(product.price) + Number(variant?.additional_price || 0)) * (Number(sizeQuantities[size]) || 0);
     }, 0)
     : Number(product.price) * quantity;
+  const selectedShippingMethod = shippingMethods.find((method) => method.code === shippingMethod) || shippingMethods[0];
+  const selectedShippingRate = selectedShippingMethod?.pricing_type === "free_threshold"
+    ? (freeShippingThresholdEnabled && selectedAmount >= Number(selectedShippingMethod.free_shipping_min ?? freeShippingThreshold)
+      ? 0
+      : Number(selectedShippingMethod.price || 0))
+    : selectedShippingMethod?.pricing_type === "weight_based"
+      ? Number(selectedShippingMethod.price || 0)
+        + (Number(product.weight_kg) || 0) * (productSizes.length ? selectedSizeTotal : quantity) * Number(selectedShippingMethod.per_kg_rate || 0)
+      : Number(selectedShippingMethod?.price || 0);
+  const whatsAppShipping = selectedAmount === 0
+    || (freeShippingThresholdEnabled && shippingMethod === "standard" && selectedAmount >= freeShippingThreshold)
+    ? 0
+    : selectedShippingRate;
 
   // Add to cart handler
   const addSelectedToCart = async (openSidebar) => {
@@ -484,7 +507,7 @@ export function ProductDetailPage({
       return;
     }
     const lines = [
-      `🛍️ *New Order via WhatsApp*`,
+      `✨ *New Order via WhatsApp*`,
       ``,
       `*Product:* ${product.name}`,
       chosenColor?.name ? `*Color:* ${chosenColor.name}` : null,
@@ -492,8 +515,10 @@ export function ProductDetailPage({
         ? productSizes.filter((size) => Number(sizeQuantities[size]) > 0).map((size) => `*Size ${size}:* Qty ${sizeQuantities[size]}`)
         : [`*Qty:* ${quantity}`]),
       `*Price:* ${formatPrice(selectedAmount)}`,
+      `*Shipping:* ${whatsAppShipping === 0 ? "FREE" : formatPrice(whatsAppShipping)}`,
+      `*Total:* ${formatPrice(selectedAmount + whatsAppShipping)}`,
       ``,
-      `🔗 ${window.location.href}`,
+      `↗ ${window.location.href}`,
     ].filter((l) => l !== null).join("\n");
     const url = `https://wa.me/${phoneDigits}?text=${encodeURIComponent(lines)}`;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -1252,7 +1277,8 @@ export function ProductDetailPage({
                       type="button"
                       id="order-via-whatsapp-btn"
                       onClick={handleOrderViaWhatsApp}
-                      className="wa-order-btn h-11 w-full rounded-full text-xs font-bold text-white active:scale-[0.99] flex items-center justify-center gap-2 transition-all duration-300"
+                      disabled={availableStock <= 0 || (productSizes.length > 0 && !canAddSelectedSizes)}
+                      className="wa-order-btn h-11 w-full rounded-full text-xs font-bold text-white active:scale-[0.99] flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         background: "linear-gradient(135deg, #25d366 0%, #128c50 100%)",
                         boxShadow: "0 4px 14px rgba(37,211,102,0.35)",

@@ -286,6 +286,31 @@ class OrderController extends Controller
         return response()->json(['success' => true, 'order' => $order]);
     }
 
+    public function reviewLink(int $id): JsonResponse
+    {
+        $order = DB::transaction(function () use ($id) {
+            $order = Order::whereKey($id)->lockForUpdate()->firstOrFail();
+            if ($order->status !== 'delivered') {
+                return null;
+            }
+
+            if (!$order->review_token) {
+                $order->review_token = Str::random(64);
+                $order->save();
+            }
+
+            return $order;
+        });
+
+        if (!$order) {
+            return response()->json(['message' => 'A review link is available only after the order is delivered.'], 422);
+        }
+
+        return response()->json([
+            'url' => route('order-review.show', ['token' => $order->review_token]),
+        ]);
+    }
+
     public function updatePaymentStatus(Request $request, int $id): JsonResponse
     {
         $request->validate([

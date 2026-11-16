@@ -61,6 +61,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/orders', [OrderController::class, 'store'])->name('orders.store');
     Route::patch('/orders/{id}', [OrderController::class, 'update'])->name('orders.update');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
+    Route::post('/orders/{id}/review-link', [OrderController::class, 'reviewLink'])->name('orders.review-link');
     Route::patch('/orders/{id}/payment', [OrderController::class, 'updatePaymentStatus'])->name('orders.payment');
     Route::post('/orders/{id}/tracking', [OrderController::class, 'addTracking'])->name('orders.tracking');
     Route::post('/orders/{id}/resend-email', [OrderController::class, 'resendEmail'])->name('orders.resend-email');
