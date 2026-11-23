@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { usePage } from "@inertiajs/react";
 import {
   Search,
@@ -163,6 +163,8 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
   const [searchQuery, setSearchQuery] = useState(filters.search ?? "");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isCopyingReviewLink, setIsCopyingReviewLink] = useState(false);
+  const [isUploadingSelectedReceipt, setIsUploadingSelectedReceipt] = useState(false);
+  const selectedReceiptInputRef = useRef(null);
   const [editOrderOpen, setEditOrderOpen] = useState(false);
   const [editOrderForm, setEditOrderForm] = useState({
     first_name: "",
@@ -326,6 +328,38 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
       toast.error(error.message || "Receipt upload failed.");
     } finally {
       setIsUploadingReceipt(false);
+      event.target.value = "";
+    }
+  };
+
+  const uploadSelectedOrderReceipt = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedOrder?._serverId) return;
+
+    setIsUploadingSelectedReceipt(true);
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    try {
+      const response = await fetch(`/admin/orders/${selectedOrder._serverId}/receipt`, {
+        method: "POST",
+        headers: { Accept: "application/json", "X-CSRF-TOKEN": csrfToken() },
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.message || "Receipt upload failed.");
+
+      setOrders((current) => current.map((order) => order.id === selectedOrder.id
+        ? { ...order, paymentReceiptUrl: result.url }
+        : order));
+      setSelectedOrder((current) => current?.id === selectedOrder.id
+        ? { ...current, paymentReceiptUrl: result.url }
+        : current);
+      toast.success("Payment receipt added to the order.");
+    } catch (error) {
+      toast.error(error.message || "Receipt upload failed.");
+    } finally {
+      setIsUploadingSelectedReceipt(false);
       event.target.value = "";
     }
   };
@@ -1027,8 +1061,8 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                         />
                       )}
                       <div>
-                        <p className="font-bold text-slate-900 text-xs">Bank Transfer Receipt Attached</p>
-                        <p className="text-[11px] text-slate-500">Uploaded by customer for verification</p>
+                        <p className="font-bold text-slate-900 text-xs">Payment Receipt Attached</p>
+                        <p className="text-[11px] text-slate-500">Attached to this order for verification</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1050,8 +1084,25 @@ export function AdminOrdersPage({ orders: serverOrders = { data: [], links: [] }
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-2 rounded-xl border border-dashed border-slate-200 p-3 text-center text-slate-400 text-xs">
-                    No payment receipt uploaded by customer.
+                  <div className="mt-2 flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 p-4 text-center">
+                    <p className="text-xs text-slate-400">No payment receipt uploaded.</p>
+                    <input
+                      ref={selectedReceiptInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      onChange={uploadSelectedOrderReceipt}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => selectedReceiptInputRef.current?.click()}
+                      disabled={isUploadingSelectedReceipt}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isUploadingSelectedReceipt ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                      {isUploadingSelectedReceipt ? "Uploading..." : "Add Receipt"}
+                    </button>
+                    <p className="text-[10px] text-slate-400">JPEG, PNG, WebP or PDF, up to 15 MB</p>
                   </div>
                 )}
               </div>

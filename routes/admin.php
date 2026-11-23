@@ -64,6 +64,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/orders/{id}/review-link', [OrderController::class, 'reviewLink'])->name('orders.review-link');
     Route::patch('/orders/{id}/payment', [OrderController::class, 'updatePaymentStatus'])->name('orders.payment');
     Route::post('/orders/{id}/tracking', [OrderController::class, 'addTracking'])->name('orders.tracking');
+    Route::post('/orders/{id}/receipt', [OrderController::class, 'uploadReceipt'])->name('orders.receipt');
     Route::post('/orders/{id}/resend-email', [OrderController::class, 'resendEmail'])->name('orders.resend-email');
     Route::get('/orders/{id}/packing-slip', [OrderController::class, 'packingSlip'])->name('orders.packing-slip');
     Route::post('/orders/{id}/notes', [OrderController::class, 'addNote'])->name('orders.notes');

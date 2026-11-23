@@ -13,7 +13,6 @@ use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AdminNotifier;
-use App\Services\ProductImageService;
 use App\Services\RecaptchaService;
 use App\Services\ShippingRateService;
 use Illuminate\Http\JsonResponse;
@@ -397,31 +396,18 @@ class CheckoutController extends Controller
             return response()->json(['success' => false, 'message' => 'No receipt file uploaded.'], 422);
         }
 
-        if (in_array($file->getMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) {
-            $originalSize = $file->getSize();
-            $url = ProductImageService::optimizeAsset($file, 'receipts');
-
-            return response()->json([
-                'success' => true,
-                'url' => $url,
-                'filename' => basename($url),
-                'size' => Storage::disk('public')->size(substr($url, strlen('/storage/'))),
-                'original_size' => $originalSize,
-            ]);
+        $originalSize = $file->getSize();
+        $path = Storage::disk('public')->putFile('receipts', $file);
+        if ($path === false) {
+            return response()->json(['success' => false, 'message' => 'The receipt could not be saved. Please try again.'], 500);
         }
-
-        $destinationPath = storage_path('app/public/receipts');
-        if (! file_exists($destinationPath)) {
-            mkdir($destinationPath, 0755, true);
-        }
-
-        $filename = 'receipt_'.time().'_'.Str::random(8).'.'.$file->extension();
-        $file->move($destinationPath, $filename);
 
         return response()->json([
             'success' => true,
-            'url' => "/storage/receipts/{$filename}",
-            'filename' => $filename,
+            'url' => Storage::disk('public')->url($path),
+            'filename' => basename($path),
+            'size' => Storage::disk('public')->size($path),
+            'original_size' => $originalSize,
         ]);
     }
 }

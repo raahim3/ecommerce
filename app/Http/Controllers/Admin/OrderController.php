@@ -19,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -308,6 +309,28 @@ class OrderController extends Controller
 
         return response()->json([
             'url' => route('order-review.show', ['token' => $order->review_token]),
+        ]);
+    }
+
+    public function uploadReceipt(Request $request, int $id): JsonResponse
+    {
+        $request->validate([
+            'receipt' => ['required', 'file', 'mimes:jpeg,png,jpg,webp,pdf', 'max:15360'],
+        ]);
+
+        $order = Order::findOrFail($id);
+        $path = Storage::disk('public')->putFile('receipts', $request->file('receipt'));
+        if ($path === false) {
+            return response()->json(['message' => 'The receipt could not be saved. Please try again.'], 500);
+        }
+
+        $order->payment_receipt_url = Storage::disk('public')->url($path);
+        $order->save();
+
+        return response()->json([
+            'success' => true,
+            'url' => $order->payment_receipt_url,
+            'filename' => basename($path),
         ]);
     }
 

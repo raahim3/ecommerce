@@ -25,6 +25,8 @@ import { ProductCard } from "@/components/site/product-card";
 import { QuickViewModal } from "@/components/site/quick-view-modal";
 import { SiteLayout } from "@/layouts/site-layout";
 
+const MIN_PRICE = 1000;
+const MAX_PRICE = 10000;
 
 export function ShopPage({ products: serverProducts, categories: serverCategories, filters: serverFilters }) {
   const storeName = usePage().props?.app_settings?.general?.storeName || "Store";
@@ -36,14 +38,6 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     if (Array.isArray(serverProducts) && serverProducts.length > 0) return serverProducts;
     return [];
   }, [serverProducts]);
-
-  // Compute dynamic max price from actual products (default 10000 if no products yet)
-  const dynamicMaxPrice = useMemo(() => {
-    if (sourceProducts.length === 0) return 10000;
-    const max = Math.max(...sourceProducts.map(p => parseFloat(p.price) || 0));
-    // Round up to nearest nice number
-    return Math.ceil(max / 1000) * 1000 || 10000;
-  }, [sourceProducts]);
 
   const sourceCategories = useMemo(() => {
     if (Array.isArray(serverCategories) && serverCategories.length > 0) {
@@ -72,7 +66,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedPricePreset, setSelectedPricePreset] = useState("all");
-  const [priceRange, setPriceRange] = useState([0, 10000000]); // Very large default — will be clamped by dynamicMaxPrice
+  const [priceRange, setPriceRange] = useState([MIN_PRICE, MAX_PRICE]);
   const [minRating, setMinRating] = useState(0);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlySale, setOnlySale] = useState(initialSale);
@@ -127,14 +121,12 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     setVisibleLimit(12);
   };
 
-  // Price preset handler — scales with dynamic max price
   const handlePricePreset = (preset) => {
     setSelectedPricePreset(preset);
-    const max = dynamicMaxPrice;
-    if (preset === "all") setPriceRange([0, 10000000]);
-    else if (preset === "under-100") setPriceRange([0, max * 0.2]);
-    else if (preset === "100-200") setPriceRange([max * 0.2, max * 0.5]);
-    else if (preset === "200-plus") setPriceRange([max * 0.5, 10000000]);
+    if (preset === "all") setPriceRange([MIN_PRICE, MAX_PRICE]);
+    else if (preset === "under-1500") setPriceRange([MIN_PRICE, 1500]);
+    else if (preset === "1500-3000") setPriceRange([1500, 3000]);
+    else if (preset === "3000-plus") setPriceRange([3000, MAX_PRICE]);
   };
 
   // Reset all filters
@@ -142,7 +134,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     setSearchQuery("");
     setSelectedCategory("All");
     setSelectedPricePreset("all");
-    setPriceRange([0, 10000000]);
+    setPriceRange([MIN_PRICE, MAX_PRICE]);
     setMinRating(0);
     setOnlyInStock(false);
     setOnlySale(false);
@@ -246,7 +238,7 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
     let count = 0;
     if (selectedCategory && selectedCategory !== "All" && selectedCategory !== "All Products" && selectedCategory !== "all") count++;
     if (searchQuery.trim()) count++;
-    if (selectedPricePreset !== "all" || priceRange[0] > 0 || priceRange[1] < 400) count++;
+    if (selectedPricePreset !== "all" || priceRange[0] > MIN_PRICE || priceRange[1] < MAX_PRICE) count++;
     if (minRating > 0) count++;
     if (onlyInStock) count++;
     if (onlySale) count++;
@@ -386,9 +378,9 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
             <div className="grid grid-cols-2 gap-1.5">
               {[
                 { id: "all", label: "All" },
-                { id: "under-100", label: `< ${formatPrice(100)}` },
-                { id: "100-200", label: `${formatPrice(100)}-${formatPrice(200)}` },
-                { id: "200-plus", label: `${formatPrice(200)}+` },
+                { id: "under-1500", label: `< ${formatPrice(1500)}` },
+                { id: "1500-3000", label: `${formatPrice(1500)}-${formatPrice(3000)}` },
+                { id: "3000-plus", label: `${formatPrice(3000)}+` },
               ].map((p) => (
                 <button
                   key={p.id}
@@ -413,9 +405,9 @@ export function ShopPage({ products: serverProducts, categories: serverCategorie
               </div>
               <input
                 type="range"
-                min="0"
-                max="400"
-                step="10"
+                min={MIN_PRICE}
+                max={MAX_PRICE}
+                step="100"
                 value={priceRange[1]}
                 onChange={(e) => {
                   setSelectedPricePreset("custom");
